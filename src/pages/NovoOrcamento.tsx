@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -16,7 +16,10 @@ import {
   Upload,
   RefreshCw,
   ExternalLink,
-  Download
+  Download,
+  CloudOff,
+  Cloud,
+  Loader2
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -42,6 +45,7 @@ import { RebocoForm, RebocoInput, calcularRebocoResultado } from '@/components/o
 import { AcabamentosForm, AcabamentosInput, calcularAcabamentosResultado } from '@/components/orcamento/AcabamentosForm';
 import { Link } from 'react-router-dom';
 import { exportarOrcamentoPDF } from '@/lib/pdf-export';
+import { useAutoSaveDraft } from '@/hooks/useAutoSaveDraft';
 
 interface ExtractedData {
   area_total_m2: number;
@@ -118,7 +122,56 @@ export default function NovoOrcamento() {
     demaosPintura: 2,
   });
 
-  // Handle extracted data from AI
+  // Draft data for auto-save
+  const draftData = useMemo(() => ({
+    projeto,
+    paredes,
+    radier,
+    lajes,
+    reboco,
+    acabamentos,
+    margens,
+    currentStep,
+  }), [projeto, paredes, radier, lajes, reboco, acabamentos, margens, currentStep]);
+
+  // Auto-save hook
+  const { 
+    isSaving: isAutoSaving, 
+    lastSaved, 
+    loadDraftData, 
+    finalizeDraft,
+    discardDraft,
+  } = useAutoSaveDraft({
+    userId: user?.id,
+    draftData,
+    debounceMs: 3000,
+  });
+
+  // Load existing draft on mount
+  useEffect(() => {
+    const loadExistingDraft = async () => {
+      const savedDraft = await loadDraftData();
+      if (savedDraft) {
+        // Restore state from draft
+        if (savedDraft.projeto) setProjeto(savedDraft.projeto);
+        if (savedDraft.paredes) setParedes(savedDraft.paredes);
+        if (savedDraft.radier) setRadier(savedDraft.radier);
+        if (savedDraft.lajes) setLajes(savedDraft.lajes);
+        if (savedDraft.reboco) setReboco(savedDraft.reboco);
+        if (savedDraft.acabamentos) setAcabamentos(savedDraft.acabamentos);
+        if (savedDraft.margens) setMargens(savedDraft.margens);
+        if (savedDraft.currentStep !== undefined) setCurrentStep(savedDraft.currentStep);
+        
+        toast({
+          title: 'Rascunho restaurado',
+          description: 'Continuando de onde você parou.',
+        });
+      }
+    };
+    
+    loadExistingDraft();
+  }, []);
+
   const handleDataExtracted = (data: ExtractedData) => {
     setExtractedData(data);
     setShowReview(true);
@@ -213,6 +266,16 @@ export default function NovoOrcamento() {
 
     setSaving(true);
     try {
+      // Try to finalize existing draft first
+      const finalized = await finalizeDraft(consolidado.totalVenda);
+      
+      if (finalized) {
+        toast({ title: 'Orçamento salvo com sucesso!' });
+        navigate('/orcamentos');
+        return;
+      }
+
+      // Fallback: create new if no draft exists
       const { data, error } = await supabase
         .from('orcamentos')
         .insert({
@@ -238,6 +301,30 @@ export default function NovoOrcamento() {
     }
   };
 
+  const handleDiscardDraft = async () => {
+    await discardDraft();
+    // Reset all state
+    setProjeto({
+      cliente: '',
+      codigo: `ORC-${Date.now()}`,
+      projeto: '',
+      areaTotal: 0,
+      peDireito: 2.80,
+      perimetroExterno: 0,
+      paredesInternas: 0,
+      aberturas: 0,
+    });
+    setParedes({ areaLiquidaM2: 0, tipoForma: '18' });
+    setRadier({ areaM2: 0, espessuraCm: 10, tipoFibra: 'aco' });
+    setLajes([{ id: 'laje-1', nome: 'Laje principal', areaM2: 0, espessuraM: 0.12 }]);
+    setReboco({ areaInternaM2: 0, areaExternaM2: 0 });
+    setAcabamentos({ areaPiso: 0, tipoPiso: 'ceramico', areaPintura: 0, demaosPintura: 2 });
+    setMargens(DEFAULT_MARGENS);
+    setCurrentStep(0);
+    
+    toast({ title: 'Rascunho descartado', description: 'Iniciando novo orçamento.' });
+  };
+
   const nextStep = () => setCurrentStep(Math.min(steps.length - 1, currentStep + 1));
   const prevStep = () => setCurrentStep(Math.max(0, currentStep - 1));
 
@@ -246,10 +333,43 @@ export default function NovoOrcamento() {
       <div className="animate-fade-in max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <Button variant="ghost" onClick={() => navigate('/orcamentos')} className="mb-4">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Voltar
-          </Button>
+          <div className="flex items-center justify-between mb-4">
+            <Button variant="ghost" onClick={() => navigate('/orcamentos')}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Voltar
+            </Button>
+            
+            {/* Auto-save status */}
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              {isAutoSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Salvando...</span>
+                </>
+              ) : lastSaved ? (
+                <>
+                  <Cloud className="w-4 h-4 text-primary" />
+                  <span>Salvo às {lastSaved.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                </>
+              ) : projeto.cliente ? (
+                <>
+                  <CloudOff className="w-4 h-4" />
+                  <span>Não salvo</span>
+                </>
+              ) : null}
+              
+              {lastSaved && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleDiscardDraft}
+                  className="text-destructive hover:text-destructive"
+                >
+                  Descartar rascunho
+                </Button>
+              )}
+            </div>
+          </div>
           <h1 className="text-2xl font-bold text-foreground">Novo Orçamento ICF</h1>
         </div>
 

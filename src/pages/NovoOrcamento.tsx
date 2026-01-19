@@ -36,7 +36,8 @@ import {
 } from '@/lib/orcamento-calculos';
 import { PdfUpload } from '@/components/orcamento/PdfUpload';
 import { ReviewExtraction } from '@/components/orcamento/ReviewExtraction';
-import { LajeForm, LajeItem, ResultadoLajeCalculado, calcularLajeResultado } from '@/components/orcamento/LajeForm';
+import { LajeForm, LajeItem, calcularLajeResultado } from '@/components/orcamento/LajeForm';
+import { RebocoForm, RebocoInput, calcularRebocoResultado } from '@/components/orcamento/RebocoForm';
 import { Link } from 'react-router-dom';
 
 interface ExtractedData {
@@ -101,6 +102,11 @@ export default function NovoOrcamento() {
   const [lajes, setLajes] = useState<LajeItem[]>([
     { id: 'laje-1', nome: 'Laje principal', areaM2: 0, espessuraM: 0.12 }
   ]);
+
+  const [reboco, setReboco] = useState<RebocoInput>({
+    areaInternaM2: 0,
+    areaExternaM2: 0,
+  });
 
   // Handle extracted data from AI
   const handleDataExtracted = (data: ExtractedData) => {
@@ -169,8 +175,17 @@ export default function NovoOrcamento() {
     precoPorM2: resultadoLajeCalc.areaTotalM2 > 0 ? resultadoLajeCalc.custoTotal / resultadoLajeCalc.areaTotalM2 : 0,
   } : null;
 
+  // Calculate reboco
+  const resultadoRebocoCalc = calcularRebocoResultado(reboco, precos);
+  const resultadoReboco = resultadoRebocoCalc.areaTotal > 0 ? resultadoRebocoCalc : null;
+
   const consolidado = consolidarOrcamento(
-    { paredes: resultadoParedes || undefined, radier: resultadoRadier || undefined, laje: resultadoLaje || undefined },
+    { 
+      paredes: resultadoParedes || undefined, 
+      radier: resultadoRadier || undefined, 
+      laje: resultadoLaje || undefined,
+      reboco: resultadoReboco || undefined,
+    },
     margens,
     projeto.areaTotal || radier.areaM2
   );
@@ -411,10 +426,11 @@ export default function NovoOrcamento() {
           {currentStep === 7 && (
             <div className="space-y-6">
               <h2 className="text-lg font-semibold">Relatório Consolidado</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoParedes)}</div><div className="kpi-label">Paredes</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoRadier)}</div><div className="kpi-label">Radier</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoLaje)}</div><div className="kpi-label">Laje</div></div>
+                <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoReboco)}</div><div className="kpi-label">Reboco</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatNumber(resultadoLajeCalc.volumeTotalM3, 2)} m³</div><div className="kpi-label">Volume Laje</div></div>
               </div>
               <div className="bg-primary/10 rounded-xl p-6 mt-4">
@@ -442,8 +458,18 @@ export default function NovoOrcamento() {
             />
           )}
 
-          {/* Skip steps 4-5 for brevity - show placeholder */}
-          {[4, 5].includes(currentStep) && (
+          {/* Step 4: Reboco */}
+          {currentStep === 4 && (
+            <RebocoForm
+              reboco={reboco}
+              onRebocoChange={setReboco}
+              precos={precos}
+              resultado={resultadoRebocoCalc}
+            />
+          )}
+
+          {/* Skip step 5 for brevity - show placeholder */}
+          {currentStep === 5 && (
             <div className="text-center py-8 text-muted-foreground">
               <p>Etapa {steps[currentStep].label} - Configure conforme necessário</p>
             </div>

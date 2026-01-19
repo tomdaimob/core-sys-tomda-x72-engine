@@ -36,6 +36,7 @@ import {
 } from '@/lib/orcamento-calculos';
 import { PdfUpload } from '@/components/orcamento/PdfUpload';
 import { ReviewExtraction } from '@/components/orcamento/ReviewExtraction';
+import { LajeForm, LajeItem, ResultadoLajeCalculado, calcularLajeResultado } from '@/components/orcamento/LajeForm';
 import { Link } from 'react-router-dom';
 
 interface ExtractedData {
@@ -97,9 +98,9 @@ export default function NovoOrcamento() {
     tipoFibra: 'aco' as 'aco' | 'pp',
   });
 
-  const [laje, setLaje] = useState({
-    linhas: [{ descricao: 'Laje principal', areaM2: 0, espessuraCm: 12 }],
-  });
+  const [lajes, setLajes] = useState<LajeItem[]>([
+    { id: 'laje-1', nome: 'Laje principal', areaM2: 0, espessuraM: 0.12 }
+  ]);
 
   // Handle extracted data from AI
   const handleDataExtracted = (data: ExtractedData) => {
@@ -149,9 +150,24 @@ export default function NovoOrcamento() {
     ? calcularRadier(radier, precos)
     : null;
 
-  const resultadoLaje = laje.linhas.some(l => l.areaM2 > 0)
-    ? calcularLaje(laje, precos)
-    : null;
+  // Calculate laje using new component function
+  const resultadoLajeCalc = calcularLajeResultado(lajes, precos);
+  
+  // Map to the expected format for consolidado
+  const resultadoLaje = resultadoLajeCalc.areaTotalM2 > 0 ? {
+    linhas: lajes.filter(l => l.areaM2 > 0).map(l => ({
+      descricao: l.nome,
+      areaM2: l.areaM2,
+      volumeM3: l.areaM2 * l.espessuraM,
+      custoConcreto: l.areaM2 * l.espessuraM * precos.concretoM3,
+      custoMaoObra: l.areaM2 * precos.maoObraLaje,
+      custoTotal: (l.areaM2 * l.espessuraM * precos.concretoM3) + (l.areaM2 * precos.maoObraLaje),
+    })),
+    areaTotalM2: resultadoLajeCalc.areaTotalM2,
+    volumeTotalM3: resultadoLajeCalc.volumeTotalM3,
+    custoTotal: resultadoLajeCalc.custoTotal,
+    precoPorM2: resultadoLajeCalc.areaTotalM2 > 0 ? resultadoLajeCalc.custoTotal / resultadoLajeCalc.areaTotalM2 : 0,
+  } : null;
 
   const consolidado = consolidarOrcamento(
     { paredes: resultadoParedes || undefined, radier: resultadoRadier || undefined, laje: resultadoLaje || undefined },
@@ -395,10 +411,11 @@ export default function NovoOrcamento() {
           {currentStep === 7 && (
             <div className="space-y-6">
               <h2 className="text-lg font-semibold">Relatório Consolidado</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoParedes)}</div><div className="kpi-label">Paredes</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoRadier)}</div><div className="kpi-label">Radier</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoLaje)}</div><div className="kpi-label">Laje</div></div>
+                <div className="kpi-card"><div className="kpi-value">{formatNumber(resultadoLajeCalc.volumeTotalM3, 2)} m³</div><div className="kpi-label">Volume Laje</div></div>
               </div>
               <div className="bg-primary/10 rounded-xl p-6 mt-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -415,8 +432,18 @@ export default function NovoOrcamento() {
             </div>
           )}
 
-          {/* Skip steps 3-5 for brevity - show placeholder */}
-          {[3, 4, 5].includes(currentStep) && (
+          {/* Step 3: Laje */}
+          {currentStep === 3 && (
+            <LajeForm
+              lajes={lajes}
+              onLajesChange={setLajes}
+              precos={precos}
+              resultado={resultadoLajeCalc}
+            />
+          )}
+
+          {/* Skip steps 4-5 for brevity - show placeholder */}
+          {[4, 5].includes(currentStep) && (
             <div className="text-center py-8 text-muted-foreground">
               <p>Etapa {steps[currentStep].label} - Configure conforme necessário</p>
             </div>

@@ -12,7 +12,8 @@ import {
   Sparkles, 
   Percent, 
   FileText,
-  Save
+  Save,
+  Upload
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,18 @@ import {
   formatCurrency,
   formatNumber
 } from '@/lib/orcamento-calculos';
+import { PdfUpload } from '@/components/orcamento/PdfUpload';
+import { ReviewExtraction } from '@/components/orcamento/ReviewExtraction';
+
+interface ExtractedData {
+  area_total_m2: number;
+  pe_direito_m: number;
+  perimetro_externo_m: number;
+  paredes_internas_m: number;
+  aberturas_m2: number;
+  confianca: number;
+  observacoes: string;
+}
 
 const steps = [
   { id: 'precos', label: 'Preços', icon: DollarSign },
@@ -48,6 +61,8 @@ export default function NovoOrcamento() {
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
+  const [showReview, setShowReview] = useState(false);
 
   // Form state
   const [projeto, setProjeto] = useState({
@@ -55,6 +70,10 @@ export default function NovoOrcamento() {
     codigo: `ORC-${Date.now()}`,
     projeto: '',
     areaTotal: 0,
+    peDireito: 2.80,
+    perimetroExterno: 0,
+    paredesInternas: 0,
+    aberturas: 0,
   });
 
   const [precos, setPrecos] = useState<Precos>(DEFAULT_PRECOS);
@@ -74,6 +93,45 @@ export default function NovoOrcamento() {
   const [laje, setLaje] = useState({
     linhas: [{ descricao: 'Laje principal', areaM2: 0, espessuraCm: 12 }],
   });
+
+  // Handle extracted data from AI
+  const handleDataExtracted = (data: ExtractedData) => {
+    setExtractedData(data);
+    setShowReview(true);
+  };
+
+  const handleConfirmExtraction = (data: ExtractedData) => {
+    // Calculate area líquida de paredes
+    const areaParedes = (data.perimetro_externo_m + data.paredes_internas_m) * data.pe_direito_m - data.aberturas_m2;
+    
+    // Update project data
+    setProjeto({
+      ...projeto,
+      areaTotal: data.area_total_m2,
+      peDireito: data.pe_direito_m,
+      perimetroExterno: data.perimetro_externo_m,
+      paredesInternas: data.paredes_internas_m,
+      aberturas: data.aberturas_m2,
+    });
+    
+    // Update paredes
+    setParedes({
+      ...paredes,
+      areaLiquidaM2: areaParedes,
+    });
+    
+    // Update radier with area
+    setRadier({
+      ...radier,
+      areaM2: data.area_total_m2,
+    });
+    
+    setShowReview(false);
+    toast({
+      title: 'Dados aplicados!',
+      description: 'Os campos foram preenchidos automaticamente.',
+    });
+  };
 
   // Calculate results
   const resultadoParedes = paredes.areaLiquidaM2 > 0 
@@ -160,9 +218,26 @@ export default function NovoOrcamento() {
 
         {/* Content */}
         <div className="card-elevated p-6 mb-6">
-          {currentStep === 0 && (
+{currentStep === 0 && (
             <div className="space-y-6">
-              <h2 className="text-lg font-semibold">Dados do Projeto e Preços</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Dados do Projeto e Preços</h2>
+              </div>
+              
+              {/* PDF Upload Section */}
+              <div className="bg-accent/30 rounded-xl p-6 border border-accent">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Upload className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-foreground">Upload de Planta (PDF)</h3>
+                    <p className="text-sm text-muted-foreground">Extraia dados automaticamente com IA</p>
+                  </div>
+                </div>
+                <PdfUpload onDataExtracted={handleDataExtracted} />
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="input-group">
                   <Label className="input-label">Cliente *</Label>
@@ -176,7 +251,12 @@ export default function NovoOrcamento() {
                   <Label className="input-label">Área Total (m²)</Label>
                   <Input type="number" value={projeto.areaTotal || ''} onChange={(e) => setProjeto({...projeto, areaTotal: parseFloat(e.target.value) || 0})} />
                 </div>
+                <div className="input-group">
+                  <Label className="input-label">Pé-Direito (m)</Label>
+                  <Input type="number" step="0.1" value={projeto.peDireito || ''} onChange={(e) => setProjeto({...projeto, peDireito: parseFloat(e.target.value) || 0})} />
+                </div>
               </div>
+              
               <h3 className="text-md font-medium mt-6">Preços Unitários</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="input-group">
@@ -324,6 +404,15 @@ export default function NovoOrcamento() {
           )}
         </div>
       </div>
+
+      {/* Review Modal */}
+      {showReview && extractedData && (
+        <ReviewExtraction
+          data={extractedData}
+          onConfirm={handleConfirmExtraction}
+          onCancel={() => setShowReview(false)}
+        />
+      )}
     </MainLayout>
   );
 }

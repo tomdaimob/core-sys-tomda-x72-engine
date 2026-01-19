@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -13,7 +13,9 @@ import {
   Percent, 
   FileText,
   Save,
-  Upload
+  Upload,
+  RefreshCw,
+  ExternalLink
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -22,7 +24,8 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { DEFAULT_PRECOS, DEFAULT_MARGENS, Precos, Margens } from '@/lib/orcamento-types';
+import { DEFAULT_MARGENS, Margens } from '@/lib/orcamento-types';
+import { usePriceCatalog } from '@/hooks/usePriceCatalog';
 import { 
   calcularParedes, 
   calcularRadier, 
@@ -33,6 +36,7 @@ import {
 } from '@/lib/orcamento-calculos';
 import { PdfUpload } from '@/components/orcamento/PdfUpload';
 import { ReviewExtraction } from '@/components/orcamento/ReviewExtraction';
+import { Link } from 'react-router-dom';
 
 interface ExtractedData {
   area_total_m2: number;
@@ -45,7 +49,7 @@ interface ExtractedData {
 }
 
 const steps = [
-  { id: 'precos', label: 'Preços', icon: DollarSign },
+  { id: 'projeto', label: 'Projeto', icon: DollarSign },
   { id: 'paredes', label: 'Paredes', icon: Layers },
   { id: 'radier', label: 'Radier', icon: Square },
   { id: 'laje', label: 'Laje', icon: Grid3X3 },
@@ -64,6 +68,10 @@ export default function NovoOrcamento() {
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const [showReview, setShowReview] = useState(false);
 
+  // Fetch prices from global catalog
+  const { items: catalogItems, isLoading: loadingPrecos, mapCatalogToPrecos } = usePriceCatalog();
+  const precos = mapCatalogToPrecos();
+
   // Form state
   const [projeto, setProjeto] = useState({
     cliente: '',
@@ -76,7 +84,6 @@ export default function NovoOrcamento() {
     aberturas: 0,
   });
 
-  const [precos, setPrecos] = useState<Precos>(DEFAULT_PRECOS);
   const [margens, setMargens] = useState<Margens>(DEFAULT_MARGENS);
 
   const [paredes, setParedes] = useState({
@@ -257,20 +264,48 @@ export default function NovoOrcamento() {
                 </div>
               </div>
               
-              <h3 className="text-md font-medium mt-6">Preços Unitários</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="input-group">
-                  <Label className="input-label">Forma ICF 18cm (R$)</Label>
-                  <Input type="number" value={precos.formaIcf18} onChange={(e) => setPrecos({...precos, formaIcf18: parseFloat(e.target.value) || 0})} />
+              {/* Global Prices Info */}
+              <div className="bg-primary/5 rounded-xl p-4 border border-primary/20">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-md font-medium flex items-center gap-2">
+                    <DollarSign className="w-4 h-4 text-primary" />
+                    Preços do Catálogo Global
+                  </h3>
+                  <Link to="/precos">
+                    <Button variant="ghost" size="sm" className="text-primary">
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      Gerenciar Preços
+                    </Button>
+                  </Link>
                 </div>
-                <div className="input-group">
-                  <Label className="input-label">Concreto/m³ (R$)</Label>
-                  <Input type="number" value={precos.concretoM3} onChange={(e) => setPrecos({...precos, concretoM3: parseFloat(e.target.value) || 0})} />
-                </div>
-                <div className="input-group">
-                  <Label className="input-label">M.O. Parede/m² (R$)</Label>
-                  <Input type="number" value={precos.maoObraParede} onChange={(e) => setPrecos({...precos, maoObraParede: parseFloat(e.target.value) || 0})} />
-                </div>
+                {loadingPrecos ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Carregando preços...
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div className="flex justify-between p-2 bg-background rounded-lg">
+                      <span className="text-muted-foreground">Forma ICF 18cm:</span>
+                      <span className="font-medium">{formatCurrency(precos.formaIcf18)}</span>
+                    </div>
+                    <div className="flex justify-between p-2 bg-background rounded-lg">
+                      <span className="text-muted-foreground">Forma ICF 12cm:</span>
+                      <span className="font-medium">{formatCurrency(precos.formaIcf12)}</span>
+                    </div>
+                    <div className="flex justify-between p-2 bg-background rounded-lg">
+                      <span className="text-muted-foreground">Concreto/m³:</span>
+                      <span className="font-medium">{formatCurrency(precos.concretoM3)}</span>
+                    </div>
+                    <div className="flex justify-between p-2 bg-background rounded-lg">
+                      <span className="text-muted-foreground">M.O. Parede/m²:</span>
+                      <span className="font-medium">{formatCurrency(precos.maoObraParede)}</span>
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground mt-2">
+                  Os preços são carregados automaticamente do catálogo da empresa.
+                </p>
               </div>
             </div>
           )}

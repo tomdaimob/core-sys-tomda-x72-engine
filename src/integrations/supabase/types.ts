@@ -1,0 +1,406 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
+  public: {
+    Tables: {
+      arquivos: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string
+          orcamento_id: string
+          storage_path: string
+          tamanho_bytes: number | null
+          tipo: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nome: string
+          orcamento_id: string
+          storage_path: string
+          tamanho_bytes?: number | null
+          tipo: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string
+          orcamento_id?: string
+          storage_path?: string
+          tamanho_bytes?: number | null
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "arquivos_orcamento_id_fkey"
+            columns: ["orcamento_id"]
+            isOneToOne: false
+            referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ia_extracoes: {
+        Row: {
+          aberturas_m2: number | null
+          area_total_m2: number | null
+          arquivo_id: string
+          confianca: number | null
+          created_at: string
+          dados_brutos: Json | null
+          id: string
+          observacoes: string | null
+          orcamento_id: string
+          paredes_internas_m: number | null
+          pe_direito_m: number | null
+          perimetro_externo_m: number | null
+          status: string | null
+        }
+        Insert: {
+          aberturas_m2?: number | null
+          area_total_m2?: number | null
+          arquivo_id: string
+          confianca?: number | null
+          created_at?: string
+          dados_brutos?: Json | null
+          id?: string
+          observacoes?: string | null
+          orcamento_id: string
+          paredes_internas_m?: number | null
+          pe_direito_m?: number | null
+          perimetro_externo_m?: number | null
+          status?: string | null
+        }
+        Update: {
+          aberturas_m2?: number | null
+          area_total_m2?: number | null
+          arquivo_id?: string
+          confianca?: number | null
+          created_at?: string
+          dados_brutos?: Json | null
+          id?: string
+          observacoes?: string | null
+          orcamento_id?: string
+          paredes_internas_m?: number | null
+          pe_direito_m?: number | null
+          perimetro_externo_m?: number | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ia_extracoes_arquivo_id_fkey"
+            columns: ["arquivo_id"]
+            isOneToOne: false
+            referencedRelation: "arquivos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ia_extracoes_orcamento_id_fkey"
+            columns: ["orcamento_id"]
+            isOneToOne: false
+            referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orcamento_inputs: {
+        Row: {
+          created_at: string
+          dados: Json
+          etapa: string
+          id: string
+          orcamento_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dados?: Json
+          etapa: string
+          id?: string
+          orcamento_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dados?: Json
+          etapa?: string
+          id?: string
+          orcamento_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orcamento_inputs_orcamento_id_fkey"
+            columns: ["orcamento_id"]
+            isOneToOne: false
+            referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orcamento_resultados: {
+        Row: {
+          acabamentos: Json | null
+          consolidado: Json | null
+          created_at: string
+          id: string
+          laje: Json | null
+          orcamento_id: string
+          paredes: Json | null
+          radier: Json | null
+          reboco: Json | null
+          updated_at: string
+        }
+        Insert: {
+          acabamentos?: Json | null
+          consolidado?: Json | null
+          created_at?: string
+          id?: string
+          laje?: Json | null
+          orcamento_id: string
+          paredes?: Json | null
+          radier?: Json | null
+          reboco?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          acabamentos?: Json | null
+          consolidado?: Json | null
+          created_at?: string
+          id?: string
+          laje?: Json | null
+          orcamento_id?: string
+          paredes?: Json | null
+          radier?: Json | null
+          reboco?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orcamento_resultados_orcamento_id_fkey"
+            columns: ["orcamento_id"]
+            isOneToOne: true
+            referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orcamentos: {
+        Row: {
+          area_total_m2: number | null
+          cliente: string
+          codigo: string
+          created_at: string
+          id: string
+          projeto: string | null
+          status: string | null
+          updated_at: string
+          user_id: string
+          valor_total: number | null
+        }
+        Insert: {
+          area_total_m2?: number | null
+          cliente: string
+          codigo: string
+          created_at?: string
+          id?: string
+          projeto?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id: string
+          valor_total?: number | null
+        }
+        Update: {
+          area_total_m2?: number | null
+          cliente?: string
+          codigo?: string
+          created_at?: string
+          id?: string
+          projeto?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id?: string
+          valor_total?: number | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          company: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          is_admin: boolean | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          is_admin?: boolean | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          is_admin?: boolean | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const

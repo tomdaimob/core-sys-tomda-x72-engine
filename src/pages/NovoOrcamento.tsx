@@ -15,7 +15,8 @@ import {
   Save,
   Upload,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  Download
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,7 @@ import { LajeForm, LajeItem, calcularLajeResultado } from '@/components/orcament
 import { RebocoForm, RebocoInput, calcularRebocoResultado } from '@/components/orcamento/RebocoForm';
 import { AcabamentosForm, AcabamentosInput, calcularAcabamentosResultado } from '@/components/orcamento/AcabamentosForm';
 import { Link } from 'react-router-dom';
+import { exportarOrcamentoPDF } from '@/lib/pdf-export';
 
 interface ExtractedData {
   area_total_m2: number;
@@ -438,7 +440,26 @@ export default function NovoOrcamento() {
 
           {currentStep === 7 && (
             <div className="space-y-6">
-              <h2 className="text-lg font-semibold">Relatório Consolidado</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Relatório Consolidado</h2>
+                <Button 
+                  variant="outline" 
+                  onClick={() => exportarOrcamentoPDF({
+                    projeto,
+                    consolidado,
+                    resultadoParedes,
+                    resultadoRadier,
+                    resultadoLaje: resultadoLajeCalc,
+                    resultadoReboco: resultadoRebocoCalc,
+                    resultadoAcabamentos: resultadoAcabamentosCalc,
+                    margens,
+                  })}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Exportar PDF
+                </Button>
+              </div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoParedes)}</div><div className="kpi-label">Paredes</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoRadier)}</div><div className="kpi-label">Radier</div></div>

@@ -236,6 +236,39 @@ export type Database = {
         }
         Relationships: []
       }
+      price_catalog: {
+        Row: {
+          ativo: boolean
+          categoria: string
+          id: string
+          nome: string
+          preco: number
+          unidade: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          categoria: string
+          id?: string
+          nome: string
+          preco?: number
+          unidade: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          categoria?: string
+          id?: string
+          nome?: string
+          preco?: number
+          unidade?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           company: string | null

@@ -5,7 +5,8 @@ import {
   Plus, 
   Settings, 
   LogOut,
-  Building2
+  Building2,
+  DollarSign
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -14,6 +15,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: FileText, label: 'Orçamentos', path: '/orcamentos' },
   { icon: Plus, label: 'Novo Orçamento', path: '/orcamentos/novo' },
+  { icon: DollarSign, label: 'Preços', path: '/precos' },
   { icon: Settings, label: 'Configurações', path: '/configuracoes' },
 ];
 

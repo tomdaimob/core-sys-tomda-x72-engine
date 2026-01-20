@@ -79,8 +79,10 @@ export default function NovoOrcamento() {
   const [showReview, setShowReview] = useState(false);
 
   // Fetch prices from global catalog
-  const { items: catalogItems, isLoading: loadingPrecos, mapCatalogToPrecos } = usePriceCatalog();
+  const { items: catalogItems, isLoading: loadingPrecos, mapCatalogToPrecos, getIcflexPrice, getRebocoMaoObraPrice } = usePriceCatalog();
   const precos = mapCatalogToPrecos();
+  const precoIcflexM2 = getIcflexPrice();
+  const precoMaoObraRebocoM2 = getRebocoMaoObraPrice();
 
   // Form state
   const [projeto, setProjeto] = useState({
@@ -116,8 +118,10 @@ export default function NovoOrcamento() {
   ]);
 
   const [reboco, setReboco] = useState<RebocoInput>({
-    areaInternaM2: 0,
-    areaExternaM2: 0,
+    aplicarInterno: true,
+    aplicarExterno: true,
+    perdaPercentual: 10,
+    espessuraMedia: 3,
   });
 
   const [acabamentos, setAcabamentos] = useState<AcabamentosInput>({
@@ -245,8 +249,8 @@ export default function NovoOrcamento() {
     precoPorM2: resultadoLajeCalc.areaTotalM2 > 0 ? resultadoLajeCalc.custoTotal / resultadoLajeCalc.areaTotalM2 : 0,
   } : null;
 
-  // Calculate reboco
-  const resultadoRebocoCalc = calcularRebocoResultado(reboco, precos);
+  // Calculate reboco - using paredes result
+  const resultadoRebocoCalc = calcularRebocoResultado(reboco, resultadoParedesCalc, precoIcflexM2, precoMaoObraRebocoM2);
   const resultadoReboco = resultadoRebocoCalc.areaTotal > 0 ? resultadoRebocoCalc : null;
 
   // Calculate acabamentos
@@ -331,7 +335,7 @@ export default function NovoOrcamento() {
     });
     setRadier({ areaM2: 0, espessuraCm: 10, tipoFibra: 'aco' });
     setLajes([{ id: 'laje-1', nome: 'Laje principal', areaM2: 0, espessuraM: 0.12 }]);
-    setReboco({ areaInternaM2: 0, areaExternaM2: 0 });
+    setReboco({ aplicarInterno: true, aplicarExterno: true, perdaPercentual: 10, espessuraMedia: 3 });
     setAcabamentos({ areaPiso: 0, tipoPiso: 'ceramico', areaPintura: 0, demaosPintura: 2 });
     setMargens(DEFAULT_MARGENS);
     setCurrentStep(0);
@@ -613,6 +617,9 @@ export default function NovoOrcamento() {
               onRebocoChange={setReboco}
               precos={precos}
               resultado={resultadoRebocoCalc}
+              resultadoParedes={resultadoParedesCalc}
+              precoIcflexM2={precoIcflexM2}
+              precoMaoObraRebocoM2={precoMaoObraRebocoM2}
             />
           )}
 

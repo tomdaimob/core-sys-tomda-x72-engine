@@ -59,11 +59,17 @@ interface ResultadoLaje {
 }
 
 interface ResultadoReboco {
+  areaInternaM2?: number;
+  areaExternaM2?: number;
   areaTotal?: number;
-  quantidadeSacos?: number;
-  custoMaterial?: number;
+  areaComPerda?: number;
+  perdaPercentual?: number;
+  custoIcflex?: number;
   custoMaoObra?: number;
   custoTotal?: number;
+  // Legacy
+  quantidadeSacos?: number;
+  custoMaterial?: number;
 }
 
 interface ResultadoAcabamentos {
@@ -206,13 +212,15 @@ export function exportarOrcamentoPDF(data: PDFExportData): void {
     );
   }
 
-  // Reboco
+  // Reboco (ICFLEX)
   if (resultadoReboco && (resultadoReboco.custoTotal || 0) > 0) {
     detalhesBody.push(
-      ['REBOCO', '', '', ''],
+      ['REBOCO (ICFLEX)', '', '', ''],
+      ['  Área Interna', `${formatNumber(resultadoReboco.areaInternaM2 || 0)} m²`, '', ''],
+      ['  Área Externa', `${formatNumber(resultadoReboco.areaExternaM2 || 0)} m²`, '', ''],
       ['  Área Total', `${formatNumber(resultadoReboco.areaTotal || 0)} m²`, '', ''],
-      ['  Qtd. Sacos Argamassa', `${resultadoReboco.quantidadeSacos || 0} sacos`, '', ''],
-      ['  Custo Material', '', formatCurrency(resultadoReboco.custoMaterial || 0), ''],
+      ['  Área c/ Perda', `${formatNumber(resultadoReboco.areaComPerda || 0)} m² (+${resultadoReboco.perdaPercentual || 10}%)`, '', ''],
+      ['  Custo ICFLEX', '', formatCurrency(resultadoReboco.custoIcflex || resultadoReboco.custoMaterial || 0), ''],
       ['  Custo Mão de Obra', '', formatCurrency(resultadoReboco.custoMaoObra || 0), ''],
       ['  Subtotal Reboco', '', '', formatCurrency(resultadoReboco.custoTotal || 0)],
     );

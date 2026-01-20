@@ -40,6 +40,26 @@ export function mapCatalogToPrecos(items: PriceCatalogItem[]): Precos {
   };
 }
 
+// Get specific ICFLEX price from catalog
+export function getIcflexPrice(items: PriceCatalogItem[]): number {
+  const item = items.find(i => 
+    (i.nome.toLowerCase().includes('icflex') || 
+     (i.nome.toLowerCase().includes('reboco') && i.categoria.toLowerCase() === 'reboco')) && 
+    i.ativo
+  );
+  return item?.preco ?? 45.00; // Default ICFLEX price
+}
+
+// Get reboco labor price
+export function getRebocoMaoObraPrice(items: PriceCatalogItem[]): number {
+  const item = items.find(i => 
+    i.nome.toLowerCase().includes('reboco') && 
+    i.categoria.toLowerCase() === 'mão de obra' && 
+    i.ativo
+  );
+  return item?.preco ?? 28.00; // Default reboco labor price
+}
+
 export function usePriceCatalog() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -204,5 +224,7 @@ export function usePriceCatalog() {
     bulkUpdatePrices,
     restoreDefaults,
     mapCatalogToPrecos: () => mapCatalogToPrecos(items),
+    getIcflexPrice: () => getIcflexPrice(items),
+    getRebocoMaoObraPrice: () => getRebocoMaoObraPrice(items),
   };
 }

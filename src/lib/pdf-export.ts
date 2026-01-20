@@ -2,6 +2,9 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { formatCurrency, formatNumber } from './orcamento-calculos';
 
+// Re-export proposta comercial for convenience
+export { exportarPropostaComercialPDF } from './pdf-proposta-comercial';
+
 interface ProjetoData {
   cliente: string;
   codigo: string;

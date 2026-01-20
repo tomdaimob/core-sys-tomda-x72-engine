@@ -97,7 +97,7 @@ export type Database = {
           {
             foreignKeyName: "approval_requests_orcamento_id_fkey"
             columns: ["orcamento_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "orcamentos"
             referencedColumns: ["id"]
           },

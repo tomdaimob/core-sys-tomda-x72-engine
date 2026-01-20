@@ -81,7 +81,6 @@ export default function NovoOrcamento() {
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const [showReview, setShowReview] = useState(false);
   const [approvalStatus, setApprovalStatus] = useState<'PENDENTE' | 'APROVADA' | 'NEGADA' | null>(null);
-  const [draftOrcamentoId, setDraftOrcamentoId] = useState<string | undefined>(undefined);
 
   // Fetch prices from global catalog
   const { 
@@ -168,6 +167,7 @@ export default function NovoOrcamento() {
 
   // Auto-save hook
   const { 
+    orcamentoId: draftOrcamentoId,
     isSaving: isAutoSaving, 
     lastSaved, 
     saveError,
@@ -176,6 +176,7 @@ export default function NovoOrcamento() {
     finalizeDraft,
     discardDraft,
     retrySave,
+    saveDraft,
   } = useAutoSaveDraft({
     userId: user?.id,
     draftData,

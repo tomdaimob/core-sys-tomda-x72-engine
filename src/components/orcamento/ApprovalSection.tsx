@@ -16,6 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useApprovalSystem, ApprovalMessage } from '@/hooks/useApprovalSystem';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -31,6 +32,7 @@ export function ApprovalSection({
   onApprovalStatusChange 
 }: ApprovalSectionProps) {
   const { user, isAdmin } = useAuth();
+  const { toast } = useToast();
   const {
     messages,
     currentRequest,
@@ -72,7 +74,54 @@ export function ApprovalSection({
   }, [status, onApprovalStatusChange]);
 
   const handleRequestApproval = async () => {
-    if (!messageText.trim()) return;
+    // Debug log
+    console.log('[ApprovalSection] clicked solicitar aprovação', {
+      orcamentoId,
+      marginPercent,
+      isAdmin,
+      messageText: messageText.substring(0, 50),
+      needsApproval,
+      status,
+    });
+
+    // Validation: orcamento must be saved first
+    if (!orcamentoId) {
+      toast({
+        title: 'Erro: orçamento ainda não foi salvo',
+        description: 'Aguarde o salvamento automático ou clique em "Tentar novamente" se houver erro.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validation: message is required and minimum 10 characters
+    if (!messageText.trim()) {
+      toast({
+        title: 'Mensagem obrigatória',
+        description: 'Escreva uma mensagem para o Gestor explicando a margem baixa.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (messageText.trim().length < 10) {
+      toast({
+        title: 'Mensagem muito curta',
+        description: 'A mensagem deve ter pelo menos 10 caracteres.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Check if approval is actually needed
+    if (marginPercent >= 15) {
+      toast({
+        title: 'Aprovação não é necessária',
+        description: `A margem atual (${marginPercent.toFixed(1)}%) é maior ou igual a 15%.`,
+      });
+      return;
+    }
+
     const success = await requestApproval(messageText, marginPercent);
     if (success) {
       setMessageText('');
@@ -250,6 +299,7 @@ export function ApprovalSection({
                   className="min-h-[100px]"
                 />
                 <Button
+                  type="button"
                   onClick={handleRequestApproval}
                   disabled={loading || !messageText.trim()}
                   className="w-full"
@@ -282,6 +332,7 @@ export function ApprovalSection({
                   className="min-h-[80px]"
                 />
                 <Button
+                  type="button"
                   variant="outline"
                   onClick={handleSendMessage}
                   disabled={loading || !messageText.trim()}
@@ -313,6 +364,7 @@ export function ApprovalSection({
             
             <div className="flex gap-3">
               <Button
+                type="button"
                 variant="outline"
                 onClick={handleGestorSendMessage}
                 disabled={loading || !gestorResponse.trim()}
@@ -329,6 +381,7 @@ export function ApprovalSection({
             
             <div className="flex gap-3">
               <Button
+                type="button"
                 variant="destructive"
                 onClick={handleDeny}
                 disabled={loading}
@@ -342,6 +395,7 @@ export function ApprovalSection({
                 Negar
               </Button>
               <Button
+                type="button"
                 onClick={handleApprove}
                 disabled={loading}
                 className="flex-1 bg-green-600 hover:bg-green-700"

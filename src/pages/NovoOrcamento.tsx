@@ -576,6 +576,7 @@ export default function NovoOrcamento() {
               {(margens.lucroPercent + margens.bdiPercent - margens.descontoPercent) < 15 && (
                 <ApprovalSection 
                   orcamentoId={orcamentoId}
+                  orcamentoCodigo={projeto.codigo}
                   marginPercent={margens.lucroPercent + margens.bdiPercent - margens.descontoPercent}
                   onApprovalStatusChange={setApprovalStatus}
                 />

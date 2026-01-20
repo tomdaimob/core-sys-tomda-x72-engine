@@ -39,6 +39,7 @@ export function useApprovalSystem(orcamentoId?: string) {
   const { toast } = useToast();
   const [messages, setMessages] = useState<ApprovalMessage[]>([]);
   const [currentRequest, setCurrentRequest] = useState<ApprovalRequest | null>(null);
+  const [orcamentoApprovalInfo, setOrcamentoApprovalInfo] = useState<OrcamentoApprovalInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -46,6 +47,25 @@ export function useApprovalSystem(orcamentoId?: string) {
   const checkNeedsApproval = (marginPercent: number): boolean => {
     return marginPercent < MARGIN_THRESHOLD;
   };
+
+  // Load approval info from orcamentos (source of truth)
+  const loadOrcamentoApprovalInfo = useCallback(async () => {
+    if (!orcamentoId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('orcamentos')
+        .select('needs_approval, approval_status, margin_percent')
+        .eq('id', orcamentoId)
+        .single();
+
+      if (error) throw error;
+      
+      setOrcamentoApprovalInfo(data as OrcamentoApprovalInfo);
+    } catch (error: any) {
+      console.error('[useApprovalSystem] Error loading orcamento approval info:', error);
+    }
+  }, [orcamentoId]);
 
   // Load messages for an orcamento
   const loadMessages = useCallback(async () => {
@@ -60,14 +80,19 @@ export function useApprovalSystem(orcamentoId?: string) {
 
       if (error) throw error;
       
-      // Type assertion since DB types aren't updated yet
-      setMessages((data || []) as unknown as ApprovalMessage[]);
+      // Validate that all messages belong to current orcamento
+      const validMessages = (data || []).filter(msg => msg.orcamento_id === orcamentoId);
+      if (validMessages.length !== (data || []).length) {
+        console.error('[useApprovalSystem] Data leak detected: messages from other orcamentos');
+      }
+      
+      setMessages(validMessages as unknown as ApprovalMessage[]);
     } catch (error: any) {
       console.error('Error loading messages:', error);
     }
   }, [orcamentoId]);
 
-  // Load current approval request
+  // Load current approval request (now using .single() since we have unique constraint)
   const loadCurrentRequest = useCallback(async () => {
     if (!orcamentoId) return;
 
@@ -76,11 +101,16 @@ export function useApprovalSystem(orcamentoId?: string) {
         .from('approval_requests')
         .select('*')
         .eq('orcamento_id', orcamentoId)
-        .order('created_at', { ascending: false })
-        .limit(1)
         .maybeSingle();
 
       if (error) throw error;
+      
+      // Validate that request belongs to current orcamento
+      if (data && data.orcamento_id !== orcamentoId) {
+        console.error('[useApprovalSystem] Data leak detected: request from different orcamento');
+        setCurrentRequest(null);
+        return;
+      }
       
       setCurrentRequest(data as unknown as ApprovalRequest | null);
     } catch (error: any) {
@@ -137,7 +167,7 @@ export function useApprovalSystem(orcamentoId?: string) {
     }
   };
 
-  // Request approval (vendedor)
+  // Request approval (vendedor) - using UPSERT
   const requestApproval = async (message: string, marginPercent: number): Promise<boolean> => {
     console.log('[useApprovalSystem] requestApproval called', { orcamentoId, userId: user?.id, message: message.substring(0, 30), marginPercent });
     
@@ -155,30 +185,7 @@ export function useApprovalSystem(orcamentoId?: string) {
 
     setLoading(true);
     try {
-      // Create approval request
-      console.log('[useApprovalSystem] Creating approval_request...');
-      const { data: request, error: requestError } = await supabase
-        .from('approval_requests')
-        .insert({
-          orcamento_id: orcamentoId,
-          requested_by: user.id,
-          status: 'PENDENTE',
-        })
-        .select()
-        .single();
-
-      if (requestError) {
-        console.error('[useApprovalSystem] Error creating approval_request:', {
-          message: requestError.message,
-          details: requestError.details,
-          hint: requestError.hint,
-          code: requestError.code,
-        });
-        throw requestError;
-      }
-      console.log('[useApprovalSystem] approval_request created:', request);
-
-      // Update orcamento status
+      // Update orcamento status FIRST (source of truth)
       console.log('[useApprovalSystem] Updating orcamento status...');
       const { error: updateError } = await supabase
         .from('orcamentos')
@@ -190,15 +197,29 @@ export function useApprovalSystem(orcamentoId?: string) {
         .eq('id', orcamentoId);
 
       if (updateError) {
-        console.error('[useApprovalSystem] Error updating orcamento:', {
-          message: updateError.message,
-          details: updateError.details,
-          hint: updateError.hint,
-          code: updateError.code,
-        });
+        console.error('[useApprovalSystem] Error updating orcamento:', updateError);
         throw updateError;
       }
       console.log('[useApprovalSystem] orcamento updated successfully');
+
+      // UPSERT approval request (onConflict: orcamento_id)
+      console.log('[useApprovalSystem] Upserting approval_request...');
+      const { data: request, error: requestError } = await supabase
+        .from('approval_requests')
+        .upsert({
+          orcamento_id: orcamentoId,
+          requested_by: user.id,
+          status: 'PENDENTE',
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'orcamento_id' })
+        .select()
+        .single();
+
+      if (requestError) {
+        console.error('[useApprovalSystem] Error upserting approval_request:', requestError);
+        throw requestError;
+      }
+      console.log('[useApprovalSystem] approval_request upserted:', request);
 
       // Send initial message
       if (message.trim()) {
@@ -214,17 +235,13 @@ export function useApprovalSystem(orcamentoId?: string) {
           });
 
         if (msgError) {
-          console.error('[useApprovalSystem] Error inserting message:', {
-            message: msgError.message,
-            details: msgError.details,
-            hint: msgError.hint,
-            code: msgError.code,
-          });
+          console.error('[useApprovalSystem] Error inserting message:', msgError);
           throw msgError;
         }
         console.log('[useApprovalSystem] approval_message inserted successfully');
       }
 
+      await loadOrcamentoApprovalInfo();
       await loadCurrentRequest();
       await loadMessages();
       
@@ -243,25 +260,13 @@ export function useApprovalSystem(orcamentoId?: string) {
     }
   };
 
-  // Approve request (gestor)
+  // Approve request (gestor) - using UPSERT
   const approveRequest = async (message?: string): Promise<boolean> => {
-    if (!orcamentoId || !user || !currentRequest) return false;
+    if (!orcamentoId || !user) return false;
 
     setLoading(true);
     try {
-      // Update request
-      const { error: requestError } = await supabase
-        .from('approval_requests')
-        .update({
-          status: 'APROVADA',
-          approved_by: user.id,
-          approved_at: new Date().toISOString(),
-        })
-        .eq('id', currentRequest.id);
-
-      if (requestError) throw requestError;
-
-      // Update orcamento
+      // Update orcamento FIRST (source of truth)
       const { error: updateError } = await supabase
         .from('orcamentos')
         .update({
@@ -272,18 +277,35 @@ export function useApprovalSystem(orcamentoId?: string) {
 
       if (updateError) throw updateError;
 
+      // UPSERT approval request
+      const { data: upsertedRequest, error: requestError } = await supabase
+        .from('approval_requests')
+        .upsert({
+          orcamento_id: orcamentoId,
+          status: 'APROVADA',
+          approved_by: user.id,
+          approved_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          requested_by: currentRequest?.requested_by || user.id,
+        }, { onConflict: 'orcamento_id' })
+        .select()
+        .single();
+
+      if (requestError) throw requestError;
+
       // Send automatic message
       const autoMessage = '✅ Aprovado pelo Gestor' + (message ? `: ${message}` : '');
       await supabase
         .from('approval_messages')
         .insert({
           orcamento_id: orcamentoId,
-          request_id: currentRequest.id,
+          request_id: upsertedRequest?.id || currentRequest?.id,
           sender_user_id: user.id,
           sender_role: 'GESTOR',
           message: autoMessage,
         });
 
+      await loadOrcamentoApprovalInfo();
       await loadCurrentRequest();
       await loadMessages();
 
@@ -297,25 +319,13 @@ export function useApprovalSystem(orcamentoId?: string) {
     }
   };
 
-  // Deny request (gestor)
+  // Deny request (gestor) - using UPSERT
   const denyRequest = async (message?: string): Promise<boolean> => {
-    if (!orcamentoId || !user || !currentRequest) return false;
+    if (!orcamentoId || !user) return false;
 
     setLoading(true);
     try {
-      // Update request
-      const { error: requestError } = await supabase
-        .from('approval_requests')
-        .update({
-          status: 'NEGADA',
-          approved_by: user.id,
-          approved_at: new Date().toISOString(),
-        })
-        .eq('id', currentRequest.id);
-
-      if (requestError) throw requestError;
-
-      // Update orcamento
+      // Update orcamento FIRST (source of truth)
       const { error: updateError } = await supabase
         .from('orcamentos')
         .update({
@@ -326,18 +336,35 @@ export function useApprovalSystem(orcamentoId?: string) {
 
       if (updateError) throw updateError;
 
+      // UPSERT approval request
+      const { data: upsertedRequest, error: requestError } = await supabase
+        .from('approval_requests')
+        .upsert({
+          orcamento_id: orcamentoId,
+          status: 'NEGADA',
+          approved_by: user.id,
+          approved_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          requested_by: currentRequest?.requested_by || user.id,
+        }, { onConflict: 'orcamento_id' })
+        .select()
+        .single();
+
+      if (requestError) throw requestError;
+
       // Send automatic message
       const autoMessage = '⛔ Negado pelo Gestor' + (message ? `: ${message}` : '');
       await supabase
         .from('approval_messages')
         .insert({
           orcamento_id: orcamentoId,
-          request_id: currentRequest.id,
+          request_id: upsertedRequest?.id || currentRequest?.id,
           sender_user_id: user.id,
           sender_role: 'GESTOR',
           message: autoMessage,
         });
 
+      await loadOrcamentoApprovalInfo();
       await loadCurrentRequest();
       await loadMessages();
 
@@ -370,18 +397,30 @@ export function useApprovalSystem(orcamentoId?: string) {
     }
   };
 
-  // Load data on mount
+  // Load data on mount and when orcamentoId changes
   useEffect(() => {
+    // Reset state when orcamentoId changes to prevent data leakage
+    setMessages([]);
+    setCurrentRequest(null);
+    setOrcamentoApprovalInfo(null);
+    setUnreadCount(0);
+
     if (orcamentoId) {
+      loadOrcamentoApprovalInfo();
       loadMessages();
       loadCurrentRequest();
       loadUnreadCount();
     }
-  }, [orcamentoId, loadMessages, loadCurrentRequest, loadUnreadCount]);
+  }, [orcamentoId, loadOrcamentoApprovalInfo, loadMessages, loadCurrentRequest, loadUnreadCount]);
+
+  // Derive status from source of truth (orcamentos table)
+  const approvalStatus = orcamentoApprovalInfo?.approval_status || null;
 
   return {
     messages,
     currentRequest,
+    orcamentoApprovalInfo,
+    approvalStatus,
     loading,
     unreadCount,
     isAdmin,
@@ -392,6 +431,7 @@ export function useApprovalSystem(orcamentoId?: string) {
     denyRequest,
     markMessagesAsRead,
     refreshData: () => {
+      loadOrcamentoApprovalInfo();
       loadMessages();
       loadCurrentRequest();
       loadUnreadCount();

@@ -22,12 +22,14 @@ import { ptBR } from 'date-fns/locale';
 
 interface ApprovalSectionProps {
   orcamentoId?: string;
+  orcamentoCodigo?: string;
   marginPercent: number;
   onApprovalStatusChange?: (status: 'PENDENTE' | 'APROVADA' | 'NEGADA' | null) => void;
 }
 
 export function ApprovalSection({ 
   orcamentoId, 
+  orcamentoCodigo,
   marginPercent,
   onApprovalStatusChange 
 }: ApprovalSectionProps) {
@@ -36,6 +38,7 @@ export function ApprovalSection({
   const {
     messages,
     currentRequest,
+    approvalStatus,
     loading,
     unreadCount,
     checkNeedsApproval,
@@ -52,16 +55,19 @@ export function ApprovalSection({
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const needsApproval = checkNeedsApproval(marginPercent);
-  const status = currentRequest?.status || null;
+  // Use approvalStatus from orcamentos table (source of truth)
+  const status = approvalStatus;
   const canRequestApproval = !isAdmin && needsApproval && status !== 'PENDENTE' && status !== 'APROVADA';
   const canRespond = isAdmin && status === 'PENDENTE';
 
   // Debug: log render conditions
   console.log('[ApprovalSection] render conditions:', {
     orcamentoId,
+    orcamentoCodigo,
     marginPercent,
     needsApproval,
     status,
+    approvalStatus,
     isAdmin,
     canRequestApproval,
     userId: user?.id,
@@ -255,7 +261,12 @@ export function ApprovalSection({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Shield className="w-5 h-5 text-primary" />
-            <h3 className="font-semibold text-foreground">Aprovação do Gestor</h3>
+            <div>
+              <h3 className="font-semibold text-foreground">Aprovação do Gestor</h3>
+              {orcamentoCodigo && (
+                <span className="text-xs text-muted-foreground">Orçamento: {orcamentoCodigo}</span>
+              )}
+            </div>
           </div>
           {getStatusBadge()}
         </div>

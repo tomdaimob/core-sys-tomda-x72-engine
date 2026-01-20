@@ -273,10 +273,10 @@ export async function exportarPropostaComercialPDF(data: PropostaData): Promise<
     yPos += 4;
   }
 
-  // === ASSINATURA ===
+  // === ATENCIOSAMENTE ===
   yPos += 10;
   
-  if (yPos > pageHeight - 70) {
+  if (yPos > pageHeight - 140) {
     doc.addPage();
     yPos = 25;
   }
@@ -286,14 +286,7 @@ export async function exportarPropostaComercialPDF(data: PropostaData): Promise<
   doc.setFont('helvetica', 'normal');
   doc.text('Atenciosamente,', margin, yPos);
   
-  yPos += 20;
-  
-  // Signature line
-  doc.setDrawColor(150, 150, 150);
-  doc.setLineWidth(0.5);
-  doc.line(margin, yPos, margin + 80, yPos);
-  
-  yPos += 6;
+  yPos += 8;
   
   doc.setFont('helvetica', 'bold');
   doc.text(data.nomeVendedor || '-', margin, yPos);
@@ -301,6 +294,94 @@ export async function exportarPropostaComercialPDF(data: PropostaData): Promise<
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.text('ICF Tecnologia e Construção', margin, yPos);
+
+  // === CONDIÇÕES E ASSINATURAS ===
+  yPos += 20;
+  
+  // Check if we need a new page for the signature section (need at least 120mm)
+  if (yPos > pageHeight - 120) {
+    doc.addPage();
+    yPos = 25;
+  }
+
+  // Section separator
+  doc.setDrawColor(11, 143, 59);
+  doc.setLineWidth(1);
+  doc.line(margin, yPos, pageWidth - margin, yPos);
+  yPos += 12;
+
+  // Section title
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(11, 143, 59);
+  doc.setFontSize(12);
+  doc.text('CONDIÇÕES E ASSINATURAS', margin, yPos);
+  yPos += 15;
+
+  // Reset text styles
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(50, 50, 50);
+  doc.setFontSize(10);
+  doc.setDrawColor(120, 120, 120);
+  doc.setLineWidth(0.3);
+
+  // Prazo de Obra field
+  doc.text('Prazo de Obra:', margin, yPos);
+  const prazoLabelWidth = doc.getTextWidth('Prazo de Obra: ');
+  doc.line(margin + prazoLabelWidth + 2, yPos, pageWidth - margin, yPos);
+  yPos += 12;
+
+  // Forma de pagamento field (2 lines for more space)
+  doc.text('Forma de pagamento:', margin, yPos);
+  yPos += 6;
+  doc.line(margin, yPos, pageWidth - margin, yPos);
+  yPos += 6;
+  doc.line(margin, yPos, pageWidth - margin, yPos);
+  yPos += 18;
+
+  // === SIGNATURES SECTION ===
+  const signColWidth = (pageWidth - 2 * margin - 15) / 2;
+  const signCol1X = margin;
+  const signCol2X = margin + signColWidth + 15;
+
+  // Column headers
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(11, 143, 59);
+  doc.setFontSize(11);
+  doc.text('CLIENTE', signCol1X, yPos);
+  doc.text('VENDEDOR / EMPRESA', signCol2X, yPos);
+  yPos += 12;
+
+  // Reset for signature fields
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(50, 50, 50);
+  doc.setFontSize(9);
+  doc.setDrawColor(120, 120, 120);
+  doc.setLineWidth(0.3);
+
+  // Row 1: Signature lines
+  doc.text('Assinatura do Cliente:', signCol1X, yPos);
+  doc.line(signCol1X + 38, yPos, signCol1X + signColWidth, yPos);
+
+  doc.text('Assinatura do Vendedor:', signCol2X, yPos);
+  doc.line(signCol2X + 42, yPos, signCol2X + signColWidth, yPos);
+  yPos += 12;
+
+  // Row 2: Name
+  doc.text('Nome:', signCol1X, yPos);
+  doc.line(signCol1X + 14, yPos, signCol1X + signColWidth, yPos);
+
+  doc.text(`Vendedor: ${data.nomeVendedor || '________________________'}`, signCol2X, yPos);
+  yPos += 12;
+
+  // Row 3: CPF/CNPJ and Company
+  doc.text('CPF/CNPJ:', signCol1X, yPos);
+  doc.line(signCol1X + 20, yPos, signCol1X + signColWidth, yPos);
+
+  doc.text('ICF Tecnologia e Construção', signCol2X, yPos);
+  yPos += 12;
+
+  // Row 4: Date
+  doc.text('Data: ____/____/______', signCol1X, yPos);
 
   // === FOOTER (add to all pages) ===
   const totalPages = doc.getNumberOfPages();

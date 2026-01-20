@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { 
   ArrowLeft, 
   ArrowRight, 
@@ -50,7 +50,7 @@ import { ApprovalSection } from '@/components/orcamento/ApprovalSection';
 import { Link } from 'react-router-dom';
 import { exportarOrcamentoPDF } from '@/lib/pdf-export';
 import { exportarPropostaComercialPDF, TipoProposta } from '@/lib/pdf-proposta-comercial';
-import { useAutoSaveDraft } from '@/hooks/useAutoSaveDraft';
+import { useOrcamentoData } from '@/hooks/useOrcamentoData';
 
 interface ExtractedData {
   area_total_m2: number;
@@ -75,9 +75,9 @@ const steps = [
 
 export default function NovoOrcamento() {
   const navigate = useNavigate();
+  const { id: orcamentoIdFromUrl } = useParams<{ id: string }>();
   const { user, isAdmin } = useAuth();
   const { toast } = useToast();
-  const [currentStep, setCurrentStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const [showReview, setShowReview] = useState(false);
@@ -102,61 +102,15 @@ export default function NovoOrcamento() {
   const precoMaoObraLajeM2 = getMaoObraLajePrice();
   const precosAcabamentos = getAcabamentosPrecos();
 
-  // Form state
-  const [projeto, setProjeto] = useState({
-    cliente: '',
-    codigo: `ORC-${Date.now()}`,
-    projeto: '',
-    areaTotal: 0,
-    peDireito: 2.80,
-    perimetroExterno: 0,
-    paredesInternas: 0,
-    aberturas: 0,
-  });
-
-  const [margens, setMargens] = useState<Margens>(DEFAULT_MARGENS);
-
-  const [paredes, setParedes] = useState<ParedesInput>({
-    areaExternaM2: 0,
-    areaInternaM2: 0,
-    tipoFormaExterna: 'ICF 18',
-    tipoFormaInterna: 'ICF 12',
-    modoAvancado: false,
-    segmentos: [],
-  });
-
-  const [radier, setRadier] = useState({
-    areaM2: 0,
-    espessuraCm: 10,
-    tipoFibra: 'aco' as 'aco' | 'pp',
-  });
-
-  const [laje, setLaje] = useState<LajeInput>({
-    tipo: 'AUTO',
-    areaM2: 0,
-    espessuraM: 0,
-    concretoItemId: '',
-    temSegundoAndar: false,
-  });
-
-  const [reboco, setReboco] = useState<RebocoInput>({
-    aplicarInterno: true,
-    aplicarExterno: true,
-    perdaPercentual: 10,
-    espessuraMedia: 3,
-  });
-
-  const [acabamentos, setAcabamentos] = useState<AcabamentosInput>({
-    areaPiso: 0,
-    tipoPiso: 'ceramico',
-    areaPintura: 0,
-    demaosPintura: 2,
-    usarAreaRadier: true,
-    usarAreaReboco: true,
-  });
-
-  // Draft data for auto-save
-  const draftData = useMemo(() => ({
+  // Use centralized orcamento data hook
+  const {
+    orcamentoId,
+    isLoading: isLoadingOrcamento,
+    isSaving: isAutoSaving,
+    lastSaved,
+    saveError,
+    isPaused,
+    dataLoaded,
     projeto,
     paredes,
     radier,
@@ -165,50 +119,23 @@ export default function NovoOrcamento() {
     acabamentos,
     margens,
     currentStep,
-  }), [projeto, paredes, radier, laje, reboco, acabamentos, margens, currentStep]);
-
-  // Auto-save hook
-  const { 
-    orcamentoId: draftOrcamentoId,
-    isSaving: isAutoSaving, 
-    lastSaved, 
-    saveError,
-    isPaused,
-    loadDraftData, 
+    setProjeto,
+    setParedes,
+    setRadier,
+    setLaje,
+    setReboco,
+    setAcabamentos,
+    setMargens,
+    setCurrentStep,
+    saveWithResultados,
+    retrySave,
     finalizeDraft,
     discardDraft,
-    retrySave,
-    saveDraft,
-  } = useAutoSaveDraft({
+  } = useOrcamentoData({
     userId: user?.id,
-    draftData,
-    debounceMs: 3000,
+    orcamentoIdFromUrl: orcamentoIdFromUrl || null,
+    debounceMs: 1500,
   });
-
-  // Load existing draft on mount
-  useEffect(() => {
-    const loadExistingDraft = async () => {
-      const savedDraft = await loadDraftData();
-      if (savedDraft) {
-        // Restore state from draft
-        if (savedDraft.projeto) setProjeto(savedDraft.projeto);
-        if (savedDraft.paredes) setParedes(savedDraft.paredes);
-        if (savedDraft.radier) setRadier(savedDraft.radier);
-        if (savedDraft.laje) setLaje(savedDraft.laje);
-        if (savedDraft.reboco) setReboco(savedDraft.reboco);
-        if (savedDraft.acabamentos) setAcabamentos(savedDraft.acabamentos);
-        if (savedDraft.margens) setMargens(savedDraft.margens);
-        if (savedDraft.currentStep !== undefined) setCurrentStep(savedDraft.currentStep);
-        
-        toast({
-          title: 'Rascunho restaurado',
-          description: 'Continuando de onde você parou.',
-        });
-      }
-    };
-    
-    loadExistingDraft();
-  }, []);
 
   const handleDataExtracted = (data: ExtractedData) => {
     setExtractedData(data);
@@ -310,6 +237,20 @@ export default function NovoOrcamento() {
     projeto.areaTotal || radier.areaM2
   );
 
+  // Save resultados whenever calculations change (debounced via the hook)
+  useEffect(() => {
+    if (!isLoadingOrcamento && projeto.cliente && consolidado.subtotal > 0) {
+      saveWithResultados({
+        paredes: resultadoParedes,
+        radier: resultadoRadier,
+        laje: resultadoLaje,
+        reboco: resultadoReboco,
+        acabamentos: resultadoAcabamentos,
+        consolidado,
+      });
+    }
+  }, [consolidado.subtotal]);
+
   const salvarOrcamento = async () => {
     if (!projeto.cliente) {
       toast({ title: 'Preencha o nome do cliente', variant: 'destructive' });
@@ -355,37 +296,23 @@ export default function NovoOrcamento() {
 
   const handleDiscardDraft = async () => {
     await discardDraft();
-    // Reset all state
-    setProjeto({
-      cliente: '',
-      codigo: `ORC-${Date.now()}`,
-      projeto: '',
-      areaTotal: 0,
-      peDireito: 2.80,
-      perimetroExterno: 0,
-      paredesInternas: 0,
-      aberturas: 0,
-    });
-    setParedes({ 
-      areaExternaM2: 0, 
-      areaInternaM2: 0, 
-      tipoFormaExterna: 'ICF 18', 
-      tipoFormaInterna: 'ICF 12', 
-      modoAvancado: false, 
-      segmentos: [] 
-    });
-    setRadier({ areaM2: 0, espessuraCm: 10, tipoFibra: 'aco' });
-    setLaje({ tipo: 'AUTO', areaM2: 0, espessuraM: 0, concretoItemId: '', temSegundoAndar: false });
-    setReboco({ aplicarInterno: true, aplicarExterno: true, perdaPercentual: 10, espessuraMedia: 3 });
-    setAcabamentos({ areaPiso: 0, tipoPiso: 'ceramico', areaPintura: 0, demaosPintura: 2, usarAreaRadier: true, usarAreaReboco: true });
-    setMargens(DEFAULT_MARGENS);
-    setCurrentStep(0);
-    
     toast({ title: 'Rascunho descartado', description: 'Iniciando novo orçamento.' });
   };
 
   const nextStep = () => setCurrentStep(Math.min(steps.length - 1, currentStep + 1));
   const prevStep = () => setCurrentStep(Math.max(0, currentStep - 1));
+
+  // Show loading while data is being loaded
+  if (isLoadingOrcamento) {
+    return (
+      <MainLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-primary" />
+          <p className="text-muted-foreground">Carregando orçamento...</p>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -433,7 +360,7 @@ export default function NovoOrcamento() {
                 </>
               ) : null}
               
-              {lastSaved && !isPaused && (
+              {lastSaved && !isPaused && !orcamentoIdFromUrl && (
                 <Button 
                   variant="ghost" 
                   size="sm" 
@@ -445,7 +372,12 @@ export default function NovoOrcamento() {
               )}
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Novo Orçamento ICF</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            {orcamentoIdFromUrl ? `Orçamento ${projeto.codigo}` : 'Novo Orçamento ICF'}
+          </h1>
+          {orcamentoIdFromUrl && projeto.cliente && (
+            <p className="text-muted-foreground mt-1">Cliente: {projeto.cliente}</p>
+          )}
         </div>
 
         {/* Steps */}
@@ -643,7 +575,7 @@ export default function NovoOrcamento() {
               {/* Approval Section */}
               {(margens.lucroPercent + margens.bdiPercent - margens.descontoPercent) < 15 && (
                 <ApprovalSection 
-                  orcamentoId={draftOrcamentoId}
+                  orcamentoId={orcamentoId}
                   marginPercent={margens.lucroPercent + margens.bdiPercent - margens.descontoPercent}
                   onApprovalStatusChange={setApprovalStatus}
                 />

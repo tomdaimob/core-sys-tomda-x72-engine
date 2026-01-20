@@ -78,11 +78,20 @@ interface ResultadoReboco {
 }
 
 interface ResultadoAcabamentos {
+  // Piso
+  areaPisoM2?: number;
+  tipoPiso?: 'ceramico' | 'porcelanato';
   custoPiso?: number;
   custoMaoObraPiso?: number;
+  subtotalPiso?: number;
+  // Pintura
+  areaPinturaM2?: number;
+  demaosPintura?: number;
+  quantidadeTinta?: number;
   custoPintura?: number;
   custoMaoObraPintura?: number;
-  quantidadeTinta?: number;
+  subtotalPintura?: number;
+  // Total
   custoTotal?: number;
 }
 
@@ -239,13 +248,34 @@ export function exportarOrcamentoPDF(data: PDFExportData): void {
 
   // Acabamentos
   if (resultadoAcabamentos && (resultadoAcabamentos.custoTotal || 0) > 0) {
+    const tipoPisoDisplay = resultadoAcabamentos.tipoPiso === 'porcelanato' ? 'Porcelanato' : 'Cerâmico';
+    const demaosDisplay = resultadoAcabamentos.demaosPintura || 2;
+    
     detalhesBody.push(
       ['ACABAMENTOS', '', '', ''],
-      ['  Custo Piso', '', formatCurrency(resultadoAcabamentos.custoPiso || 0), ''],
-      ['  Mão de Obra Piso', '', formatCurrency(resultadoAcabamentos.custoMaoObraPiso || 0), ''],
-      ['  Custo Pintura', '', formatCurrency(resultadoAcabamentos.custoPintura || 0), ''],
-      ['  Mão de Obra Pintura', '', formatCurrency(resultadoAcabamentos.custoMaoObraPintura || 0), ''],
-      ['  Qtd. Latas Tinta', `${resultadoAcabamentos.quantidadeTinta || 0} latas`, '', ''],
+    );
+    
+    // Piso section
+    if ((resultadoAcabamentos.areaPisoM2 || 0) > 0) {
+      detalhesBody.push(
+        ['  Piso (' + tipoPisoDisplay + ')', `${formatNumber(resultadoAcabamentos.areaPisoM2 || 0)} m²`, '', ''],
+        ['    Material', '', formatCurrency(resultadoAcabamentos.custoPiso || 0), ''],
+        ['    Mão de Obra', '', formatCurrency(resultadoAcabamentos.custoMaoObraPiso || 0), ''],
+        ['    Subtotal Piso', '', '', formatCurrency(resultadoAcabamentos.subtotalPiso || 0)],
+      );
+    }
+    
+    // Pintura section
+    if ((resultadoAcabamentos.areaPinturaM2 || 0) > 0) {
+      detalhesBody.push(
+        ['  Pintura (' + demaosDisplay + ' demão' + (demaosDisplay > 1 ? 's' : '') + ')', `${formatNumber(resultadoAcabamentos.areaPinturaM2 || 0)} m²`, '', ''],
+        ['    Galões Tinta', `${resultadoAcabamentos.quantidadeTinta || 0} un`, formatCurrency(resultadoAcabamentos.custoPintura || 0), ''],
+        ['    Mão de Obra', '', formatCurrency(resultadoAcabamentos.custoMaoObraPintura || 0), ''],
+        ['    Subtotal Pintura', '', '', formatCurrency(resultadoAcabamentos.subtotalPintura || 0)],
+      );
+    }
+    
+    detalhesBody.push(
       ['  Subtotal Acabamentos', '', '', formatCurrency(resultadoAcabamentos.custoTotal || 0)],
     );
   }

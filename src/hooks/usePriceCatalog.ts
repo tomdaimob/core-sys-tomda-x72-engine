@@ -102,6 +102,35 @@ export function getMaoObraLajePrice(items: PriceCatalogItem[]): number {
   return item?.preco ?? 55.00; // Default from catalog
 }
 
+// Get acabamentos prices from catalog
+export interface AcabamentosPrecos {
+  pisoCeramicoM2: number;
+  porcelanatoPisoM2: number;
+  assentamentoPisoM2: number;
+  tintaGalao: number;
+  pinturaAplicacaoM2: number;
+}
+
+export function getAcabamentosPrecos(items: PriceCatalogItem[]): AcabamentosPrecos {
+  const findPrice = (searchTerms: string[], defaultValue: number): number => {
+    for (const term of searchTerms) {
+      const item = items.find(i => 
+        i.nome.toLowerCase().includes(term.toLowerCase()) && i.ativo
+      );
+      if (item) return item.preco;
+    }
+    return defaultValue;
+  };
+
+  return {
+    pisoCeramicoM2: findPrice(['piso cerâmico', 'ceramico'], 45.00),
+    porcelanatoPisoM2: findPrice(['porcelanato piso'], 85.00),
+    assentamentoPisoM2: findPrice(['assentamento piso'], 35.00),
+    tintaGalao: findPrice(['tinta látex', 'tinta latex', 'tinta galão'], 180.00),
+    pinturaAplicacaoM2: findPrice(['pintura (aplicação)', 'pintura aplicação', 'pintura aplicacao'], 18.00),
+  };
+}
+
 export function usePriceCatalog() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -270,5 +299,6 @@ export function usePriceCatalog() {
     getRebocoMaoObraPrice: () => getRebocoMaoObraPrice(items),
     getConcretoOptions: () => getConcretoOptions(items),
     getMaoObraLajePrice: () => getMaoObraLajePrice(items),
+    getAcabamentosPrecos: () => getAcabamentosPrecos(items),
   };
 }

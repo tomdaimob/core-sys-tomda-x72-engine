@@ -1,178 +1,239 @@
+import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Calculator, Grid3X3 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Calculator, Grid3X3, AlertCircle, Building, Home } from 'lucide-react';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { formatCurrency, formatNumber } from '@/lib/orcamento-calculos';
-import { Precos } from '@/lib/orcamento-types';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
-export interface LajeItem {
-  id: string;
-  nome: string;
+export type TipoLaje = 'AUTO' | 'PISO_2_ANDAR' | 'FORRO';
+
+export interface LajeInput {
+  tipo: TipoLaje;
   areaM2: number;
   espessuraM: number;
-  tipo?: string;
-  observacao?: string;
+  concretoItemId: string;
+  temSegundoAndar: boolean;
+}
+
+export interface ConcretoOption {
+  id: string;
+  nome: string;
+  preco: number;
+  fck: string; // e.g., "FCK 25", "FCK 30", "FCK 35"
 }
 
 export interface ResultadoLajeCalculado {
+  tipo: TipoLaje;
+  tipoNome: string;
   areaTotalM2: number;
+  espessuraM: number;
   volumeTotalM3: number;
+  concretoNome: string;
+  precoConcreto: number;
+  precoMaoObraM2: number;
   custoConcreto: number;
   custoMaoObra: number;
   custoTotal: number;
 }
 
 interface LajeFormProps {
-  lajes: LajeItem[];
-  onLajesChange: (lajes: LajeItem[]) => void;
-  precos: Precos;
+  laje: LajeInput;
+  onLajeChange: (laje: LajeInput) => void;
+  concretoOptions: ConcretoOption[];
+  precoMaoObraLajeM2: number;
+  areaProjetoM2: number;
   resultado: ResultadoLajeCalculado;
 }
 
-export function LajeForm({ lajes, onLajesChange, precos, resultado }: LajeFormProps) {
-  const addLaje = () => {
-    const newLaje: LajeItem = {
-      id: `laje-${Date.now()}`,
-      nome: `Laje ${lajes.length + 1}`,
-      areaM2: 0,
-      espessuraM: 0.12, // 12cm default
-    };
-    onLajesChange([...lajes, newLaje]);
+// Default concrete option (FCK 25)
+const DEFAULT_CONCRETO_ID = 'fck-25-default';
+
+export function LajeForm({ 
+  laje, 
+  onLajeChange, 
+  concretoOptions, 
+  precoMaoObraLajeM2,
+  areaProjetoM2,
+  resultado 
+}: LajeFormProps) {
+  // Determine if we have valid data
+  const hasData = resultado.areaTotalM2 > 0;
+
+  // Handle second floor toggle
+  const handleSegundoAndarChange = (checked: boolean) => {
+    const newTipo = checked ? 'PISO_2_ANDAR' : 'FORRO';
+    const newEspessura = checked ? 0.10 : 0.06; // 10cm for floor, 6cm for ceiling
+    
+    onLajeChange({
+      ...laje,
+      temSegundoAndar: checked,
+      tipo: newTipo,
+      espessuraM: laje.espessuraM === 0 ? newEspessura : laje.espessuraM,
+    });
   };
 
-  const removeLaje = (id: string) => {
-    if (lajes.length <= 1) return; // Keep at least one
-    onLajesChange(lajes.filter(l => l.id !== id));
+  // Handle area change
+  const handleAreaChange = (value: number) => {
+    onLajeChange({
+      ...laje,
+      areaM2: Math.max(0, value),
+    });
   };
 
-  const updateLaje = (id: string, field: keyof LajeItem, value: string | number) => {
-    onLajesChange(lajes.map(l => {
-      if (l.id !== id) return l;
-      
-      // Validate: prevent negative values
-      if (typeof value === 'number' && value < 0) {
-        value = 0;
-      }
-      
-      return { ...l, [field]: value };
-    }));
+  // Handle espessura change
+  const handleEspessuraChange = (value: number) => {
+    onLajeChange({
+      ...laje,
+      espessuraM: Math.max(0, value),
+    });
   };
 
-  const hasData = lajes.some(l => l.areaM2 > 0);
+  // Handle concrete selection
+  const handleConcretoChange = (itemId: string) => {
+    onLajeChange({
+      ...laje,
+      concretoItemId: itemId,
+    });
+  };
+
+  // Get selected concrete info
+  const selectedConcreto = concretoOptions.find(c => c.id === laje.concretoItemId) || concretoOptions[0];
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <Grid3X3 className="w-5 h-5 text-primary" />
-            Lajes
-          </h2>
-          <p className="text-muted-foreground text-sm">
-            Volume = Área × Espessura | Custo = Concreto + Mão de Obra
-          </p>
-        </div>
-        <Button onClick={addLaje} variant="outline" size="sm">
-          <Plus className="w-4 h-4 mr-2" />
-          Adicionar Laje
-        </Button>
+      {/* Header */}
+      <div>
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <Grid3X3 className="w-5 h-5 text-primary" />
+          Laje
+        </h2>
+        <p className="text-muted-foreground text-sm">
+          Volume = Área × Espessura | Custo = Concreto + Mão de Obra
+        </p>
       </div>
 
-      {/* Lajes Table */}
-      <div className="border rounded-lg overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead className="w-[30%]">Nome</TableHead>
-              <TableHead className="w-[20%]">Área (m²)</TableHead>
-              <TableHead className="w-[20%]">Espessura (m)</TableHead>
-              <TableHead className="w-[20%]">Volume (m³)</TableHead>
-              <TableHead className="w-[10%]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {lajes.map((laje) => {
-              const volumeM3 = laje.areaM2 * laje.espessuraM;
-              return (
-                <TableRow key={laje.id}>
-                  <TableCell>
-                    <Input
-                      value={laje.nome}
-                      onChange={(e) => updateLaje(laje.id, 'nome', e.target.value)}
-                      placeholder="Nome da laje"
-                      className="h-9"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={laje.areaM2 || ''}
-                      onChange={(e) => updateLaje(laje.id, 'areaM2', Math.max(0, parseFloat(e.target.value) || 0))}
-                      placeholder="0.00"
-                      className="h-9"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={laje.espessuraM || ''}
-                      onChange={(e) => updateLaje(laje.id, 'espessuraM', Math.max(0, parseFloat(e.target.value) || 0))}
-                      placeholder="0.12"
-                      className="h-9"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-mono text-muted-foreground">
-                      {formatNumber(volumeM3, 3)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeLaje(laje.id)}
-                      disabled={lajes.length <= 1}
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Prices Reference */}
-      <div className="flex gap-4 text-sm text-muted-foreground bg-muted/30 rounded-lg p-3">
-        <div>
-          <span className="font-medium">Concreto:</span> {formatCurrency(precos.concretoM3)}/m³
+      {/* Configuration */}
+      <div className="bg-muted/30 rounded-xl p-5 space-y-5">
+        {/* Second Floor Toggle */}
+        <div className="flex items-center justify-between p-3 bg-background rounded-lg">
+          <div className="flex items-center gap-3">
+            {laje.temSegundoAndar ? (
+              <Building className="w-5 h-5 text-primary" />
+            ) : (
+              <Home className="w-5 h-5 text-muted-foreground" />
+            )}
+            <div>
+              <Label className="text-sm font-medium">Tem 2º andar?</Label>
+              <p className="text-xs text-muted-foreground">
+                {laje.temSegundoAndar 
+                  ? 'Laje como piso de 2º andar (espessura padrão 10cm)' 
+                  : 'Laje como forro (espessura padrão 6cm)'}
+              </p>
+            </div>
+          </div>
+          <Switch
+            checked={laje.temSegundoAndar}
+            onCheckedChange={handleSegundoAndarChange}
+          />
         </div>
-        <div>
-          <span className="font-medium">M.O. Laje:</span> {formatCurrency(precos.maoObraLaje)}/m²
+
+        {/* Inputs Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Área */}
+          <div className="input-group">
+            <Label className="input-label">Área (m²)</Label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={laje.areaM2 || ''}
+              onChange={(e) => handleAreaChange(parseFloat(e.target.value) || 0)}
+              placeholder={areaProjetoM2 > 0 ? String(areaProjetoM2) : '0.00'}
+            />
+            {areaProjetoM2 > 0 && laje.areaM2 === 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Usando área do projeto: {formatNumber(areaProjetoM2)} m²
+              </p>
+            )}
+          </div>
+
+          {/* Espessura */}
+          <div className="input-group">
+            <Label className="input-label">Espessura (m)</Label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={laje.espessuraM || ''}
+              onChange={(e) => handleEspessuraChange(parseFloat(e.target.value) || 0)}
+              placeholder={laje.tipo === 'FORRO' ? '0.06' : '0.10'}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Padrão: {laje.tipo === 'FORRO' ? '6cm (Forro)' : '10cm (Piso)'}
+            </p>
+          </div>
+
+          {/* Concreto FCK */}
+          <div className="input-group">
+            <Label className="input-label">Concreto (FCK)</Label>
+            <Select
+              value={laje.concretoItemId || (concretoOptions[0]?.id || '')}
+              onValueChange={handleConcretoChange}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o concreto" />
+              </SelectTrigger>
+              <SelectContent>
+                {concretoOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.fck} - {formatCurrency(option.preco)}/m³
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Prices Reference */}
+        <div className="flex gap-4 text-sm text-muted-foreground bg-background/50 rounded-lg p-3">
+          <div>
+            <span className="font-medium">Concreto {selectedConcreto?.fck}:</span>{' '}
+            {formatCurrency(selectedConcreto?.preco || 0)}/m³
+          </div>
+          <div>
+            <span className="font-medium">M.O. Laje:</span>{' '}
+            {formatCurrency(precoMaoObraLajeM2)}/m²
+          </div>
         </div>
       </div>
 
       {/* Results */}
-      {hasData && (
+      {hasData ? (
         <div className="bg-accent/50 rounded-xl p-5 space-y-4">
           <div className="flex items-center gap-2 mb-3">
             <Calculator className="w-5 h-5 text-primary" />
             <h3 className="font-semibold">Resultado do Cálculo</h3>
+          </div>
+          
+          {/* Type badge */}
+          <div className="mb-3">
+            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
+              resultado.tipo === 'FORRO' 
+                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+            }`}>
+              {resultado.tipo === 'FORRO' ? <Home className="w-4 h-4" /> : <Building className="w-4 h-4" />}
+              {resultado.tipoNome}
+            </span>
           </div>
           
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -187,6 +248,7 @@ export function LajeForm({ lajes, onLajesChange, precos, resultado }: LajeFormPr
             <div className="bg-background rounded-lg p-3">
               <div className="text-xs text-muted-foreground mb-1">Custo Concreto</div>
               <div className="text-lg font-semibold text-primary">{formatCurrency(resultado.custoConcreto)}</div>
+              <div className="text-xs text-muted-foreground">{resultado.concretoNome}</div>
             </div>
             <div className="bg-background rounded-lg p-3">
               <div className="text-xs text-muted-foreground mb-1">Custo M.O.</div>
@@ -199,30 +261,96 @@ export function LajeForm({ lajes, onLajesChange, precos, resultado }: LajeFormPr
             <span className="text-xl font-bold text-primary">{formatCurrency(resultado.custoTotal)}</span>
           </div>
         </div>
-      )}
-
-      {!hasData && (
+      ) : (
         <div className="text-center py-8 text-muted-foreground bg-muted/30 rounded-xl">
           <Grid3X3 className="w-12 h-12 mx-auto mb-3 opacity-50" />
-          <p>Preencha a área das lajes para calcular os custos</p>
+          <p>Preencha a área da laje para calcular os custos</p>
         </div>
+      )}
+
+      {/* Warning if no M.O. price */}
+      {precoMaoObraLajeM2 === 0 && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Atenção:</strong> O preço de "Mão de Obra Laje" não está configurado no catálogo de preços.
+            O cálculo de mão de obra será R$ 0,00.
+          </AlertDescription>
+        </Alert>
       )}
     </div>
   );
 }
 
-// Calculate laje results
-export function calcularLajeResultado(lajes: LajeItem[], precos: Precos): ResultadoLajeCalculado {
-  const areaTotalM2 = lajes.reduce((sum, l) => sum + Math.max(0, l.areaM2 || 0), 0);
-  const volumeTotalM3 = lajes.reduce((sum, l) => sum + Math.max(0, (l.areaM2 || 0) * (l.espessuraM || 0)), 0);
+// Calculate laje results with FCK selection and FORRO mode
+export function calcularLajeResultado(
+  laje: LajeInput,
+  concretoOptions: ConcretoOption[],
+  precoMaoObraLajeM2: number,
+  areaProjetoM2: number
+): ResultadoLajeCalculado {
+  // Determine effective area (use project area if laje area is 0)
+  const areaEfetiva = laje.areaM2 > 0 ? laje.areaM2 : areaProjetoM2;
   
-  const custoConcreto = volumeTotalM3 * precos.concretoM3;
-  const custoMaoObra = areaTotalM2 * precos.maoObraLaje;
+  // Determine effective tipo
+  let tipoEfetivo: TipoLaje = laje.tipo || 'AUTO';
+  
+  // AUTO mode: if no 2nd floor, default to FORRO
+  if (tipoEfetivo === 'AUTO') {
+    tipoEfetivo = laje.temSegundoAndar ? 'PISO_2_ANDAR' : 'FORRO';
+  }
+  
+  // Determine effective espessura based on tipo
+  let espessuraEfetiva = laje.espessuraM;
+  if (espessuraEfetiva <= 0) {
+    espessuraEfetiva = tipoEfetivo === 'FORRO' ? 0.06 : 0.10;
+  }
+  
+  // Get concrete info
+  let selectedConcreto = concretoOptions.find(c => c.id === laje.concretoItemId);
+  
+  // Fallback: find FCK 25 if no selection
+  if (!selectedConcreto) {
+    selectedConcreto = concretoOptions.find(c => c.nome.includes('FCK 25')) || concretoOptions[0];
+  }
+  
+  const precoConcreto = selectedConcreto?.preco || 0;
+  const concretoNome = selectedConcreto?.fck || 'Não selecionado';
+  
+  // If area is 0 or invalid, return empty result (but don't break)
+  if (areaEfetiva <= 0) {
+    return {
+      tipo: tipoEfetivo,
+      tipoNome: tipoEfetivo === 'FORRO' ? 'Laje Forro' : 'Laje Piso 2º Andar',
+      areaTotalM2: 0,
+      espessuraM: espessuraEfetiva,
+      volumeTotalM3: 0,
+      concretoNome,
+      precoConcreto,
+      precoMaoObraM2: precoMaoObraLajeM2,
+      custoConcreto: 0,
+      custoMaoObra: 0,
+      custoTotal: 0,
+    };
+  }
+  
+  // Calculate volume
+  const volumeTotalM3 = areaEfetiva * espessuraEfetiva;
+  
+  // Calculate costs
+  const custoConcreto = volumeTotalM3 * precoConcreto;
+  const custoMaoObra = areaEfetiva * precoMaoObraLajeM2;
   const custoTotal = custoConcreto + custoMaoObra;
-
+  
   return {
-    areaTotalM2,
+    tipo: tipoEfetivo,
+    tipoNome: tipoEfetivo === 'FORRO' ? 'Laje Forro' : 'Laje Piso 2º Andar',
+    areaTotalM2: areaEfetiva,
+    espessuraM: espessuraEfetiva,
     volumeTotalM3,
+    concretoNome,
+    precoConcreto,
+    precoMaoObraM2: precoMaoObraLajeM2,
     custoConcreto,
     custoMaoObra,
     custoTotal,

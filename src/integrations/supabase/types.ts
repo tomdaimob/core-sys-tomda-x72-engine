@@ -291,6 +291,9 @@ export type Database = {
           approval_status: string | null
           area_total_m2: number | null
           cliente: string
+          cliente_documento: string | null
+          cliente_responsavel: string | null
+          cliente_tipo: string | null
           codigo: string
           created_at: string
           id: string
@@ -306,6 +309,9 @@ export type Database = {
           approval_status?: string | null
           area_total_m2?: number | null
           cliente: string
+          cliente_documento?: string | null
+          cliente_responsavel?: string | null
+          cliente_tipo?: string | null
           codigo: string
           created_at?: string
           id?: string
@@ -321,6 +327,9 @@ export type Database = {
           approval_status?: string | null
           area_total_m2?: number | null
           cliente?: string
+          cliente_documento?: string | null
+          cliente_responsavel?: string | null
+          cliente_tipo?: string | null
           codigo?: string
           created_at?: string
           id?: string

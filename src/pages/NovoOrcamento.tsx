@@ -47,10 +47,12 @@ import { RebocoForm, RebocoInput, calcularRebocoResultado } from '@/components/o
 import { AcabamentosForm, AcabamentosInput, calcularAcabamentosResultado } from '@/components/orcamento/AcabamentosForm';
 import { ParedesForm, ParedesInput, calcularParedesResultado } from '@/components/orcamento/ParedesForm';
 import { ApprovalSection } from '@/components/orcamento/ApprovalSection';
+import { ClienteForm, type ClienteFormData } from '@/components/orcamento/ClienteForm';
 import { Link } from 'react-router-dom';
 import { exportarOrcamentoPDF } from '@/lib/pdf-export';
 import { exportarPropostaComercialPDF, TipoProposta } from '@/lib/pdf-proposta-comercial';
 import { useOrcamentoData } from '@/hooks/useOrcamentoData';
+import { validateClienteData, formatDocument, onlyDigits } from '@/lib/document-validation';
 
 interface ExtractedData {
   area_total_m2: number;
@@ -83,6 +85,8 @@ export default function NovoOrcamento() {
   const [showReview, setShowReview] = useState(false);
   const [tipoProposta, setTipoProposta] = useState<TipoProposta>('parede_cinza');
   const [approvalStatus, setApprovalStatus] = useState<'PENDENTE' | 'APROVADA' | 'NEGADA' | null>(null);
+  const [clienteValido, setClienteValido] = useState(false);
+  const [showClienteErrors, setShowClienteErrors] = useState(false);
 
   // Fetch prices from global catalog
   const { 
@@ -299,8 +303,44 @@ export default function NovoOrcamento() {
     toast({ title: 'Rascunho descartado', description: 'Iniciando novo orçamento.' });
   };
 
-  const nextStep = () => setCurrentStep(Math.min(steps.length - 1, currentStep + 1));
+  const handleNextStep = () => {
+    // Block advancing from step 0 if client data is invalid
+    if (currentStep === 0) {
+      if (!clienteValido) {
+        setShowClienteErrors(true);
+        toast({
+          title: 'Preencha os dados do cliente',
+          description: 'É necessário preencher os dados do cliente corretamente para continuar.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+    setCurrentStep(Math.min(steps.length - 1, currentStep + 1));
+  };
+  
   const prevStep = () => setCurrentStep(Math.max(0, currentStep - 1));
+  
+  // Handle cliente form data changes
+  const handleClienteFormChange = useCallback((data: ClienteFormData) => {
+    setProjeto(prev => ({
+      ...prev,
+      cliente: data.clienteNome,
+      clienteTipo: data.clienteTipo,
+      clienteDocumento: data.clienteDocumento,
+      clienteResponsavel: data.clienteResponsavel,
+    }));
+  }, [setProjeto]);
+
+  // Prepare cliente form data from projeto
+  const clienteFormData: ClienteFormData = {
+    clienteTipo: projeto.clienteTipo || 'PF',
+    clienteNome: projeto.cliente,
+    clienteDocumento: projeto.clienteDocumento 
+      ? formatDocument(projeto.clienteDocumento, projeto.clienteTipo || 'PF')
+      : '',
+    clienteResponsavel: projeto.clienteResponsavel || '',
+  };
 
   // Show loading while data is being loaded
   if (isLoadingOrcamento) {
@@ -401,9 +441,20 @@ export default function NovoOrcamento() {
 {currentStep === 0 && (
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Dados do Projeto e Preços</h2>
+                <h2 className="text-lg font-semibold">Dados do Cliente e Projeto</h2>
               </div>
               
+              {/* Client Data Section */}
+              <div className="bg-accent/30 rounded-xl p-6 border border-accent">
+                <h3 className="font-medium text-foreground mb-4">Dados do Cliente *</h3>
+                <ClienteForm
+                  data={clienteFormData}
+                  onChange={handleClienteFormChange}
+                  onValidationChange={setClienteValido}
+                  showErrors={showClienteErrors}
+                />
+              </div>
+
               {/* PDF Upload Section */}
               <div className="bg-accent/30 rounded-xl p-6 border border-accent">
                 <div className="flex items-center gap-3 mb-4">
@@ -418,13 +469,10 @@ export default function NovoOrcamento() {
                 <PdfUpload onDataExtracted={handleDataExtracted} />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Project fields */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="input-group">
-                  <Label htmlFor="cliente" className="input-label">Cliente *</Label>
-                  <Input id="cliente" name="cliente" value={projeto.cliente} onChange={(e) => setProjeto({...projeto, cliente: e.target.value})} placeholder="Nome do cliente" />
-                </div>
-                <div className="input-group">
-                  <Label htmlFor="codigo" className="input-label">Código</Label>
+                  <Label htmlFor="codigo" className="input-label">Código do Orçamento</Label>
                   <Input id="codigo" name="codigo" value={projeto.codigo} onChange={(e) => setProjeto({...projeto, codigo: e.target.value})} />
                 </div>
                 <div className="input-group">
@@ -812,7 +860,7 @@ export default function NovoOrcamento() {
               })()}
             </>
           ) : (
-            <Button onClick={nextStep} className="btn-primary">
+            <Button onClick={handleNextStep} className="btn-primary">
               Próximo<ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           )}

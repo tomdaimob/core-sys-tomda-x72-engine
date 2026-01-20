@@ -15,42 +15,78 @@ import {
   ICF_FORM_AREA,
   FIBRA_ACO_CONSUMO,
   FIBRA_PP_CONSUMO,
+  SegmentoParede,
 } from './orcamento-types';
 
-// Calculate walls (Paredes)
+// Calculate walls (Paredes) - New format with ICF 18 and ICF 12 support
 export function calcularParedes(
   input: InputParedes,
   precos: Precos
 ): ResultadoParedes {
-  const areaLiquida = input.areaLiquidaM2;
-  
-  // Each ICF form = 0.5 m² (1.25 × 0.40)
-  const quantidadeFormas = Math.ceil(areaLiquida / ICF_FORM_AREA);
-  
-  // Select form price based on type
-  const custoPorForma = input.tipoForma === '18' ? precos.formaIcf18 : precos.formaIcf12;
-  const custoFormas = quantidadeFormas * custoPorForma;
-  
-  // Concrete volume (area × thickness in meters × factor)
-  const espessuraM = input.espessuraCm / 100;
-  const volumeConcreto = input.volumeConcretoM3 || areaLiquida * espessuraM * 0.7; // 70% fill
+  let formas18Qtd = 0;
+  let formas12Qtd = 0;
+  let areaLiquidaTotal = 0;
+
+  if (input.modoAvancado && input.segmentos && input.segmentos.length > 0) {
+    // Advanced mode: calculate by segment
+    input.segmentos.forEach((seg) => {
+      const qtdFormas = Math.ceil(seg.areaParedeM2 / ICF_FORM_AREA);
+      areaLiquidaTotal += seg.areaParedeM2;
+      if (seg.tipoForma === 'ICF 18') {
+        formas18Qtd += qtdFormas;
+      } else {
+        formas12Qtd += qtdFormas;
+      }
+    });
+  } else {
+    // Simple mode: external and internal areas
+    const areaExterna = input.areaExternaM2 || 0;
+    const areaInterna = input.areaInternaM2 || 0;
+    areaLiquidaTotal = areaExterna + areaInterna;
+
+    const formasExterna = Math.ceil(areaExterna / ICF_FORM_AREA);
+    const formasInterna = Math.ceil(areaInterna / ICF_FORM_AREA);
+
+    if (input.tipoFormaExterna === 'ICF 18') {
+      formas18Qtd += formasExterna;
+    } else {
+      formas12Qtd += formasExterna;
+    }
+
+    if (input.tipoFormaInterna === 'ICF 18') {
+      formas18Qtd += formasInterna;
+    } else {
+      formas12Qtd += formasInterna;
+    }
+  }
+
+  // Calculate costs
+  const custoFormas18 = formas18Qtd * precos.formaIcf18;
+  const custoFormas12 = formas12Qtd * precos.formaIcf12;
+  const custoFormasTotal = custoFormas18 + custoFormas12;
+
+  // Concrete: total forms area * average thickness (consider 15cm average)
+  const espessuraMediaM = 0.15;
+  const volumeConcreto = areaLiquidaTotal * espessuraMediaM * 0.7; // 70% fill factor
   const custoConcreto = volumeConcreto * precos.concretoM3;
-  
-  // Steel reinforcement
-  const pesoFerragem = input.pesoFerragemKg || volumeConcreto * 80; // ~80 kg/m³
+
+  // Steel reinforcement: ~80 kg/m³
+  const pesoFerragem = volumeConcreto * 80;
   const custoFerragem = pesoFerragem * precos.ferragemKg;
-  
+
   // Labor
-  const custoMaoObra = areaLiquida * precos.maoObraParede;
-  
-  const custoTotal = custoFormas + custoConcreto + custoFerragem + custoMaoObra;
-  const precoPorM2 = areaLiquida > 0 ? custoTotal / areaLiquida : 0;
-  
+  const custoMaoObra = areaLiquidaTotal * precos.maoObraParede;
+
+  const custoTotal = custoFormasTotal + custoConcreto + custoFerragem + custoMaoObra;
+  const precoPorM2 = areaLiquidaTotal > 0 ? custoTotal / areaLiquidaTotal : 0;
+
   return {
-    areaLiquida,
-    quantidadeFormas,
-    custoPorForma,
-    custoFormas,
+    areaLiquidaTotal,
+    formas18Qtd,
+    formas12Qtd,
+    custoFormas18,
+    custoFormas12,
+    custoFormasTotal,
     volumeConcreto,
     custoConcreto,
     pesoFerragem,
@@ -58,6 +94,11 @@ export function calcularParedes(
     custoMaoObra,
     custoTotal,
     precoPorM2,
+    // Legacy fields for backward compatibility
+    areaLiquida: areaLiquidaTotal,
+    quantidadeFormas: formas18Qtd + formas12Qtd,
+    custoPorForma: (formas18Qtd + formas12Qtd) > 0 ? custoFormasTotal / (formas18Qtd + formas12Qtd) : 0,
+    custoFormas: custoFormasTotal,
   };
 }
 

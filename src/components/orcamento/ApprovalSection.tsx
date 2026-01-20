@@ -56,6 +56,17 @@ export function ApprovalSection({
   const canRequestApproval = !isAdmin && needsApproval && status !== 'PENDENTE' && status !== 'APROVADA';
   const canRespond = isAdmin && status === 'PENDENTE';
 
+  // Debug: log render conditions
+  console.log('[ApprovalSection] render conditions:', {
+    orcamentoId,
+    marginPercent,
+    needsApproval,
+    status,
+    isAdmin,
+    canRequestApproval,
+    userId: user?.id,
+  });
+
   // Mark messages as read when component mounts
   useEffect(() => {
     if (orcamentoId && unreadCount > 0) {
@@ -74,14 +85,21 @@ export function ApprovalSection({
   }, [status, onApprovalStatusChange]);
 
   const handleRequestApproval = async () => {
-    // Debug log
-    console.log('[ApprovalSection] clicked solicitar aprovação', {
+    // Debug log IMMEDIATELY
+    console.log('CLICK solicitar_aprovacao', {
       orcamentoId,
-      marginPercent,
+      userId: user?.id,
       isAdmin,
+      lucro: marginPercent,
       messageText: messageText.substring(0, 50),
       needsApproval,
       status,
+    });
+
+    // Show immediate feedback
+    toast({
+      title: 'Enviando solicitação...',
+      description: 'Aguarde enquanto processamos sua solicitação.',
     });
 
     // Validation: orcamento must be saved first
@@ -122,9 +140,22 @@ export function ApprovalSection({
       return;
     }
 
-    const success = await requestApproval(messageText, marginPercent);
-    if (success) {
-      setMessageText('');
+    try {
+      const success = await requestApproval(messageText, marginPercent);
+      if (success) {
+        setMessageText('');
+        toast({
+          title: 'Solicitação enviada ao Gestor!',
+          description: 'Aguarde a aprovação para prosseguir.',
+        });
+      }
+    } catch (error: any) {
+      console.error('ERRO solicitar_aprovacao', error);
+      toast({
+        title: 'Erro ao enviar solicitação',
+        description: error?.message || error?.details || 'Erro desconhecido',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -300,7 +331,11 @@ export function ApprovalSection({
                 />
                 <Button
                   type="button"
-                  onClick={handleRequestApproval}
+                  data-testid="btn-solicitar-aprovacao"
+                  onClick={() => {
+                    console.log('CLICK btn-solicitar-aprovacao');
+                    handleRequestApproval();
+                  }}
                   disabled={loading || !messageText.trim()}
                   className="w-full"
                 >

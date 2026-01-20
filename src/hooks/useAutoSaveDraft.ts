@@ -61,10 +61,24 @@ export function useAutoSaveDraft({ userId, draftData, debounceMs = 2000 }: UseAu
 
   // Auto-save function
   const saveDraft = useCallback(async () => {
-    if (!userId || !draftData.projeto.cliente) return;
+    // CRITICAL: Validate userId exists before any DB operation
+    if (!userId) {
+      if (import.meta.env.DEV) {
+        console.warn('[AutoSave] Skipping save: userId is undefined');
+      }
+      return;
+    }
+    
+    if (!draftData.projeto.cliente) {
+      if (import.meta.env.DEV) {
+        console.log('[AutoSave] Skipping save: cliente is empty');
+      }
+      return;
+    }
 
     setIsSaving(true);
     try {
+      // Prepare inputs data - ensure all values are properly typed
       const inputsData = {
         projeto: draftData.projeto,
         paredes: draftData.paredes,
@@ -76,19 +90,50 @@ export function useAutoSaveDraft({ userId, draftData, debounceMs = 2000 }: UseAu
         currentStep: draftData.currentStep,
       };
 
+      // Sanitize numeric values - convert strings with "R$" or commas to numbers
+      const sanitizeNumeric = (value: any): number | null => {
+        if (value === null || value === undefined || value === '') return null;
+        if (typeof value === 'number') return isNaN(value) ? null : value;
+        if (typeof value === 'string') {
+          const cleaned = value.replace(/[R$\s,]/g, '').replace(',', '.');
+          const num = parseFloat(cleaned);
+          return isNaN(num) ? null : num;
+        }
+        return null;
+      };
+
+      const areaTotal = sanitizeNumeric(draftData.projeto.areaTotal) || sanitizeNumeric(draftData.radier.areaM2) || null;
+
+      if (import.meta.env.DEV) {
+        console.log('[AutoSave] Saving draft:', { 
+          userId, 
+          orcamentoId, 
+          cliente: draftData.projeto.cliente,
+          areaTotal
+        });
+      }
+
       if (orcamentoId) {
         // Update existing draft
         const { error: updateError } = await supabase
           .from('orcamentos')
           .update({
             cliente: draftData.projeto.cliente,
-            projeto: draftData.projeto.projeto,
-            area_total_m2: draftData.projeto.areaTotal || draftData.radier.areaM2,
+            projeto: draftData.projeto.projeto || null,
+            area_total_m2: areaTotal,
             updated_at: new Date().toISOString(),
           })
           .eq('id', orcamentoId);
 
-        if (updateError) throw updateError;
+        if (updateError) {
+          console.error('[AutoSave] Update error:', updateError);
+          toast({
+            title: 'Erro ao salvar rascunho',
+            description: updateError.message || 'Verifique sua conexão.',
+            variant: 'destructive',
+          });
+          return;
+        }
 
         // Update or insert inputs
         const { error: inputsError } = await supabase
@@ -102,23 +147,45 @@ export function useAutoSaveDraft({ userId, draftData, debounceMs = 2000 }: UseAu
             onConflict: 'orcamento_id,etapa',
           });
 
-        if (inputsError) throw inputsError;
+        if (inputsError) {
+          console.error('[AutoSave] Inputs upsert error:', inputsError);
+          toast({
+            title: 'Erro ao salvar dados',
+            description: inputsError.message || 'Verifique sua conexão.',
+            variant: 'destructive',
+          });
+          return;
+        }
       } else {
-        // Create new draft
+        // Create new draft - ALWAYS include user_id
+        const insertPayload = {
+          user_id: userId, // CRITICAL: Must be set
+          codigo: draftData.projeto.codigo || `ORC-${Date.now()}`,
+          cliente: draftData.projeto.cliente,
+          projeto: draftData.projeto.projeto || null,
+          status: 'rascunho',
+          area_total_m2: areaTotal,
+        };
+
+        if (import.meta.env.DEV) {
+          console.log('[AutoSave] Insert payload:', insertPayload);
+        }
+
         const { data: newOrcamento, error: createError } = await supabase
           .from('orcamentos')
-          .insert({
-            user_id: userId,
-            codigo: draftData.projeto.codigo,
-            cliente: draftData.projeto.cliente,
-            projeto: draftData.projeto.projeto,
-            status: 'rascunho',
-            area_total_m2: draftData.projeto.areaTotal || draftData.radier.areaM2,
-          })
+          .insert(insertPayload)
           .select()
           .single();
 
-        if (createError) throw createError;
+        if (createError) {
+          console.error('[AutoSave] Create error:', createError);
+          toast({
+            title: 'Erro ao criar rascunho',
+            description: createError.message || 'Verifique sua conexão.',
+            variant: 'destructive',
+          });
+          return;
+        }
 
         setOrcamentoId(newOrcamento.id);
 
@@ -131,16 +198,29 @@ export function useAutoSaveDraft({ userId, draftData, debounceMs = 2000 }: UseAu
             dados: inputsData as unknown as Json,
           });
 
-        if (inputsError) throw inputsError;
+        if (inputsError) {
+          console.error('[AutoSave] Inputs insert error:', inputsError);
+          toast({
+            title: 'Erro ao salvar dados',
+            description: inputsError.message || 'Verifique sua conexão.',
+            variant: 'destructive',
+          });
+          return;
+        }
       }
 
       setLastSaved(new Date());
     } catch (error: any) {
-      console.error('Error saving draft:', error);
+      console.error('[AutoSave] Unexpected error:', error);
+      toast({
+        title: 'Erro inesperado',
+        description: error?.message || 'Tente novamente.',
+        variant: 'destructive',
+      });
     } finally {
       setIsSaving(false);
     }
-  }, [userId, draftData, orcamentoId]);
+  }, [userId, draftData, orcamentoId, toast]);
 
   // Debounced save on data change
   useEffect(() => {

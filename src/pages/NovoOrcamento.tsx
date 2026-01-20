@@ -86,13 +86,15 @@ export default function NovoOrcamento() {
     getIcflexPrice, 
     getRebocoMaoObraPrice,
     getConcretoOptions,
-    getMaoObraLajePrice 
+    getMaoObraLajePrice,
+    getAcabamentosPrecos
   } = usePriceCatalog();
   const precos = mapCatalogToPrecos();
   const precoIcflexM2 = getIcflexPrice();
   const precoMaoObraRebocoM2 = getRebocoMaoObraPrice();
   const concretoOptions = getConcretoOptions();
   const precoMaoObraLajeM2 = getMaoObraLajePrice();
+  const precosAcabamentos = getAcabamentosPrecos();
 
   // Form state
   const [projeto, setProjeto] = useState({
@@ -143,6 +145,8 @@ export default function NovoOrcamento() {
     tipoPiso: 'ceramico',
     areaPintura: 0,
     demaosPintura: 2,
+    usarAreaRadier: true,
+    usarAreaReboco: true,
   });
 
   // Draft data for auto-save
@@ -274,8 +278,13 @@ export default function NovoOrcamento() {
   const resultadoRebocoCalc = calcularRebocoResultado(reboco, resultadoParedesCalc, precoIcflexM2, precoMaoObraRebocoM2);
   const resultadoReboco = resultadoRebocoCalc.areaTotal > 0 ? resultadoRebocoCalc : null;
 
-  // Calculate acabamentos
-  const resultadoAcabamentosCalc = calcularAcabamentosResultado(acabamentos, precos);
+  // Calculate acabamentos with automatic area from Radier and Reboco
+  const resultadoAcabamentosCalc = calcularAcabamentosResultado(
+    acabamentos, 
+    precosAcabamentos,
+    resultadoRadier,
+    resultadoRebocoCalc
+  );
   const resultadoAcabamentos = resultadoAcabamentosCalc.custoTotal > 0 ? resultadoAcabamentosCalc : null;
 
   const consolidado = consolidarOrcamento(
@@ -357,7 +366,7 @@ export default function NovoOrcamento() {
     setRadier({ areaM2: 0, espessuraCm: 10, tipoFibra: 'aco' });
     setLaje({ tipo: 'AUTO', areaM2: 0, espessuraM: 0, concretoItemId: '', temSegundoAndar: false });
     setReboco({ aplicarInterno: true, aplicarExterno: true, perdaPercentual: 10, espessuraMedia: 3 });
-    setAcabamentos({ areaPiso: 0, tipoPiso: 'ceramico', areaPintura: 0, demaosPintura: 2 });
+    setAcabamentos({ areaPiso: 0, tipoPiso: 'ceramico', areaPintura: 0, demaosPintura: 2, usarAreaRadier: true, usarAreaReboco: true });
     setMargens(DEFAULT_MARGENS);
     setCurrentStep(0);
     
@@ -652,7 +661,10 @@ export default function NovoOrcamento() {
               acabamentos={acabamentos}
               onAcabamentosChange={setAcabamentos}
               precos={precos}
+              precosAcabamentos={precosAcabamentos}
               resultado={resultadoAcabamentosCalc}
+              resultadoRadier={resultadoRadier}
+              resultadoReboco={resultadoRebocoCalc}
             />
           )}
         </div>

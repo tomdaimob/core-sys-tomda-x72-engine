@@ -148,6 +148,8 @@ export function AcabamentosForm({
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Usar área do Radier</span>
               <Switch
+                id="usar_area_radier"
+                name="usar_area_radier"
                 checked={acabamentos.usarAreaRadier}
                 onCheckedChange={handleUsarAreaRadier}
               />
@@ -157,8 +159,10 @@ export function AcabamentosForm({
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="input-group">
-            <Label className="input-label">Área do Piso (m²)</Label>
+            <Label htmlFor="area_piso" className="input-label">Área do Piso (m²)</Label>
             <Input
+              id="area_piso"
+              name="area_piso"
               type="number"
               min="0"
               step="0.01"
@@ -180,8 +184,10 @@ export function AcabamentosForm({
             )}
           </div>
           <div className="input-group">
-            <Label className="input-label">Tipo de Piso</Label>
+            <Label htmlFor="tipo_piso" className="input-label">Tipo de Piso</Label>
             <select
+              id="tipo_piso"
+              name="tipo_piso"
               value={acabamentos.tipoPiso}
               onChange={(e) => updateField('tipoPiso', e.target.value as 'ceramico' | 'porcelanato')}
               className="input-field"
@@ -208,6 +214,8 @@ export function AcabamentosForm({
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Usar área do Reboco</span>
               <Switch
+                id="usar_area_reboco"
+                name="usar_area_reboco"
                 checked={acabamentos.usarAreaReboco}
                 onCheckedChange={handleUsarAreaReboco}
               />
@@ -217,8 +225,10 @@ export function AcabamentosForm({
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="input-group">
-            <Label className="input-label">Área de Pintura (m²)</Label>
+            <Label htmlFor="area_pintura" className="input-label">Área de Pintura (m²)</Label>
             <Input
+              id="area_pintura"
+              name="area_pintura"
               type="number"
               min="0"
               step="0.01"
@@ -240,8 +250,10 @@ export function AcabamentosForm({
             )}
           </div>
           <div className="input-group">
-            <Label className="input-label">Número de Demãos</Label>
+            <Label htmlFor="demaos_pintura" className="input-label">Número de Demãos</Label>
             <select
+              id="demaos_pintura"
+              name="demaos_pintura"
               value={acabamentos.demaosPintura}
               onChange={(e) => updateField('demaosPintura', parseInt(e.target.value))}
               className="input-field"

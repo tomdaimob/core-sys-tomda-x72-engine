@@ -242,6 +242,8 @@ export function ApprovalSection({
             {canRequestApproval && (
               <>
                 <Textarea
+                  id="approval_request_message"
+                  name="approval_request_message"
                   placeholder="Explique o motivo da margem baixa e o que foi negociado..."
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
@@ -272,6 +274,8 @@ export function ApprovalSection({
             {(status === 'NEGADA' || status === 'PENDENTE') && messages.length > 0 && (
               <div className="space-y-3">
                 <Textarea
+                  id="vendedor_followup_message"
+                  name="vendedor_followup_message"
                   placeholder="Adicionar mensagem..."
                   value={messageText}
                   onChange={(e) => setMessageText(e.target.value)}
@@ -299,6 +303,8 @@ export function ApprovalSection({
         {isAdmin && status === 'PENDENTE' && (
           <div className="space-y-4">
             <Textarea
+              id="gestor_response"
+              name="gestor_response"
               placeholder="Informe sua decisão e orientações..."
               value={gestorResponse}
               onChange={(e) => setGestorResponse(e.target.value)}

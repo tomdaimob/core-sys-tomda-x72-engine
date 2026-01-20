@@ -180,8 +180,10 @@ export function ParedesForm({ paredes, onParedesChange, precos, resultado }: Par
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="input-group">
-              <Label className="input-label">Área Paredes Externas (m²)</Label>
+              <Label htmlFor="area_externa" className="input-label">Área Paredes Externas (m²)</Label>
               <Input
+                id="area_externa"
+                name="area_externa"
                 type="number"
                 min="0"
                 value={paredes.areaExternaM2 || ''}
@@ -195,14 +197,14 @@ export function ParedesForm({ paredes, onParedesChange, precos, resultado }: Par
               />
             </div>
             <div className="input-group">
-              <Label className="input-label">Tipo Forma Externa</Label>
+              <Label htmlFor="tipo_forma_externa" className="input-label">Tipo Forma Externa</Label>
               <Select
                 value={paredes.tipoFormaExterna}
                 onValueChange={(value: TipoForma) =>
                   onParedesChange({ ...paredes, tipoFormaExterna: value })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="tipo_forma_externa" name="tipo_forma_externa">
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
@@ -215,8 +217,10 @@ export function ParedesForm({ paredes, onParedesChange, precos, resultado }: Par
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="input-group">
-              <Label className="input-label">Área Paredes Internas (m²)</Label>
+              <Label htmlFor="area_interna" className="input-label">Área Paredes Internas (m²)</Label>
               <Input
+                id="area_interna"
+                name="area_interna"
                 type="number"
                 min="0"
                 value={paredes.areaInternaM2 || ''}
@@ -230,14 +234,14 @@ export function ParedesForm({ paredes, onParedesChange, precos, resultado }: Par
               />
             </div>
             <div className="input-group">
-              <Label className="input-label">Tipo Forma Interna</Label>
+              <Label htmlFor="tipo_forma_interna" className="input-label">Tipo Forma Interna</Label>
               <Select
                 value={paredes.tipoFormaInterna}
                 onValueChange={(value: TipoForma) =>
                   onParedesChange({ ...paredes, tipoFormaInterna: value })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id="tipo_forma_interna" name="tipo_forma_interna">
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
@@ -274,8 +278,10 @@ export function ParedesForm({ paredes, onParedesChange, precos, resultado }: Par
                 >
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                     <div className="input-group">
-                      <Label className="input-label text-xs">Descrição</Label>
+                      <Label htmlFor={`seg_descricao_${seg.id}`} className="input-label text-xs">Descrição</Label>
                       <Input
+                        id={`seg_descricao_${seg.id}`}
+                        name={`seg_descricao_${seg.id}`}
                         value={seg.descricao}
                         onChange={(e) =>
                           updateSegmento(seg.id, { descricao: e.target.value })
@@ -284,8 +290,10 @@ export function ParedesForm({ paredes, onParedesChange, precos, resultado }: Par
                       />
                     </div>
                     <div className="input-group">
-                      <Label className="input-label text-xs">Área (m²)</Label>
+                      <Label htmlFor={`seg_area_${seg.id}`} className="input-label text-xs">Área (m²)</Label>
                       <Input
+                        id={`seg_area_${seg.id}`}
+                        name={`seg_area_${seg.id}`}
                         type="number"
                         min="0"
                         value={seg.areaParedeM2 || ''}
@@ -298,14 +306,14 @@ export function ParedesForm({ paredes, onParedesChange, precos, resultado }: Par
                       />
                     </div>
                     <div className="input-group">
-                      <Label className="input-label text-xs">Tipo Forma</Label>
+                      <Label htmlFor={`seg_tipo_${seg.id}`} className="input-label text-xs">Tipo Forma</Label>
                       <Select
                         value={seg.tipoForma}
                         onValueChange={(value: TipoForma) =>
                           updateSegmento(seg.id, { tipoForma: value })
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id={`seg_tipo_${seg.id}`} name={`seg_tipo_${seg.id}`}>
                           <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                         <SelectContent>

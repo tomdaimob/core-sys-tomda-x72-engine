@@ -141,6 +141,8 @@ export function LajeForm({
             </div>
           </div>
           <Switch
+            id="tem_segundo_andar"
+            name="tem_segundo_andar"
             checked={laje.temSegundoAndar}
             onCheckedChange={handleSegundoAndarChange}
           />
@@ -150,8 +152,10 @@ export function LajeForm({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Área */}
           <div className="input-group">
-            <Label className="input-label">Área (m²)</Label>
+            <Label htmlFor="laje_area" className="input-label">Área (m²)</Label>
             <Input
+              id="laje_area"
+              name="laje_area"
               type="number"
               min="0"
               step="0.01"
@@ -168,8 +172,10 @@ export function LajeForm({
 
           {/* Espessura */}
           <div className="input-group">
-            <Label className="input-label">Espessura (m)</Label>
+            <Label htmlFor="laje_espessura" className="input-label">Espessura (m)</Label>
             <Input
+              id="laje_espessura"
+              name="laje_espessura"
               type="number"
               min="0"
               step="0.01"
@@ -184,12 +190,12 @@ export function LajeForm({
 
           {/* Concreto FCK */}
           <div className="input-group">
-            <Label className="input-label">Concreto (FCK)</Label>
+            <Label htmlFor="laje_concreto" className="input-label">Concreto (FCK)</Label>
             <Select
               value={laje.concretoItemId || (concretoOptions[0]?.id || '')}
               onValueChange={handleConcretoChange}
             >
-              <SelectTrigger>
+              <SelectTrigger id="laje_concreto" name="laje_concreto">
                 <SelectValue placeholder="Selecione o concreto" />
               </SelectTrigger>
               <SelectContent>

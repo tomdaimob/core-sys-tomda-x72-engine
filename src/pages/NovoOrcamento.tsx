@@ -466,20 +466,20 @@ export default function NovoOrcamento() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="input-group">
-                  <Label className="input-label">Cliente *</Label>
-                  <Input value={projeto.cliente} onChange={(e) => setProjeto({...projeto, cliente: e.target.value})} placeholder="Nome do cliente" />
+                  <Label htmlFor="cliente" className="input-label">Cliente *</Label>
+                  <Input id="cliente" name="cliente" value={projeto.cliente} onChange={(e) => setProjeto({...projeto, cliente: e.target.value})} placeholder="Nome do cliente" />
                 </div>
                 <div className="input-group">
-                  <Label className="input-label">Código</Label>
-                  <Input value={projeto.codigo} onChange={(e) => setProjeto({...projeto, codigo: e.target.value})} />
+                  <Label htmlFor="codigo" className="input-label">Código</Label>
+                  <Input id="codigo" name="codigo" value={projeto.codigo} onChange={(e) => setProjeto({...projeto, codigo: e.target.value})} />
                 </div>
                 <div className="input-group">
-                  <Label className="input-label">Área Total (m²)</Label>
-                  <Input type="number" value={projeto.areaTotal || ''} onChange={(e) => setProjeto({...projeto, areaTotal: parseFloat(e.target.value) || 0})} />
+                  <Label htmlFor="area_total" className="input-label">Área Total (m²)</Label>
+                  <Input id="area_total" name="area_total" type="number" value={projeto.areaTotal || ''} onChange={(e) => setProjeto({...projeto, areaTotal: parseFloat(e.target.value) || 0})} />
                 </div>
                 <div className="input-group">
-                  <Label className="input-label">Pé-Direito (m)</Label>
-                  <Input type="number" step="0.1" value={projeto.peDireito || ''} onChange={(e) => setProjeto({...projeto, peDireito: parseFloat(e.target.value) || 0})} />
+                  <Label htmlFor="pe_direito" className="input-label">Pé-Direito (m)</Label>
+                  <Input id="pe_direito" name="pe_direito" type="number" step="0.1" value={projeto.peDireito || ''} onChange={(e) => setProjeto({...projeto, peDireito: parseFloat(e.target.value) || 0})} />
                 </div>
               </div>
               
@@ -543,16 +543,16 @@ export default function NovoOrcamento() {
               <h2 className="text-lg font-semibold">Radier</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="input-group">
-                  <Label className="input-label">Área (m²)</Label>
-                  <Input type="number" value={radier.areaM2 || ''} onChange={(e) => setRadier({...radier, areaM2: parseFloat(e.target.value) || 0})} />
+                  <Label htmlFor="radier_area" className="input-label">Área (m²)</Label>
+                  <Input id="radier_area" name="radier_area" type="number" value={radier.areaM2 || ''} onChange={(e) => setRadier({...radier, areaM2: parseFloat(e.target.value) || 0})} />
                 </div>
                 <div className="input-group">
-                  <Label className="input-label">Espessura (cm)</Label>
-                  <Input type="number" value={radier.espessuraCm} onChange={(e) => setRadier({...radier, espessuraCm: parseFloat(e.target.value) || 0})} />
+                  <Label htmlFor="radier_espessura" className="input-label">Espessura (cm)</Label>
+                  <Input id="radier_espessura" name="radier_espessura" type="number" value={radier.espessuraCm} onChange={(e) => setRadier({...radier, espessuraCm: parseFloat(e.target.value) || 0})} />
                 </div>
                 <div className="input-group">
-                  <Label className="input-label">Tipo Fibra</Label>
-                  <select value={radier.tipoFibra} onChange={(e) => setRadier({...radier, tipoFibra: e.target.value as 'aco' | 'pp'})} className="input-field">
+                  <Label htmlFor="radier_tipo_fibra" className="input-label">Tipo Fibra</Label>
+                  <select id="radier_tipo_fibra" name="radier_tipo_fibra" value={radier.tipoFibra} onChange={(e) => setRadier({...radier, tipoFibra: e.target.value as 'aco' | 'pp'})} className="input-field">
                     <option value="aco">Aço (25 kg/m³)</option>
                     <option value="pp">PP (5 kg/m³)</option>
                   </select>
@@ -575,16 +575,16 @@ export default function NovoOrcamento() {
               <h2 className="text-lg font-semibold">Margens e BDI</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="input-group">
-                  <Label className="input-label">Lucro (%)</Label>
-                  <Input type="number" value={margens.lucroPercent} onChange={(e) => setMargens({...margens, lucroPercent: parseFloat(e.target.value) || 0})} />
+                  <Label htmlFor="lucro_percent" className="input-label">Lucro (%)</Label>
+                  <Input id="lucro_percent" name="lucro_percent" type="number" value={margens.lucroPercent} onChange={(e) => setMargens({...margens, lucroPercent: parseFloat(e.target.value) || 0})} />
                 </div>
                 <div className="input-group">
-                  <Label className="input-label">BDI (%)</Label>
-                  <Input type="number" value={margens.bdiPercent} onChange={(e) => setMargens({...margens, bdiPercent: parseFloat(e.target.value) || 0})} />
+                  <Label htmlFor="bdi_percent" className="input-label">BDI (%)</Label>
+                  <Input id="bdi_percent" name="bdi_percent" type="number" value={margens.bdiPercent} onChange={(e) => setMargens({...margens, bdiPercent: parseFloat(e.target.value) || 0})} />
                 </div>
                 <div className="input-group">
-                  <Label className="input-label">Desconto (%)</Label>
-                  <Input type="number" value={margens.descontoPercent} onChange={(e) => setMargens({...margens, descontoPercent: parseFloat(e.target.value) || 0})} />
+                  <Label htmlFor="desconto_percent" className="input-label">Desconto (%)</Label>
+                  <Input id="desconto_percent" name="desconto_percent" type="number" value={margens.descontoPercent} onChange={(e) => setMargens({...margens, descontoPercent: parseFloat(e.target.value) || 0})} />
                 </div>
               </div>
               

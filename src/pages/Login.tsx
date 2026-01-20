@@ -84,18 +84,20 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {!isLogin && (
               <div className="input-group">
-                <Label htmlFor="name" className="input-label">
+                <Label htmlFor="fullName" className="input-label">
                   Nome completo
                 </Label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
-                    id="name"
+                    id="fullName"
+                    name="fullName"
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="Seu nome"
                     className="pl-10 input-field"
+                    autoComplete="name"
                     required={!isLogin}
                   />
                 </div>
@@ -110,11 +112,13 @@ export default function Login() {
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
                   id="email"
+                  name="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu@email.com"
                   className="pl-10 input-field"
+                  autoComplete="email"
                   required
                 />
               </div>
@@ -128,11 +132,13 @@ export default function Login() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
                   id="password"
+                  name="password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   className="pl-10 input-field"
+                  autoComplete={isLogin ? "current-password" : "new-password"}
                   required
                   minLength={6}
                 />

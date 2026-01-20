@@ -42,6 +42,10 @@ export interface ProjetoData {
   perimetroExterno: number;
   paredesInternas: number;
   aberturas: number;
+  // Client data fields
+  clienteTipo: 'PF' | 'PJ';
+  clienteDocumento: string;
+  clienteResponsavel: string;
 }
 
 export interface RadierData {
@@ -130,6 +134,9 @@ export const DEFAULT_PROJETO: ProjetoData = {
   perimetroExterno: 0,
   paredesInternas: 0,
   aberturas: 0,
+  clienteTipo: 'PF',
+  clienteDocumento: '',
+  clienteResponsavel: '',
 };
 
 export const DEFAULT_PAREDES: ParedesInput = {
@@ -339,6 +346,9 @@ export function useOrcamentoData({
           codigo: orcamento.codigo || prev.codigo,
           projeto: orcamento.projeto || '',
           areaTotal: orcamento.area_total_m2 || 0,
+          clienteTipo: (orcamento.cliente_tipo as 'PF' | 'PJ') || 'PF',
+          clienteDocumento: orcamento.cliente_documento || '',
+          clienteResponsavel: orcamento.cliente_responsavel || '',
         }));
       }
 
@@ -474,6 +484,9 @@ export function useOrcamentoData({
             cliente: projeto.cliente,
             projeto: projeto.projeto || null,
             area_total_m2: areaTotal,
+            cliente_tipo: projeto.clienteTipo,
+            cliente_documento: projeto.clienteDocumento ? projeto.clienteDocumento.replace(/\D/g, '') : null,
+            cliente_responsavel: projeto.clienteResponsavel || null,
             updated_at: new Date().toISOString(),
           })
           .eq('id', currentOrcamentoId);
@@ -492,6 +505,9 @@ export function useOrcamentoData({
             projeto: projeto.projeto || null,
             status: 'rascunho',
             area_total_m2: areaTotal,
+            cliente_tipo: projeto.clienteTipo,
+            cliente_documento: projeto.clienteDocumento ? projeto.clienteDocumento.replace(/\D/g, '') : null,
+            cliente_responsavel: projeto.clienteResponsavel || null,
           })
           .select()
           .single();

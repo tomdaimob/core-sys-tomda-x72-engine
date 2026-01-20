@@ -55,7 +55,7 @@ function AppRoutes() {
       <Route path="/orcamentos/:id" element={<ProtectedRoute><NovoOrcamento /></ProtectedRoute>} />
       <Route path="/precos" element={<AdminRoute><Precos /></AdminRoute>} />
       <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
-      <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
+      <Route path="/configuracoes" element={<AdminRoute><Configuracoes /></AdminRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

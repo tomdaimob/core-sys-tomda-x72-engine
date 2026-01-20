@@ -43,6 +43,7 @@ import { ReviewExtraction } from '@/components/orcamento/ReviewExtraction';
 import { LajeForm, LajeItem, calcularLajeResultado } from '@/components/orcamento/LajeForm';
 import { RebocoForm, RebocoInput, calcularRebocoResultado } from '@/components/orcamento/RebocoForm';
 import { AcabamentosForm, AcabamentosInput, calcularAcabamentosResultado } from '@/components/orcamento/AcabamentosForm';
+import { ParedesForm, ParedesInput, calcularParedesResultado } from '@/components/orcamento/ParedesForm';
 import { Link } from 'react-router-dom';
 import { exportarOrcamentoPDF } from '@/lib/pdf-export';
 import { useAutoSaveDraft } from '@/hooks/useAutoSaveDraft';
@@ -95,9 +96,13 @@ export default function NovoOrcamento() {
 
   const [margens, setMargens] = useState<Margens>(DEFAULT_MARGENS);
 
-  const [paredes, setParedes] = useState({
-    areaLiquidaM2: 0,
-    tipoForma: '18' as '18' | '12',
+  const [paredes, setParedes] = useState<ParedesInput>({
+    areaExternaM2: 0,
+    areaInternaM2: 0,
+    tipoFormaExterna: 'ICF 18',
+    tipoFormaInterna: 'ICF 12',
+    modoAvancado: false,
+    segmentos: [],
   });
 
   const [radier, setRadier] = useState({
@@ -191,10 +196,11 @@ export default function NovoOrcamento() {
       aberturas: data.aberturas_m2,
     });
     
-    // Update paredes
+    // Update paredes with extracted data
     setParedes({
       ...paredes,
-      areaLiquidaM2: areaParedes,
+      areaExternaM2: areaParedes * 0.7, // Estimate: 70% external
+      areaInternaM2: areaParedes * 0.3, // Estimate: 30% internal
     });
     
     // Update radier with area
@@ -210,9 +216,10 @@ export default function NovoOrcamento() {
     });
   };
 
-  // Calculate results
-  const resultadoParedes = paredes.areaLiquidaM2 > 0 
-    ? calcularParedes({ ...paredes, espessuraCm: paredes.tipoForma === '18' ? 18 : 12 }, precos)
+  // Calculate results using new ParedesForm function
+  const resultadoParedesCalc = calcularParedesResultado(paredes, precos);
+  const resultadoParedes = resultadoParedesCalc.areaLiquidaTotal > 0 
+    ? resultadoParedesCalc
     : null;
 
   const resultadoRadier = radier.areaM2 > 0 
@@ -314,7 +321,14 @@ export default function NovoOrcamento() {
       paredesInternas: 0,
       aberturas: 0,
     });
-    setParedes({ areaLiquidaM2: 0, tipoForma: '18' });
+    setParedes({ 
+      areaExternaM2: 0, 
+      areaInternaM2: 0, 
+      tipoFormaExterna: 'ICF 18', 
+      tipoFormaInterna: 'ICF 12', 
+      modoAvancado: false, 
+      segmentos: [] 
+    });
     setRadier({ areaM2: 0, espessuraCm: 10, tipoFibra: 'aco' });
     setLajes([{ id: 'laje-1', nome: 'Laje principal', areaM2: 0, espessuraM: 0.12 }]);
     setReboco({ areaInternaM2: 0, areaExternaM2: 0 });
@@ -477,33 +491,12 @@ export default function NovoOrcamento() {
           )}
 
           {currentStep === 1 && (
-            <div className="space-y-6">
-              <h2 className="text-lg font-semibold">Paredes ICF</h2>
-              <p className="text-muted-foreground text-sm">Cada forma ICF = 0,5 m² (1,25 × 0,40)</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="input-group">
-                  <Label className="input-label">Área Líquida (m²)</Label>
-                  <Input type="number" value={paredes.areaLiquidaM2 || ''} onChange={(e) => setParedes({...paredes, areaLiquidaM2: parseFloat(e.target.value) || 0})} />
-                </div>
-                <div className="input-group">
-                  <Label className="input-label">Tipo de Forma</Label>
-                  <select value={paredes.tipoForma} onChange={(e) => setParedes({...paredes, tipoForma: e.target.value as '18' | '12'})} className="input-field">
-                    <option value="18">18 cm</option>
-                    <option value="12">12 cm</option>
-                  </select>
-                </div>
-              </div>
-              {resultadoParedes && (
-                <div className="bg-accent/50 rounded-lg p-4 mt-4">
-                  <h3 className="font-medium mb-2">Resultado Paredes</h3>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>Formas: {resultadoParedes.quantidadeFormas} un</div>
-                    <div>Custo Total: {formatCurrency(resultadoParedes.custoTotal)}</div>
-                    <div>Preço/m²: {formatCurrency(resultadoParedes.precoPorM2)}</div>
-                  </div>
-                </div>
-              )}
-            </div>
+            <ParedesForm
+              paredes={paredes}
+              onParedesChange={setParedes}
+              precos={precos}
+              resultado={resultadoParedesCalc}
+            />
           )}
 
           {currentStep === 2 && (

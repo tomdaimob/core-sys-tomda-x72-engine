@@ -1,5 +1,6 @@
 // Types for the ICF Budget System
 
+export type TipoFormaICF = 'ICF 18' | 'ICF 12';
 export interface Projeto {
   cliente: string;
   codigo: string;
@@ -38,10 +39,25 @@ export interface Precos {
   maoObraPintura: number;
 }
 
+
+export interface SegmentoParede {
+  id: string;
+  descricao: string;
+  areaParedeM2: number;
+  tipoForma: TipoFormaICF;
+}
+
 export interface InputParedes {
-  areaLiquidaM2: number;
-  espessuraCm: number; // 18 ou 12
-  tipoForma: '18' | '12';
+  areaExternaM2: number;
+  areaInternaM2: number;
+  tipoFormaExterna: TipoFormaICF;
+  tipoFormaInterna: TipoFormaICF;
+  modoAvancado: boolean;
+  segmentos: SegmentoParede[];
+  // Legacy fields for backward compatibility
+  areaLiquidaM2?: number;
+  espessuraCm?: number;
+  tipoForma?: '18' | '12';
   volumeConcretoM3?: number;
   pesoFerragemKg?: number;
 }
@@ -82,10 +98,12 @@ export interface Margens {
 
 // Results calculated from inputs
 export interface ResultadoParedes {
-  areaLiquida: number;
-  quantidadeFormas: number;
-  custoPorForma: number;
-  custoFormas: number;
+  areaLiquidaTotal: number;
+  formas18Qtd: number;
+  formas12Qtd: number;
+  custoFormas18: number;
+  custoFormas12: number;
+  custoFormasTotal: number;
   volumeConcreto: number;
   custoConcreto: number;
   pesoFerragem: number;
@@ -93,6 +111,11 @@ export interface ResultadoParedes {
   custoMaoObra: number;
   custoTotal: number;
   precoPorM2: number;
+  // Legacy fields for backward compatibility
+  areaLiquida?: number;
+  quantidadeFormas?: number;
+  custoPorForma?: number;
+  custoFormas?: number;
 }
 
 export interface ResultadoRadier {

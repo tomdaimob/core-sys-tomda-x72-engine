@@ -25,13 +25,20 @@ interface ConsolidadoData {
 }
 
 interface ResultadoParedes {
-  areaLiquidaM2?: number;
-  quantidadeFormas?: number;
-  custoFormas?: number;
+  areaLiquidaTotal?: number;
+  formas18Qtd?: number;
+  formas12Qtd?: number;
+  custoFormas18?: number;
+  custoFormas12?: number;
+  custoFormasTotal?: number;
   custoConcreto?: number;
   custoMaoObra?: number;
   custoTotal?: number;
   precoPorM2?: number;
+  // Legacy
+  areaLiquidaM2?: number;
+  quantidadeFormas?: number;
+  custoFormas?: number;
 }
 
 interface ResultadoRadier {
@@ -162,11 +169,12 @@ export function exportarOrcamentoPDF(data: PDFExportData): void {
 
   // Paredes
   if (resultadoParedes && (resultadoParedes.custoTotal || 0) > 0) {
+    const areaTotal = resultadoParedes.areaLiquidaTotal || resultadoParedes.areaLiquidaM2 || 0;
     detalhesBody.push(
       ['PAREDES ICF', '', '', ''],
-      ['  Área', `${formatNumber(resultadoParedes.areaLiquidaM2 || 0)} m²`, '', ''],
-      ['  Qtd. Formas', `${resultadoParedes.quantidadeFormas || 0} un`, '', ''],
-      ['  Custo Formas', '', formatCurrency(resultadoParedes.custoFormas || 0), ''],
+      ['  Área Total', `${formatNumber(areaTotal)} m²`, '', ''],
+      ['  Formas ICF 18 cm', `${resultadoParedes.formas18Qtd || 0} un`, formatCurrency(resultadoParedes.custoFormas18 || 0), ''],
+      ['  Formas ICF 12 cm', `${resultadoParedes.formas12Qtd || 0} un`, formatCurrency(resultadoParedes.custoFormas12 || 0), ''],
       ['  Custo Concreto', '', formatCurrency(resultadoParedes.custoConcreto || 0), ''],
       ['  Custo Mão de Obra', '', formatCurrency(resultadoParedes.custoMaoObra || 0), ''],
       ['  Subtotal Paredes', '', '', formatCurrency(resultadoParedes.custoTotal || 0)],

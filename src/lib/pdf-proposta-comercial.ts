@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import { formatCurrency, formatNumber } from './orcamento-calculos';
+import { formatDocument } from './document-validation';
 
 export type TipoProposta = 'parede_cinza' | 'obra_completa';
 
@@ -14,6 +15,9 @@ export interface PropostaData {
   nomeVendedor: string;
   dataGeracao: Date;
   tipoProposta: TipoProposta;
+  clienteTipo?: 'PF' | 'PJ';
+  clienteDocumento?: string;
+  clienteResponsavel?: string;
 }
 
 // Textos das propostas
@@ -194,8 +198,21 @@ export async function exportarPropostaComercialPDF(data: PropostaData): Promise<
   doc.text(`Data: ${data.dataGeracao.toLocaleDateString('pt-BR')}`, col2X, yPos);
   
   yPos += 8;
-  doc.text(`Cliente: ${data.cliente || 'Cliente'}`, col1X, yPos);
-  doc.text(`Área: ${formatNumber(data.areaTotal)} m²`, col2X, yPos);
+  const tipoCliente = data.clienteTipo || 'PF';
+  const clienteLabel = tipoCliente === 'PJ' ? 'Razão Social' : 'Cliente';
+  doc.text(`${clienteLabel}: ${data.cliente || 'Cliente'}`, col1X, yPos);
+  // Show document if available
+  if (data.clienteDocumento) {
+    const docLabel = tipoCliente === 'PJ' ? 'CNPJ' : 'CPF';
+    doc.text(`${docLabel}: ${formatDocument(data.clienteDocumento, tipoCliente)}`, col2X, yPos);
+    yPos += 8;
+    doc.text(`Área: ${formatNumber(data.areaTotal)} m²`, col1X, yPos);
+    if (tipoCliente === 'PJ' && data.clienteResponsavel) {
+      doc.text(`Responsável: ${data.clienteResponsavel}`, col2X, yPos);
+    }
+  } else {
+    doc.text(`Área: ${formatNumber(data.areaTotal)} m²`, col2X, yPos);
+  }
   
   yPos += 10;
   

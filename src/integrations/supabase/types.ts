@@ -14,6 +14,95 @@ export type Database = {
   }
   public: {
     Tables: {
+      approval_messages: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          orcamento_id: string
+          request_id: string | null
+          sender_role: string
+          sender_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          orcamento_id: string
+          request_id?: string | null
+          sender_role: string
+          sender_user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          orcamento_id?: string
+          request_id?: string | null
+          sender_role?: string
+          sender_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approval_messages_orcamento_id_fkey"
+            columns: ["orcamento_id"]
+            isOneToOne: false
+            referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "approval_messages_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "approval_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      approval_requests: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          id: string
+          orcamento_id: string
+          requested_by: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          id?: string
+          orcamento_id: string
+          requested_by: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          id?: string
+          orcamento_id?: string
+          requested_by?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approval_requests_orcamento_id_fkey"
+            columns: ["orcamento_id"]
+            isOneToOne: false
+            referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       arquivos: {
         Row: {
           created_at: string
@@ -199,11 +288,14 @@ export type Database = {
       }
       orcamentos: {
         Row: {
+          approval_status: string | null
           area_total_m2: number | null
           cliente: string
           codigo: string
           created_at: string
           id: string
+          margin_percent: number | null
+          needs_approval: boolean | null
           projeto: string | null
           status: string | null
           updated_at: string
@@ -211,11 +303,14 @@ export type Database = {
           valor_total: number | null
         }
         Insert: {
+          approval_status?: string | null
           area_total_m2?: number | null
           cliente: string
           codigo: string
           created_at?: string
           id?: string
+          margin_percent?: number | null
+          needs_approval?: boolean | null
           projeto?: string | null
           status?: string | null
           updated_at?: string
@@ -223,11 +318,14 @@ export type Database = {
           valor_total?: number | null
         }
         Update: {
+          approval_status?: string | null
           area_total_m2?: number | null
           cliente?: string
           codigo?: string
           created_at?: string
           id?: string
+          margin_percent?: number | null
+          needs_approval?: boolean | null
           projeto?: string | null
           status?: string | null
           updated_at?: string

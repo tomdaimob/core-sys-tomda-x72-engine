@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -19,7 +19,9 @@ import {
   Download,
   CloudOff,
   Cloud,
-  Loader2
+  Loader2,
+  AlertTriangle,
+  Lock
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -44,6 +46,7 @@ import { LajeForm, LajeInput, calcularLajeResultado } from '@/components/orcamen
 import { RebocoForm, RebocoInput, calcularRebocoResultado } from '@/components/orcamento/RebocoForm';
 import { AcabamentosForm, AcabamentosInput, calcularAcabamentosResultado } from '@/components/orcamento/AcabamentosForm';
 import { ParedesForm, ParedesInput, calcularParedesResultado } from '@/components/orcamento/ParedesForm';
+import { ApprovalSection } from '@/components/orcamento/ApprovalSection';
 import { Link } from 'react-router-dom';
 import { exportarOrcamentoPDF } from '@/lib/pdf-export';
 import { useAutoSaveDraft } from '@/hooks/useAutoSaveDraft';
@@ -71,12 +74,14 @@ const steps = [
 
 export default function NovoOrcamento() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const [showReview, setShowReview] = useState(false);
+  const [approvalStatus, setApprovalStatus] = useState<'PENDENTE' | 'APROVADA' | 'NEGADA' | null>(null);
+  const [draftOrcamentoId, setDraftOrcamentoId] = useState<string | undefined>(undefined);
 
   // Fetch prices from global catalog
   const { 
@@ -582,6 +587,45 @@ export default function NovoOrcamento() {
                   <Input type="number" value={margens.descontoPercent} onChange={(e) => setMargens({...margens, descontoPercent: parseFloat(e.target.value) || 0})} />
                 </div>
               </div>
+              
+              {/* Margem Total Display */}
+              {consolidado.subtotal > 0 && (
+                <div className={`rounded-lg p-4 flex items-center gap-3 ${
+                  (margens.lucroPercent + margens.bdiPercent - margens.descontoPercent) < 15 
+                    ? 'bg-amber-500/10 border border-amber-500/30' 
+                    : 'bg-primary/10 border border-primary/30'
+                }`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                    (margens.lucroPercent + margens.bdiPercent - margens.descontoPercent) < 15 
+                      ? 'bg-amber-500/20' 
+                      : 'bg-primary/20'
+                  }`}>
+                    <Percent className={`w-5 h-5 ${
+                      (margens.lucroPercent + margens.bdiPercent - margens.descontoPercent) < 15 
+                        ? 'text-amber-600' 
+                        : 'text-primary'
+                    }`} />
+                  </div>
+                  <div>
+                    <p className="font-medium">Margem Total: {(margens.lucroPercent + margens.bdiPercent - margens.descontoPercent).toFixed(1)}%</p>
+                    {(margens.lucroPercent + margens.bdiPercent - margens.descontoPercent) < 15 && (
+                      <p className="text-sm text-amber-600">
+                        <AlertTriangle className="w-3 h-3 inline mr-1" />
+                        Margem abaixo de 15% requer aprovação do Gestor
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+              
+              {/* Approval Section */}
+              {(margens.lucroPercent + margens.bdiPercent - margens.descontoPercent) < 15 && (
+                <ApprovalSection 
+                  orcamentoId={draftOrcamentoId}
+                  marginPercent={margens.lucroPercent + margens.bdiPercent - margens.descontoPercent}
+                  onApprovalStatusChange={setApprovalStatus}
+                />
+              )}
             </div>
           )}
 
@@ -675,9 +719,48 @@ export default function NovoOrcamento() {
             <ArrowLeft className="w-4 h-4 mr-2" />Anterior
           </Button>
           {currentStep === steps.length - 1 ? (
-            <Button onClick={salvarOrcamento} disabled={saving} className="btn-primary">
-              <Save className="w-4 h-4 mr-2" />{saving ? 'Salvando...' : 'Salvar Orçamento'}
-            </Button>
+            <>
+              {/* Check if needs approval and is not approved */}
+              {(() => {
+                const marginTotal = margens.lucroPercent + margens.bdiPercent - margens.descontoPercent;
+                const needsApproval = marginTotal < 15;
+                const canFinalize = !needsApproval || approvalStatus === 'APROVADA' || isAdmin;
+                
+                if (!canFinalize) {
+                  return (
+                    <div className="flex items-center gap-3">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => exportarOrcamentoPDF({
+                          projeto,
+                          consolidado,
+                          resultadoParedes,
+                          resultadoRadier,
+                          resultadoLaje: resultadoLajeCalc,
+                          resultadoReboco: resultadoRebocoCalc,
+                          resultadoAcabamentos: resultadoAcabamentosCalc,
+                          margens,
+                        })}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Prévia (Interna)
+                      </Button>
+                      <Button disabled className="opacity-50">
+                        <Lock className="w-4 h-4 mr-2" />
+                        {approvalStatus === 'PENDENTE' ? 'Aguardando Aprovação' : 
+                         approvalStatus === 'NEGADA' ? 'Proposta Negada' : 'Requer Aprovação'}
+                      </Button>
+                    </div>
+                  );
+                }
+                
+                return (
+                  <Button onClick={salvarOrcamento} disabled={saving} className="btn-primary">
+                    <Save className="w-4 h-4 mr-2" />{saving ? 'Salvando...' : 'Salvar Orçamento'}
+                  </Button>
+                );
+              })()}
+            </>
           ) : (
             <Button onClick={nextStep} className="btn-primary">
               Próximo<ArrowRight className="w-4 h-4 ml-2" />

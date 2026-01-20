@@ -40,7 +40,7 @@ import {
 } from '@/lib/orcamento-calculos';
 import { PdfUpload } from '@/components/orcamento/PdfUpload';
 import { ReviewExtraction } from '@/components/orcamento/ReviewExtraction';
-import { LajeForm, LajeItem, calcularLajeResultado } from '@/components/orcamento/LajeForm';
+import { LajeForm, LajeInput, calcularLajeResultado } from '@/components/orcamento/LajeForm';
 import { RebocoForm, RebocoInput, calcularRebocoResultado } from '@/components/orcamento/RebocoForm';
 import { AcabamentosForm, AcabamentosInput, calcularAcabamentosResultado } from '@/components/orcamento/AcabamentosForm';
 import { ParedesForm, ParedesInput, calcularParedesResultado } from '@/components/orcamento/ParedesForm';
@@ -79,10 +79,20 @@ export default function NovoOrcamento() {
   const [showReview, setShowReview] = useState(false);
 
   // Fetch prices from global catalog
-  const { items: catalogItems, isLoading: loadingPrecos, mapCatalogToPrecos, getIcflexPrice, getRebocoMaoObraPrice } = usePriceCatalog();
+  const { 
+    items: catalogItems, 
+    isLoading: loadingPrecos, 
+    mapCatalogToPrecos, 
+    getIcflexPrice, 
+    getRebocoMaoObraPrice,
+    getConcretoOptions,
+    getMaoObraLajePrice 
+  } = usePriceCatalog();
   const precos = mapCatalogToPrecos();
   const precoIcflexM2 = getIcflexPrice();
   const precoMaoObraRebocoM2 = getRebocoMaoObraPrice();
+  const concretoOptions = getConcretoOptions();
+  const precoMaoObraLajeM2 = getMaoObraLajePrice();
 
   // Form state
   const [projeto, setProjeto] = useState({
@@ -113,9 +123,13 @@ export default function NovoOrcamento() {
     tipoFibra: 'aco' as 'aco' | 'pp',
   });
 
-  const [lajes, setLajes] = useState<LajeItem[]>([
-    { id: 'laje-1', nome: 'Laje principal', areaM2: 0, espessuraM: 0.12 }
-  ]);
+  const [laje, setLaje] = useState<LajeInput>({
+    tipo: 'AUTO',
+    areaM2: 0,
+    espessuraM: 0,
+    concretoItemId: '',
+    temSegundoAndar: false,
+  });
 
   const [reboco, setReboco] = useState<RebocoInput>({
     aplicarInterno: true,
@@ -136,12 +150,12 @@ export default function NovoOrcamento() {
     projeto,
     paredes,
     radier,
-    lajes,
+    laje,
     reboco,
     acabamentos,
     margens,
     currentStep,
-  }), [projeto, paredes, radier, lajes, reboco, acabamentos, margens, currentStep]);
+  }), [projeto, paredes, radier, laje, reboco, acabamentos, margens, currentStep]);
 
   // Auto-save hook
   const { 
@@ -165,7 +179,7 @@ export default function NovoOrcamento() {
         if (savedDraft.projeto) setProjeto(savedDraft.projeto);
         if (savedDraft.paredes) setParedes(savedDraft.paredes);
         if (savedDraft.radier) setRadier(savedDraft.radier);
-        if (savedDraft.lajes) setLajes(savedDraft.lajes);
+        if (savedDraft.laje) setLaje(savedDraft.laje);
         if (savedDraft.reboco) setReboco(savedDraft.reboco);
         if (savedDraft.acabamentos) setAcabamentos(savedDraft.acabamentos);
         if (savedDraft.margens) setMargens(savedDraft.margens);
@@ -230,23 +244,30 @@ export default function NovoOrcamento() {
     ? calcularRadier(radier, precos)
     : null;
 
-  // Calculate laje using new component function
-  const resultadoLajeCalc = calcularLajeResultado(lajes, precos);
+  // Calculate laje using new component function with FCK selection
+  const resultadoLajeCalc = calcularLajeResultado(laje, concretoOptions, precoMaoObraLajeM2, projeto.areaTotal || radier.areaM2);
   
   // Map to the expected format for consolidado
   const resultadoLaje = resultadoLajeCalc.areaTotalM2 > 0 ? {
-    linhas: lajes.filter(l => l.areaM2 > 0).map(l => ({
-      descricao: l.nome,
-      areaM2: l.areaM2,
-      volumeM3: l.areaM2 * l.espessuraM,
-      custoConcreto: l.areaM2 * l.espessuraM * precos.concretoM3,
-      custoMaoObra: l.areaM2 * precos.maoObraLaje,
-      custoTotal: (l.areaM2 * l.espessuraM * precos.concretoM3) + (l.areaM2 * precos.maoObraLaje),
-    })),
+    linhas: [{
+      descricao: resultadoLajeCalc.tipoNome,
+      areaM2: resultadoLajeCalc.areaTotalM2,
+      volumeM3: resultadoLajeCalc.volumeTotalM3,
+      custoConcreto: resultadoLajeCalc.custoConcreto,
+      custoMaoObra: resultadoLajeCalc.custoMaoObra,
+      custoTotal: resultadoLajeCalc.custoTotal,
+    }],
     areaTotalM2: resultadoLajeCalc.areaTotalM2,
     volumeTotalM3: resultadoLajeCalc.volumeTotalM3,
     custoTotal: resultadoLajeCalc.custoTotal,
     precoPorM2: resultadoLajeCalc.areaTotalM2 > 0 ? resultadoLajeCalc.custoTotal / resultadoLajeCalc.areaTotalM2 : 0,
+    // New fields for PDF export
+    tipo: resultadoLajeCalc.tipo,
+    tipoNome: resultadoLajeCalc.tipoNome,
+    concretoNome: resultadoLajeCalc.concretoNome,
+    espessuraM: resultadoLajeCalc.espessuraM,
+    custoConcreto: resultadoLajeCalc.custoConcreto,
+    custoMaoObra: resultadoLajeCalc.custoMaoObra,
   } : null;
 
   // Calculate reboco - using paredes result
@@ -334,7 +355,7 @@ export default function NovoOrcamento() {
       segmentos: [] 
     });
     setRadier({ areaM2: 0, espessuraCm: 10, tipoFibra: 'aco' });
-    setLajes([{ id: 'laje-1', nome: 'Laje principal', areaM2: 0, espessuraM: 0.12 }]);
+    setLaje({ tipo: 'AUTO', areaM2: 0, espessuraM: 0, concretoItemId: '', temSegundoAndar: false });
     setReboco({ aplicarInterno: true, aplicarExterno: true, perdaPercentual: 10, espessuraMedia: 3 });
     setAcabamentos({ areaPiso: 0, tipoPiso: 'ceramico', areaPintura: 0, demaosPintura: 2 });
     setMargens(DEFAULT_MARGENS);
@@ -603,9 +624,11 @@ export default function NovoOrcamento() {
           {/* Step 3: Laje */}
           {currentStep === 3 && (
             <LajeForm
-              lajes={lajes}
-              onLajesChange={setLajes}
-              precos={precos}
+              laje={laje}
+              onLajeChange={setLaje}
+              concretoOptions={concretoOptions}
+              precoMaoObraLajeM2={precoMaoObraLajeM2}
+              areaProjetoM2={projeto.areaTotal || radier.areaM2}
               resultado={resultadoLajeCalc}
             />
           )}

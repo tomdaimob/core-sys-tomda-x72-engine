@@ -60,6 +60,48 @@ export function getRebocoMaoObraPrice(items: PriceCatalogItem[]): number {
   return item?.preco ?? 28.00; // Default reboco labor price
 }
 
+// Get all concrete options (FCK varieties)
+export interface ConcretoOption {
+  id: string;
+  nome: string;
+  preco: number;
+  fck: string;
+}
+
+export function getConcretoOptions(items: PriceCatalogItem[]): ConcretoOption[] {
+  const concretoItems = items.filter(i => 
+    i.nome.toLowerCase().includes('concreto usinado fck') && i.ativo
+  );
+  
+  // Sort by FCK number (25, 30, 35)
+  concretoItems.sort((a, b) => {
+    const fckA = parseInt(a.nome.match(/FCK\s*(\d+)/i)?.[1] || '0');
+    const fckB = parseInt(b.nome.match(/FCK\s*(\d+)/i)?.[1] || '0');
+    return fckA - fckB;
+  });
+  
+  return concretoItems.map(item => {
+    const fckMatch = item.nome.match(/FCK\s*(\d+)/i);
+    const fck = fckMatch ? `FCK ${fckMatch[1]}` : 'FCK';
+    return {
+      id: item.id,
+      nome: item.nome,
+      preco: item.preco,
+      fck,
+    };
+  });
+}
+
+// Get M.O. Laje price
+export function getMaoObraLajePrice(items: PriceCatalogItem[]): number {
+  const item = items.find(i => 
+    (i.nome.toLowerCase().includes('execução laje') || 
+     i.nome.toLowerCase().includes('mão de obra laje')) && 
+    i.ativo
+  );
+  return item?.preco ?? 55.00; // Default from catalog
+}
+
 export function usePriceCatalog() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -226,5 +268,7 @@ export function usePriceCatalog() {
     mapCatalogToPrecos: () => mapCatalogToPrecos(items),
     getIcflexPrice: () => getIcflexPrice(items),
     getRebocoMaoObraPrice: () => getRebocoMaoObraPrice(items),
+    getConcretoOptions: () => getConcretoOptions(items),
+    getMaoObraLajePrice: () => getMaoObraLajePrice(items),
   };
 }

@@ -56,6 +56,11 @@ interface ResultadoLaje {
   custoConcreto?: number;
   custoMaoObra?: number;
   custoTotal?: number;
+  // New fields for FCK and type
+  tipo?: 'AUTO' | 'PISO_2_ANDAR' | 'FORRO';
+  tipoNome?: string;
+  concretoNome?: string;
+  espessuraM?: number;
 }
 
 interface ResultadoReboco {
@@ -202,12 +207,18 @@ export function exportarOrcamentoPDF(data: PDFExportData): void {
 
   // Laje
   if (resultadoLaje && (resultadoLaje.custoTotal || 0) > 0) {
+    const tipoDisplay = resultadoLaje.tipoNome || (resultadoLaje.tipo === 'FORRO' ? 'Laje Forro' : 'Laje Piso 2º Andar');
+    const concretoDisplay = resultadoLaje.concretoNome || 'Concreto';
+    const espessuraDisplay = resultadoLaje.espessuraM ? `${(resultadoLaje.espessuraM * 100).toFixed(0)}cm` : '-';
+    
     detalhesBody.push(
       ['LAJE', '', '', ''],
+      ['  Tipo', tipoDisplay, '', ''],
       ['  Área Total', `${formatNumber(resultadoLaje.areaTotalM2 || 0)} m²`, '', ''],
+      ['  Espessura', espessuraDisplay, '', ''],
       ['  Volume Total', `${formatNumber(resultadoLaje.volumeTotalM3 || 0)} m³`, '', ''],
-      ['  Custo Concreto', '', formatCurrency(resultadoLaje.custoConcreto || 0), ''],
-      ['  Custo Mão de Obra', '', formatCurrency(resultadoLaje.custoMaoObra || 0), ''],
+      ['  Concreto', concretoDisplay, formatCurrency(resultadoLaje.custoConcreto || 0), ''],
+      ['  Mão de Obra', '', formatCurrency(resultadoLaje.custoMaoObra || 0), ''],
       ['  Subtotal Laje', '', '', formatCurrency(resultadoLaje.custoTotal || 0)],
     );
   }

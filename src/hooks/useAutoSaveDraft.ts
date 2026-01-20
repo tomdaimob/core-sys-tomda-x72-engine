@@ -7,7 +7,7 @@ interface DraftData {
   projeto: any;
   paredes: any;
   radier: any;
-  lajes: any[];
+  laje: any; // Changed from lajes array to single laje object
   reboco: any;
   acabamentos: any;
   margens: any;
@@ -69,7 +69,7 @@ export function useAutoSaveDraft({ userId, draftData, debounceMs = 2000 }: UseAu
         projeto: draftData.projeto,
         paredes: draftData.paredes,
         radier: draftData.radier,
-        lajes: draftData.lajes,
+        laje: draftData.laje,
         reboco: draftData.reboco,
         acabamentos: draftData.acabamentos,
         margens: draftData.margens,

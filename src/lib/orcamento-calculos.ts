@@ -172,26 +172,38 @@ export function calcularLaje(
   };
 }
 
-// Calculate plaster (Reboco)
+// Calculate plaster (Reboco) - Legacy function for backward compatibility
 export function calcularReboco(
   input: InputReboco,
   precos: Precos
 ): ResultadoReboco {
-  const areaTotal = input.areaInternaM2 + input.areaExternaM2;
+  const areaInternaM2 = input.areaInternaM2 || 0;
+  const areaExternaM2 = input.areaExternaM2 || 0;
+  const areaTotal = areaInternaM2 + areaExternaM2;
+  const perdaPercentual = 10; // Default 10%
+  const areaComPerda = areaTotal * (1 + perdaPercentual / 100);
   
-  // ~0.5 saco per m² (average)
-  const quantidadeSacos = Math.ceil(areaTotal * 0.5);
+  const precoIcflexM2 = precos.maoObraReboco; // Use as fallback
+  const precoMaoObraM2 = precos.maoObraReboco;
   
-  const custoMaterial = quantidadeSacos * precos.argamassaSaco;
-  const custoMaoObra = areaTotal * precos.maoObraReboco;
-  const custoTotal = custoMaterial + custoMaoObra;
+  const custoIcflex = areaComPerda * precoIcflexM2;
+  const custoMaoObra = areaComPerda * precoMaoObraM2;
+  const custoTotal = custoIcflex + custoMaoObra;
   
   return {
+    areaInternaM2,
+    areaExternaM2,
     areaTotal,
-    quantidadeSacos,
-    custoMaterial,
+    perdaPercentual,
+    areaComPerda,
+    precoIcflexM2,
+    precoMaoObraM2,
+    custoIcflex,
     custoMaoObra,
     custoTotal,
+    // Legacy fields
+    quantidadeSacos: Math.ceil(areaTotal * 0.5),
+    custoMaterial: custoIcflex,
   };
 }
 

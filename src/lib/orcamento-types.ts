@@ -145,11 +145,19 @@ export interface ResultadoLaje {
 }
 
 export interface ResultadoReboco {
+  areaInternaM2: number;
+  areaExternaM2: number;
   areaTotal: number;
-  quantidadeSacos: number;
-  custoMaterial: number;
+  perdaPercentual: number;
+  areaComPerda: number;
+  precoIcflexM2: number;
+  precoMaoObraM2: number;
+  custoIcflex: number;
   custoMaoObra: number;
   custoTotal: number;
+  // Legacy fields for compatibility
+  quantidadeSacos?: number;
+  custoMaterial?: number;
 }
 
 export interface ResultadoAcabamentos {

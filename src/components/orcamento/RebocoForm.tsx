@@ -1,20 +1,36 @@
-import { PaintBucket, Calculator } from 'lucide-react';
+import * as React from 'react';
+import { PaintBucket, Calculator, AlertTriangle, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { formatCurrency, formatNumber } from '@/lib/orcamento-calculos';
 import { Precos } from '@/lib/orcamento-types';
+import { ResultadoParedesDetalhado } from '@/components/orcamento/ParedesForm';
 
 export interface RebocoInput {
-  areaInternaM2: number;
-  areaExternaM2: number;
+  aplicarInterno: boolean;
+  aplicarExterno: boolean;
+  perdaPercentual: number;
+  espessuraMedia: number; // mm (informativo)
+  // Legacy fields - kept for compatibility but auto-calculated
+  areaInternaM2?: number;
+  areaExternaM2?: number;
 }
 
 export interface ResultadoRebocoCalculado {
+  areaInternaM2: number;
+  areaExternaM2: number;
   areaTotal: number;
-  quantidadeSacos: number;
-  custoMaterial: number;
+  perdaPercentual: number;
+  areaComPerda: number;
+  precoIcflexM2: number;
+  precoMaoObraM2: number;
+  custoIcflex: number;
   custoMaoObra: number;
   custoTotal: number;
+  // Legacy fields for compatibility
+  quantidadeSacos?: number;
+  custoMaterial?: number;
 }
 
 interface RebocoFormProps {
@@ -22,77 +38,169 @@ interface RebocoFormProps {
   onRebocoChange: (reboco: RebocoInput) => void;
   precos: Precos;
   resultado: ResultadoRebocoCalculado;
+  resultadoParedes: ResultadoParedesDetalhado | null;
+  precoIcflexM2: number;
+  precoMaoObraRebocoM2: number;
 }
 
-// Consumption: ~0.5 saco per m² (average for internal/external)
-const CONSUMO_ARGAMASSA_M2 = 0.5;
-
-export function RebocoForm({ reboco, onRebocoChange, precos, resultado }: RebocoFormProps) {
-  const updateField = (field: keyof RebocoInput, value: string) => {
-    const numValue = Math.max(0, parseFloat(value) || 0);
-    onRebocoChange({ ...reboco, [field]: numValue });
-  };
-
-  const hasData = reboco.areaInternaM2 > 0 || reboco.areaExternaM2 > 0;
+export function RebocoForm({ 
+  reboco, 
+  onRebocoChange, 
+  precos, 
+  resultado, 
+  resultadoParedes,
+  precoIcflexM2,
+  precoMaoObraRebocoM2,
+}: RebocoFormProps) {
+  const paredesCalculadas = resultadoParedes && resultadoParedes.areaLiquidaTotal > 0;
+  const hasData = resultado.areaTotal > 0;
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <PaintBucket className="w-5 h-5 text-primary" />
-          Reboco
+          Reboco (ICFLEX)
         </h2>
         <p className="text-muted-foreground text-sm">
-          Consumo médio: {CONSUMO_ARGAMASSA_M2} saco/m² | Custo = Material + Mão de Obra
+          Áreas calculadas automaticamente a partir das paredes ICF
         </p>
       </div>
 
-      {/* Input Fields */}
+      {/* Warning if Paredes not calculated */}
+      {!paredesCalculadas && (
+        <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl">
+          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <h4 className="font-medium text-amber-800 dark:text-amber-200">Paredes não calculadas</h4>
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              Calcule as Paredes primeiro para gerar a metragem do reboco automaticamente.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Áreas das Paredes (read-only) */}
+      {paredesCalculadas && (
+        <div className="bg-primary/5 rounded-xl p-4 border border-primary/20">
+          <div className="flex items-center gap-2 mb-3">
+            <Info className="w-4 h-4 text-primary" />
+            <h3 className="font-medium text-sm">Áreas das Paredes (calculadas)</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="flex justify-between p-2 bg-background rounded-lg">
+              <span className="text-muted-foreground">Área Interna:</span>
+              <span className="font-medium">{formatNumber(resultado.areaInternaM2)} m²</span>
+            </div>
+            <div className="flex justify-between p-2 bg-background rounded-lg">
+              <span className="text-muted-foreground">Área Externa:</span>
+              <span className="font-medium">{formatNumber(resultado.areaExternaM2)} m²</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toggle Controls */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-4 p-4 bg-accent/30 rounded-xl border border-accent">
-          <h3 className="font-medium text-foreground">Área Interna</h3>
-          <div className="input-group">
-            <Label className="input-label">Área (m²)</Label>
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={reboco.areaInternaM2 || ''}
-              onChange={(e) => updateField('areaInternaM2', e.target.value)}
-              placeholder="Ex: 150"
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-medium text-foreground">Reboco Interno</h3>
+              <p className="text-xs text-muted-foreground">
+                Aplicar ICFLEX nas paredes internas
+              </p>
+            </div>
+            <Switch
+              checked={reboco.aplicarInterno}
+              onCheckedChange={(checked) => 
+                onRebocoChange({ ...reboco, aplicarInterno: checked })
+              }
             />
           </div>
-          <p className="text-xs text-muted-foreground">
-            Paredes internas que receberão reboco
-          </p>
+          {reboco.aplicarInterno && paredesCalculadas && (
+            <div className="text-sm text-muted-foreground pt-2 border-t border-accent">
+              Área: <span className="font-medium text-foreground">{formatNumber(resultado.areaInternaM2)} m²</span>
+            </div>
+          )}
         </div>
 
         <div className="space-y-4 p-4 bg-accent/30 rounded-xl border border-accent">
-          <h3 className="font-medium text-foreground">Área Externa</h3>
-          <div className="input-group">
-            <Label className="input-label">Área (m²)</Label>
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={reboco.areaExternaM2 || ''}
-              onChange={(e) => updateField('areaExternaM2', e.target.value)}
-              placeholder="Ex: 80"
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-medium text-foreground">Reboco Externo</h3>
+              <p className="text-xs text-muted-foreground">
+                Aplicar ICFLEX nas paredes externas
+              </p>
+            </div>
+            <Switch
+              checked={reboco.aplicarExterno}
+              onCheckedChange={(checked) => 
+                onRebocoChange({ ...reboco, aplicarExterno: checked })
+              }
             />
           </div>
-          <p className="text-xs text-muted-foreground">
-            Paredes externas/fachada que receberão reboco
+          {reboco.aplicarExterno && paredesCalculadas && (
+            <div className="text-sm text-muted-foreground pt-2 border-t border-accent">
+              Área: <span className="font-medium text-foreground">{formatNumber(resultado.areaExternaM2)} m²</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Perda e Espessura */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="input-group">
+          <Label className="input-label">Perda/Desperdício (%)</Label>
+          <Input
+            type="number"
+            min="0"
+            max="50"
+            step="1"
+            value={reboco.perdaPercentual}
+            onChange={(e) => 
+              onRebocoChange({ 
+                ...reboco, 
+                perdaPercentual: Math.max(0, Math.min(50, parseFloat(e.target.value) || 0))
+              })
+            }
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Margem adicional para desperdício e recortes
+          </p>
+        </div>
+        <div className="input-group">
+          <Label className="input-label">Espessura Média (mm) - Informativo</Label>
+          <Input
+            type="number"
+            min="1"
+            max="10"
+            step="0.5"
+            value={reboco.espessuraMedia}
+            onChange={(e) => 
+              onRebocoChange({ 
+                ...reboco, 
+                espessuraMedia: Math.max(1, Math.min(10, parseFloat(e.target.value) || 3))
+              })
+            }
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Referência para especificação (não afeta custo)
           </p>
         </div>
       </div>
 
-      {/* Prices Reference */}
-      <div className="flex gap-4 text-sm text-muted-foreground bg-muted/30 rounded-lg p-3">
-        <div>
-          <span className="font-medium">Argamassa (saco):</span> {formatCurrency(precos.argamassaSaco)}
-        </div>
-        <div>
-          <span className="font-medium">M.O. Reboco/m²:</span> {formatCurrency(precos.maoObraReboco)}
+      {/* Prices Reference (read-only) */}
+      <div className="bg-muted/30 rounded-lg p-4">
+        <h4 className="text-sm font-medium mb-3">Preços do Catálogo (somente leitura)</h4>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="flex justify-between p-2 bg-background rounded-lg">
+            <span className="text-muted-foreground">ICFLEX Reboco:</span>
+            <span className="font-medium">{formatCurrency(precoIcflexM2)}/m²</span>
+          </div>
+          <div className="flex justify-between p-2 bg-background rounded-lg">
+            <span className="text-muted-foreground">Mão de Obra:</span>
+            <span className="font-medium">{formatCurrency(precoMaoObraRebocoM2)}/m²</span>
+          </div>
         </div>
       </div>
 
@@ -110,12 +218,13 @@ export function RebocoForm({ reboco, onRebocoChange, precos, resultado }: Reboco
               <div className="text-lg font-semibold">{formatNumber(resultado.areaTotal)} m²</div>
             </div>
             <div className="bg-background rounded-lg p-3">
-              <div className="text-xs text-muted-foreground mb-1">Sacos Argamassa</div>
-              <div className="text-lg font-semibold">{resultado.quantidadeSacos} un</div>
+              <div className="text-xs text-muted-foreground mb-1">Área c/ Perda</div>
+              <div className="text-lg font-semibold">{formatNumber(resultado.areaComPerda)} m²</div>
+              <div className="text-xs text-muted-foreground">+{resultado.perdaPercentual}%</div>
             </div>
             <div className="bg-background rounded-lg p-3">
-              <div className="text-xs text-muted-foreground mb-1">Custo Material</div>
-              <div className="text-lg font-semibold text-primary">{formatCurrency(resultado.custoMaterial)}</div>
+              <div className="text-xs text-muted-foreground mb-1">Custo ICFLEX</div>
+              <div className="text-lg font-semibold text-primary">{formatCurrency(resultado.custoIcflex)}</div>
             </div>
             <div className="bg-background rounded-lg p-3">
               <div className="text-xs text-muted-foreground mb-1">Custo M.O.</div>
@@ -126,12 +235,12 @@ export function RebocoForm({ reboco, onRebocoChange, precos, resultado }: Reboco
           {/* Breakdown */}
           <div className="grid grid-cols-2 gap-4 text-sm border-t border-accent pt-4">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Área Interna:</span>
-              <span>{formatNumber(reboco.areaInternaM2)} m²</span>
+              <span className="text-muted-foreground">Área Interna aplicada:</span>
+              <span>{reboco.aplicarInterno ? formatNumber(resultado.areaInternaM2) : 0} m²</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Área Externa:</span>
-              <span>{formatNumber(reboco.areaExternaM2)} m²</span>
+              <span className="text-muted-foreground">Área Externa aplicada:</span>
+              <span>{reboco.aplicarExterno ? formatNumber(resultado.areaExternaM2) : 0} m²</span>
             </div>
           </div>
 
@@ -142,34 +251,76 @@ export function RebocoForm({ reboco, onRebocoChange, precos, resultado }: Reboco
         </div>
       )}
 
-      {!hasData && (
+      {!hasData && paredesCalculadas && (
         <div className="text-center py-8 text-muted-foreground bg-muted/30 rounded-xl">
           <PaintBucket className="w-12 h-12 mx-auto mb-3 opacity-50" />
-          <p>Preencha as áreas para calcular os custos de reboco</p>
+          <p>Ative ao menos uma opção de reboco para calcular os custos</p>
         </div>
       )}
     </div>
   );
 }
 
-// Calculate reboco results
-export function calcularRebocoResultado(reboco: RebocoInput, precos: Precos): ResultadoRebocoCalculado {
-  const areaInterna = Math.max(0, reboco.areaInternaM2 || 0);
-  const areaExterna = Math.max(0, reboco.areaExternaM2 || 0);
-  const areaTotal = areaInterna + areaExterna;
+// Calculate reboco results based on paredes
+export function calcularRebocoResultado(
+  reboco: RebocoInput, 
+  resultadoParedes: ResultadoParedesDetalhado | null,
+  precoIcflexM2: number,
+  precoMaoObraM2: number
+): ResultadoRebocoCalculado {
+  // Get areas from paredes result
+  // In simple mode: use areaInternaM2 for internal, areaExternaM2 for external from paredes input
+  // In advanced mode: sum segments - we need to estimate internal/external from segments
   
-  // ~0.5 saco per m² (average)
-  const quantidadeSacos = Math.ceil(areaTotal * CONSUMO_ARGAMASSA_M2);
-  
-  const custoMaterial = quantidadeSacos * precos.argamassaSaco;
-  const custoMaoObra = areaTotal * precos.maoObraReboco;
-  const custoTotal = custoMaterial + custoMaoObra;
+  let areaInternaM2 = 0;
+  let areaExternaM2 = 0;
+
+  if (resultadoParedes && resultadoParedes.areaLiquidaTotal > 0) {
+    // If paredes has the breakdown, use it
+    // For now, estimate based on typical distribution (can be refined)
+    // External walls are typically ICF 18, internal are ICF 12
+    const totalArea = resultadoParedes.areaLiquidaTotal;
+    const formas18Area = resultadoParedes.formas18Qtd * 0.5; // Each form = 0.5 m²
+    const formas12Area = resultadoParedes.formas12Qtd * 0.5;
+    
+    // Estimate: ICF 18 forms are likely external, ICF 12 are likely internal
+    areaExternaM2 = formas18Area;
+    areaInternaM2 = formas12Area;
+    
+    // If all same type, split 70/30 (typical house ratio)
+    if (areaExternaM2 === 0 && areaInternaM2 === 0) {
+      areaExternaM2 = totalArea * 0.7;
+      areaInternaM2 = totalArea * 0.3;
+    }
+  }
+
+  // Apply toggles
+  const areaInternaAplicada = reboco.aplicarInterno ? areaInternaM2 : 0;
+  const areaExternaAplicada = reboco.aplicarExterno ? areaExternaM2 : 0;
+  const areaTotal = areaInternaAplicada + areaExternaAplicada;
+
+  // Apply waste percentage
+  const perdaPercentual = reboco.perdaPercentual || 10;
+  const areaComPerda = areaTotal * (1 + perdaPercentual / 100);
+
+  // Calculate costs
+  const custoIcflex = areaComPerda * precoIcflexM2;
+  const custoMaoObra = areaComPerda * precoMaoObraM2;
+  const custoTotal = custoIcflex + custoMaoObra;
 
   return {
+    areaInternaM2,
+    areaExternaM2,
     areaTotal,
-    quantidadeSacos,
-    custoMaterial,
+    perdaPercentual,
+    areaComPerda,
+    precoIcflexM2,
+    precoMaoObraM2: precoMaoObraM2,
+    custoIcflex,
     custoMaoObra,
     custoTotal,
+    // Legacy compatibility
+    quantidadeSacos: 0,
+    custoMaterial: custoIcflex,
   };
 }

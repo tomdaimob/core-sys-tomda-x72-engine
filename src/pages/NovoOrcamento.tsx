@@ -48,7 +48,8 @@ import { AcabamentosForm, AcabamentosInput, calcularAcabamentosResultado } from 
 import { ParedesForm, ParedesInput, calcularParedesResultado } from '@/components/orcamento/ParedesForm';
 import { ApprovalSection } from '@/components/orcamento/ApprovalSection';
 import { Link } from 'react-router-dom';
-import { exportarOrcamentoPDF, exportarPropostaComercialPDF } from '@/lib/pdf-export';
+import { exportarOrcamentoPDF } from '@/lib/pdf-export';
+import { exportarPropostaComercialPDF, TipoProposta } from '@/lib/pdf-proposta-comercial';
 import { useAutoSaveDraft } from '@/hooks/useAutoSaveDraft';
 
 interface ExtractedData {
@@ -80,6 +81,7 @@ export default function NovoOrcamento() {
   const [saving, setSaving] = useState(false);
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
   const [showReview, setShowReview] = useState(false);
+  const [tipoProposta, setTipoProposta] = useState<TipoProposta>('parede_cinza');
   const [approvalStatus, setApprovalStatus] = useState<'PENDENTE' | 'APROVADA' | 'NEGADA' | null>(null);
 
   // Fetch prices from global catalog
@@ -674,15 +676,47 @@ export default function NovoOrcamento() {
                       Relatório Detalhado (Admin)
                     </Button>
                   )}
-                  
-                  {/* Proposta Comercial - admin sempre, vendedor se aprovado ou margem >= 15% */}
-                  {(() => {
-                    const marginTotal = margens.lucroPercent + margens.bdiPercent - margens.descontoPercent;
-                    const needsApproval = marginTotal < 15;
-                    const canGenerateProposta = isAdmin || !needsApproval || approvalStatus === 'APROVADA';
+                </div>
+              </div>
+              
+              {/* Proposta Comercial Section - Vendedor UI */}
+              {(() => {
+                const marginTotal = margens.lucroPercent + margens.bdiPercent - margens.descontoPercent;
+                const needsApproval = marginTotal < 15;
+                const canGenerateProposta = isAdmin || !needsApproval || approvalStatus === 'APROVADA';
+                
+                return (
+                  <div className="bg-accent/30 rounded-xl p-5 border border-accent">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <FileText className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-foreground">Proposta Comercial (PDF)</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {isAdmin ? 'Gere a proposta para o cliente' : 'Documento para apresentar ao cliente'}
+                        </p>
+                      </div>
+                    </div>
                     
-                    if (canGenerateProposta) {
-                      return (
+                    {canGenerateProposta ? (
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                        <div className="flex-1 w-full sm:w-auto">
+                          <Label htmlFor="tipo_proposta" className="text-sm text-muted-foreground mb-1 block">
+                            Tipo de proposta
+                          </Label>
+                          <select 
+                            id="tipo_proposta" 
+                            name="tipo_proposta"
+                            value={tipoProposta}
+                            onChange={(e) => setTipoProposta(e.target.value as TipoProposta)}
+                            className="input-field w-full sm:w-[240px]"
+                          >
+                            <option value="parede_cinza">Parede Cinza (sem acabamentos)</option>
+                            <option value="obra_completa">Obra Completa (com acabamentos)</option>
+                          </select>
+                        </div>
+                        
                         <Button 
                           variant="default"
                           onClick={async () => {
@@ -697,7 +731,7 @@ export default function NovoOrcamento() {
                               nomeVendedor = profile?.full_name || user?.email || '-';
                             }
                             
-                            exportarPropostaComercialPDF({
+                            await exportarPropostaComercialPDF({
                               cliente: projeto.cliente,
                               codigo: projeto.codigo,
                               projeto: projeto.projeto,
@@ -706,30 +740,33 @@ export default function NovoOrcamento() {
                               valorPorM2: consolidado.precoPorM2Global,
                               nomeVendedor,
                               dataGeracao: new Date(),
+                              tipoProposta,
                             });
                           }}
-                          className="flex items-center gap-2 btn-primary"
+                          className="flex items-center gap-2 btn-primary sm:mt-5"
                         >
                           <FileText className="w-4 h-4" />
-                          Gerar Proposta Comercial
+                          Gerar Proposta Comercial (PDF)
                         </Button>
-                      );
-                    }
-                    
-                    // Vendedor sem aprovação
-                    return (
-                      <Button 
-                        variant="outline" 
-                        disabled
-                        className="flex items-center gap-2 opacity-50"
-                      >
-                        <Lock className="w-4 h-4" />
-                        Proposta (Requer Aprovação)
-                      </Button>
-                    );
-                  })()}
-                </div>
-              </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                        <Lock className="w-5 h-5 text-amber-600" />
+                        <div>
+                          <p className="font-medium text-amber-700">Proposta necessita de aprovação do Gestor</p>
+                          <p className="text-sm text-amber-600">
+                            {approvalStatus === 'PENDENTE' 
+                              ? 'Sua solicitação está sendo analisada.' 
+                              : approvalStatus === 'NEGADA'
+                                ? 'Solicitação negada. Revise a margem e solicite novamente.'
+                                : 'Margem abaixo de 15%. Solicite aprovação na aba Margens.'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoParedes)}</div><div className="kpi-label">Paredes</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoRadier)}</div><div className="kpi-label">Radier</div></div>

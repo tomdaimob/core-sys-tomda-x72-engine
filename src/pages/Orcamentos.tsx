@@ -46,7 +46,7 @@ interface Orcamento {
 }
 
 export default function Orcamentos() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { toast } = useToast();
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,7 +57,7 @@ export default function Orcamentos() {
     if (user) {
       loadOrcamentos();
     }
-  }, [user, statusFilter]);
+  }, [user, statusFilter, isAdmin]);
 
   const loadOrcamentos = async () => {
     try {
@@ -65,6 +65,11 @@ export default function Orcamentos() {
         .from('orcamentos')
         .select('*')
         .order('created_at', { ascending: false });
+
+      // VENDEDOR só vê seus próprios orçamentos
+      if (!isAdmin) {
+        query = query.eq('user_id', user?.id);
+      }
 
       if (statusFilter !== 'todos') {
         query = query.eq('status', statusFilter);

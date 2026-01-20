@@ -28,7 +28,7 @@ const menuItems: MenuItem[] = [
   { icon: Plus, label: 'Novo Orçamento', path: '/orcamentos/novo' },
   { icon: DollarSign, label: 'Preços', path: '/precos', adminOnly: true },
   { icon: Users, label: 'Usuários', path: '/usuarios', adminOnly: true },
-  { icon: Settings, label: 'Configurações', path: '/configuracoes' },
+  { icon: Settings, label: 'Configurações', path: '/configuracoes', adminOnly: true },
 ];
 
 export function Sidebar() {

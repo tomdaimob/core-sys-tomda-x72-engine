@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { useState } from 'react';
 import { Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,41 +13,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { formatCurrency, formatNumber } from '@/lib/orcamento-calculos';
-import { Precos, ICF_FORM_AREA } from '@/lib/orcamento-types';
+import { 
+  Precos, 
+  ICF_FORM_AREA, 
+  TipoFormaICF,
+  SegmentoParede as SegmentoParedeType,
+  InputParedes,
+  ResultadoParedes,
+} from '@/lib/orcamento-types';
 
-export type TipoForma = 'ICF 18' | 'ICF 12';
-
-export interface SegmentoParede {
-  id: string;
-  descricao: string;
-  areaParedeM2: number;
-  tipoForma: TipoForma;
-}
-
-export interface ParedesInput {
-  areaExternaM2: number;
-  areaInternaM2: number;
-  tipoFormaExterna: TipoForma;
-  tipoFormaInterna: TipoForma;
-  modoAvancado: boolean;
-  segmentos: SegmentoParede[];
-}
-
-export interface ResultadoParedesDetalhado {
-  areaLiquidaTotal: number;
-  formas18Qtd: number;
-  formas12Qtd: number;
-  custoFormas18: number;
-  custoFormas12: number;
-  custoFormasTotal: number;
-  volumeConcreto: number;
-  custoConcreto: number;
-  pesoFerragem: number;
-  custoFerragem: number;
-  custoMaoObra: number;
-  custoTotal: number;
-  precoPorM2: number;
-}
+// Re-export types for compatibility
+export type TipoForma = TipoFormaICF;
+export type SegmentoParede = SegmentoParedeType;
+export type ParedesInput = InputParedes;
+export type ResultadoParedesDetalhado = ResultadoParedes;
 
 interface ParedesFormProps {
   paredes: ParedesInput;
@@ -54,6 +34,7 @@ interface ParedesFormProps {
   precos: Precos;
   resultado: ResultadoParedesDetalhado;
 }
+
 
 export function calcularParedesResultado(
   paredes: ParedesInput,

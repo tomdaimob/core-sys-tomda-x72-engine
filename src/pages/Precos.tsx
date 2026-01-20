@@ -75,19 +75,48 @@ export default function Precos() {
   const [searchTerm, setSearchTerm] = useState('');
   const [editedPrices, setEditedPrices] = useState<Record<string, { preco: number; unidade: string }>>({});
   const [hasChanges, setHasChanges] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
-  // Initialize edited prices from catalog
+  // Debug: verificar status do admin (apenas em dev)
   useEffect(() => {
-    const initial: Record<string, { preco: number; unidade: string }> = {};
-    Object.values(categories).flat().forEach(item => {
-      initial[item.id] = { preco: item.preco, unidade: item.unidade };
-    });
-    setEditedPrices(initial);
-    setHasChanges(false);
+    if (import.meta.env.DEV) {
+      console.log('[Precos] isAdmin:', isAdmin);
+    }
+  }, [isAdmin]);
+
+  // Initialize edited prices from catalog - only once when data loads
+  useEffect(() => {
+    if (Object.keys(categories).length > 0 && !initialized) {
+      const initial: Record<string, { preco: number; unidade: string }> = {};
+      Object.values(categories).flat().forEach(item => {
+        initial[item.id] = { preco: item.preco, unidade: item.unidade };
+      });
+      setEditedPrices(initial);
+      setInitialized(true);
+      setHasChanges(false);
+    }
+  }, [categories, initialized]);
+
+  // Reset initialized when categories change externally (e.g., after save)
+  useEffect(() => {
+    if (!hasChanges && Object.keys(categories).length > 0 && initialized) {
+      const updated: Record<string, { preco: number; unidade: string }> = {};
+      Object.values(categories).flat().forEach(item => {
+        updated[item.id] = { preco: item.preco, unidade: item.unidade };
+      });
+      setEditedPrices(updated);
+    }
   }, [categories]);
 
   const handlePriceChange = (id: string, value: string) => {
-    const numValue = parseFloat(value) || 0;
+    // Suportar vírgula e ponto como separador decimal
+    const normalizedValue = value.replace(',', '.');
+    const numValue = parseFloat(normalizedValue) || 0;
+    
+    if (import.meta.env.DEV) {
+      console.log('[Precos] handlePriceChange:', { id, value, numValue });
+    }
+    
     setEditedPrices(prev => ({
       ...prev,
       [id]: { ...prev[id], preco: numValue },
@@ -96,6 +125,10 @@ export default function Precos() {
   };
 
   const handleUnitChange = (id: string, value: string) => {
+    if (import.meta.env.DEV) {
+      console.log('[Precos] handleUnitChange:', { id, value });
+    }
+    
     setEditedPrices(prev => ({
       ...prev,
       [id]: { ...prev[id], unidade: value },
@@ -103,14 +136,23 @@ export default function Precos() {
     setHasChanges(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const updates = Object.entries(editedPrices).map(([id, data]) => ({
       id,
       preco: data.preco,
       unidade: data.unidade,
     }));
-    bulkUpdatePrices.mutate(updates);
-    setHasChanges(false);
+    
+    bulkUpdatePrices.mutate(updates, {
+      onSuccess: () => {
+        setHasChanges(false);
+        setInitialized(false); // Force reload from server
+      },
+      onError: (error) => {
+        // Mantém hasChanges=true para não perder as alterações
+        console.error('[Precos] Erro ao salvar:', error);
+      },
+    });
   };
 
   const handleRestore = () => {

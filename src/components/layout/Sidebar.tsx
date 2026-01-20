@@ -9,23 +9,27 @@ import {
   DollarSign,
   Users,
   Shield,
-  User
+  User,
+  ClipboardCheck
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { usePendingApprovalsCount } from '@/hooks/useApprovalSystem';
 
 interface MenuItem {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   path: string;
   adminOnly?: boolean;
+  showBadge?: boolean;
 }
 
 const menuItems: MenuItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: FileText, label: 'Orçamentos', path: '/orcamentos' },
   { icon: Plus, label: 'Novo Orçamento', path: '/orcamentos/novo' },
+  { icon: ClipboardCheck, label: 'Aprovações', path: '/aprovacoes', adminOnly: true, showBadge: true },
   { icon: DollarSign, label: 'Preços', path: '/precos', adminOnly: true },
   { icon: Users, label: 'Usuários', path: '/usuarios', adminOnly: true },
   { icon: Settings, label: 'Configurações', path: '/configuracoes', adminOnly: true },
@@ -34,6 +38,7 @@ const menuItems: MenuItem[] = [
 export function Sidebar() {
   const location = useLocation();
   const { signOut, user, isAdmin } = useAuth();
+  const { pendingCount } = usePendingApprovalsCount();
 
   // Filter menu items based on user role
   const visibleMenuItems = menuItems.filter(item => !item.adminOnly || isAdmin);
@@ -73,7 +78,15 @@ export function Sidebar() {
               )}
             >
               <item.icon className="w-5 h-5" />
-              <span>{item.label}</span>
+              <span className="flex-1">{item.label}</span>
+              {item.showBadge && pendingCount > 0 && (
+                <Badge 
+                  variant="destructive" 
+                  className="h-5 w-5 p-0 flex items-center justify-center text-xs"
+                >
+                  {pendingCount}
+                </Badge>
+              )}
             </Link>
           );
         })}

@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { formatCurrency, formatNumber } from './orcamento-calculos';
+import { formatDocument } from './document-validation';
 
 // Proposta comercial is now exported from pdf-proposta-comercial.ts directly
 
@@ -10,6 +11,9 @@ interface ProjetoData {
   projeto: string;
   areaTotal: number;
   peDireito: number;
+  clienteTipo?: 'PF' | 'PJ';
+  clienteDocumento?: string;
+  clienteResponsavel?: string;
 }
 
 interface ConsolidadoData {
@@ -156,14 +160,29 @@ export function exportarOrcamentoPDF(data: PDFExportData): void {
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(0, 0, 0);
   
-  const clienteInfo = [
-    ['Cliente:', projeto.cliente || 'Não informado'],
+  const tipoCliente = projeto.clienteTipo || 'PF';
+  const documentoLabel = tipoCliente === 'PJ' ? 'CNPJ:' : 'CPF:';
+  const documentoFormatado = projeto.clienteDocumento 
+    ? formatDocument(projeto.clienteDocumento, tipoCliente)
+    : 'Não informado';
+  
+  const clienteInfo: (string | number)[][] = [
+    [tipoCliente === 'PJ' ? 'Razão Social:' : 'Cliente:', projeto.cliente || 'Não informado'],
+    [documentoLabel, documentoFormatado],
+  ];
+  
+  // Add responsible person for PJ
+  if (tipoCliente === 'PJ' && projeto.clienteResponsavel) {
+    clienteInfo.push(['Responsável:', projeto.clienteResponsavel]);
+  }
+  
+  clienteInfo.push(
     ['Código:', projeto.codigo],
     ['Projeto:', projeto.projeto || 'Não informado'],
     ['Área Total:', `${formatNumber(projeto.areaTotal)} m²`],
     ['Pé-Direito:', `${formatNumber(projeto.peDireito, 2)} m`],
     ['Data:', new Date().toLocaleDateString('pt-BR')],
-  ];
+  );
 
   autoTable(doc, {
     startY: yPos,

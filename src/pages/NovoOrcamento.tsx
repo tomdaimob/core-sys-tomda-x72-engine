@@ -722,6 +722,9 @@ export default function NovoOrcamento() {
                               nomeVendedor,
                               dataGeracao: new Date(),
                               tipoProposta,
+                              clienteTipo: projeto.clienteTipo,
+                              clienteDocumento: projeto.clienteDocumento,
+                              clienteResponsavel: projeto.clienteResponsavel,
                             });
                           }}
                           className="flex items-center gap-2 btn-primary sm:mt-5"
@@ -756,6 +759,29 @@ export default function NovoOrcamento() {
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoAcabamentos)}</div><div className="kpi-label">Acabamentos</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatNumber(resultadoLajeCalc.volumeTotalM3, 2)} m³</div><div className="kpi-label">Volume Laje</div></div>
               </div>
+              {/* Dados do Cliente */}
+              <div className="bg-accent/30 rounded-xl p-6 mt-4 border border-accent">
+                <h3 className="font-medium text-foreground mb-3">Dados do Cliente</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">{projeto.clienteTipo === 'PJ' ? 'Razão Social:' : 'Cliente:'}</span>{' '}
+                    <span className="font-medium">{projeto.cliente || '-'}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">{projeto.clienteTipo === 'PJ' ? 'CNPJ:' : 'CPF:'}</span>{' '}
+                    <span className="font-medium font-mono">
+                      {projeto.clienteDocumento ? formatDocument(projeto.clienteDocumento, projeto.clienteTipo || 'PF') : '-'}
+                    </span>
+                  </div>
+                  {projeto.clienteTipo === 'PJ' && projeto.clienteResponsavel && (
+                    <div className="md:col-span-2">
+                      <span className="text-muted-foreground">Responsável:</span>{' '}
+                      <span className="font-medium">{projeto.clienteResponsavel}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="bg-primary/10 rounded-xl p-6 mt-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div><span className="text-muted-foreground">Subtotal:</span> <span className="font-medium">{formatCurrency(consolidado.subtotal)}</span></div>

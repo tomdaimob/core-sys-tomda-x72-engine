@@ -10,7 +10,8 @@ import {
   MoreVertical,
   FileText,
   Calendar,
-  Building2
+  Building2,
+  Bell
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -28,10 +29,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/lib/orcamento-calculos';
 import { useToast } from '@/hooks/use-toast';
+import { ApprovalBadge } from '@/components/orcamento/ApprovalBadge';
+import { usePendingApprovalsCount } from '@/hooks/useApprovalSystem';
 
 interface Orcamento {
   id: string;
@@ -43,11 +47,15 @@ interface Orcamento {
   valor_total: number | null;
   created_at: string;
   updated_at: string;
+  needs_approval?: boolean | null;
+  approval_status?: string | null;
+  margin_percent?: number | null;
 }
 
 export default function Orcamentos() {
   const { user, isAdmin } = useAuth();
   const { toast } = useToast();
+  const { pendingCount, unreadMessagesCount } = usePendingApprovalsCount();
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -63,7 +71,7 @@ export default function Orcamentos() {
     try {
       let query = supabase
         .from('orcamentos')
-        .select('*')
+        .select('id, codigo, cliente, projeto, status, area_total_m2, valor_total, created_at, updated_at, needs_approval, approval_status, margin_percent')
         .order('created_at', { ascending: false });
 
       // VENDEDOR só vê seus próprios orçamentos
@@ -209,12 +217,28 @@ export default function Orcamentos() {
               Gerencie todos os seus orçamentos
             </p>
           </div>
-          <Link to="/orcamentos/novo">
-            <Button className="btn-primary gap-2">
-              <Plus className="w-4 h-4" />
-              Novo Orçamento
-            </Button>
-          </Link>
+          <div className="flex items-center gap-3">
+            {/* Pending Approvals Badge (Admin only) */}
+            {isAdmin && pendingCount > 0 && (
+              <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-2">
+                <Bell className="w-4 h-4 text-amber-600" />
+                <span className="text-sm font-medium text-amber-700">
+                  {pendingCount} pendente{pendingCount > 1 ? 's' : ''}
+                </span>
+                {unreadMessagesCount > 0 && (
+                  <Badge className="bg-primary text-primary-foreground text-xs">
+                    {unreadMessagesCount} msg
+                  </Badge>
+                )}
+              </div>
+            )}
+            <Link to="/orcamentos/novo">
+              <Button className="btn-primary gap-2">
+                <Plus className="w-4 h-4" />
+                Novo Orçamento
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Filters */}
@@ -303,9 +327,17 @@ export default function Orcamentos() {
 
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <span className={`status-badge ${getStatusClass(orc.status)}`}>
-                        {getStatusLabel(orc.status)}
-                      </span>
+                      <div className="flex items-center gap-2 justify-end">
+                        <span className={`status-badge ${getStatusClass(orc.status)}`}>
+                          {getStatusLabel(orc.status)}
+                        </span>
+                        {orc.approval_status && (
+                          <ApprovalBadge 
+                            status={orc.approval_status as 'PENDENTE' | 'APROVADA' | 'NEGADA'} 
+                            compact 
+                          />
+                        )}
+                      </div>
                       <p className="text-lg font-bold text-foreground mt-2">
                         {orc.valor_total ? formatCurrency(orc.valor_total) : '-'}
                       </p>

@@ -170,9 +170,12 @@ export default function NovoOrcamento() {
   const { 
     isSaving: isAutoSaving, 
     lastSaved, 
+    saveError,
+    isPaused,
     loadDraftData, 
     finalizeDraft,
     discardDraft,
+    retrySave,
   } = useAutoSaveDraft({
     userId: user?.id,
     draftData,
@@ -394,7 +397,23 @@ export default function NovoOrcamento() {
             
             {/* Auto-save status */}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              {isAutoSaving ? (
+              {isPaused && saveError ? (
+                <>
+                  <AlertTriangle className="w-4 h-4 text-destructive" />
+                  <span className="text-destructive max-w-[200px] truncate" title={saveError}>
+                    Erro ao salvar
+                  </span>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={retrySave}
+                    className="text-primary"
+                  >
+                    <RefreshCw className="w-3 h-3 mr-1" />
+                    Tentar novamente
+                  </Button>
+                </>
+              ) : isAutoSaving ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Salvando...</span>
@@ -411,7 +430,7 @@ export default function NovoOrcamento() {
                 </>
               ) : null}
               
-              {lastSaved && (
+              {lastSaved && !isPaused && (
                 <Button 
                   variant="ghost" 
                   size="sm" 

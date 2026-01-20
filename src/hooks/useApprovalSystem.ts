@@ -139,11 +139,24 @@ export function useApprovalSystem(orcamentoId?: string) {
 
   // Request approval (vendedor)
   const requestApproval = async (message: string, marginPercent: number): Promise<boolean> => {
-    if (!orcamentoId || !user) return false;
+    console.log('[useApprovalSystem] requestApproval called', { orcamentoId, userId: user?.id, message: message.substring(0, 30), marginPercent });
+    
+    if (!orcamentoId) {
+      console.error('[useApprovalSystem] requestApproval failed: no orcamentoId');
+      toast({ title: 'Erro', description: 'Orçamento não encontrado. Salve primeiro.', variant: 'destructive' });
+      return false;
+    }
+    
+    if (!user) {
+      console.error('[useApprovalSystem] requestApproval failed: no user');
+      toast({ title: 'Erro', description: 'Usuário não autenticado.', variant: 'destructive' });
+      return false;
+    }
 
     setLoading(true);
     try {
       // Create approval request
+      console.log('[useApprovalSystem] Creating approval_request...');
       const { data: request, error: requestError } = await supabase
         .from('approval_requests')
         .insert({
@@ -154,9 +167,19 @@ export function useApprovalSystem(orcamentoId?: string) {
         .select()
         .single();
 
-      if (requestError) throw requestError;
+      if (requestError) {
+        console.error('[useApprovalSystem] Error creating approval_request:', {
+          message: requestError.message,
+          details: requestError.details,
+          hint: requestError.hint,
+          code: requestError.code,
+        });
+        throw requestError;
+      }
+      console.log('[useApprovalSystem] approval_request created:', request);
 
       // Update orcamento status
+      console.log('[useApprovalSystem] Updating orcamento status...');
       const { error: updateError } = await supabase
         .from('orcamentos')
         .update({
@@ -166,10 +189,20 @@ export function useApprovalSystem(orcamentoId?: string) {
         })
         .eq('id', orcamentoId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('[useApprovalSystem] Error updating orcamento:', {
+          message: updateError.message,
+          details: updateError.details,
+          hint: updateError.hint,
+          code: updateError.code,
+        });
+        throw updateError;
+      }
+      console.log('[useApprovalSystem] orcamento updated successfully');
 
       // Send initial message
       if (message.trim()) {
+        console.log('[useApprovalSystem] Inserting approval_message...');
         const { error: msgError } = await supabase
           .from('approval_messages')
           .insert({
@@ -180,16 +213,30 @@ export function useApprovalSystem(orcamentoId?: string) {
             message: message.trim(),
           });
 
-        if (msgError) throw msgError;
+        if (msgError) {
+          console.error('[useApprovalSystem] Error inserting message:', {
+            message: msgError.message,
+            details: msgError.details,
+            hint: msgError.hint,
+            code: msgError.code,
+          });
+          throw msgError;
+        }
+        console.log('[useApprovalSystem] approval_message inserted successfully');
       }
 
       await loadCurrentRequest();
       await loadMessages();
       
-      toast({ title: 'Solicitação enviada!', description: 'Aguardando aprovação do gestor.' });
+      toast({ title: 'Solicitação enviada ao Gestor!', description: 'Aguardando aprovação.' });
       return true;
     } catch (error: any) {
-      toast({ title: 'Erro ao solicitar aprovação', description: error.message, variant: 'destructive' });
+      console.error('[useApprovalSystem] requestApproval error:', error);
+      toast({ 
+        title: 'Erro ao solicitar aprovação', 
+        description: error?.message || 'Erro desconhecido',
+        variant: 'destructive' 
+      });
       return false;
     } finally {
       setLoading(false);

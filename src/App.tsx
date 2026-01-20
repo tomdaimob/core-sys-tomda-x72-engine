@@ -12,6 +12,7 @@ import NovoOrcamento from "./pages/NovoOrcamento";
 import Configuracoes from "./pages/Configuracoes";
 import Precos from "./pages/Precos";
 import Usuarios from "./pages/Usuarios";
+import Aprovacoes from "./pages/Aprovacoes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,6 +54,7 @@ function AppRoutes() {
       <Route path="/orcamentos" element={<ProtectedRoute><Orcamentos /></ProtectedRoute>} />
       <Route path="/orcamentos/novo" element={<ProtectedRoute><NovoOrcamento /></ProtectedRoute>} />
       <Route path="/orcamentos/:id" element={<ProtectedRoute><NovoOrcamento /></ProtectedRoute>} />
+      <Route path="/aprovacoes" element={<AdminRoute><Aprovacoes /></AdminRoute>} />
       <Route path="/precos" element={<AdminRoute><Precos /></AdminRoute>} />
       <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
       <Route path="/configuracoes" element={<AdminRoute><Configuracoes /></AdminRoute>} />

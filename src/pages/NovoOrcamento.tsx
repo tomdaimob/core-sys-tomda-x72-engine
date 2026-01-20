@@ -48,7 +48,7 @@ import { AcabamentosForm, AcabamentosInput, calcularAcabamentosResultado } from 
 import { ParedesForm, ParedesInput, calcularParedesResultado } from '@/components/orcamento/ParedesForm';
 import { ApprovalSection } from '@/components/orcamento/ApprovalSection';
 import { Link } from 'react-router-dom';
-import { exportarOrcamentoPDF } from '@/lib/pdf-export';
+import { exportarOrcamentoPDF, exportarPropostaComercialPDF } from '@/lib/pdf-export';
 import { useAutoSaveDraft } from '@/hooks/useAutoSaveDraft';
 
 interface ExtractedData {
@@ -651,25 +651,84 @@ export default function NovoOrcamento() {
 
           {currentStep === 7 && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-3">
                 <h2 className="text-lg font-semibold">Relatório Consolidado</h2>
-                <Button 
-                  variant="outline" 
-                  onClick={() => exportarOrcamentoPDF({
-                    projeto,
-                    consolidado,
-                    resultadoParedes,
-                    resultadoRadier,
-                    resultadoLaje: resultadoLajeCalc,
-                    resultadoReboco: resultadoRebocoCalc,
-                    resultadoAcabamentos: resultadoAcabamentosCalc,
-                    margens,
-                  })}
-                  className="flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  Exportar PDF
-                </Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Relatório Detalhado - apenas admin */}
+                  {isAdmin && (
+                    <Button 
+                      variant="outline" 
+                      onClick={() => exportarOrcamentoPDF({
+                        projeto,
+                        consolidado,
+                        resultadoParedes,
+                        resultadoRadier,
+                        resultadoLaje: resultadoLajeCalc,
+                        resultadoReboco: resultadoRebocoCalc,
+                        resultadoAcabamentos: resultadoAcabamentosCalc,
+                        margens,
+                      })}
+                      className="flex items-center gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      Relatório Detalhado (Admin)
+                    </Button>
+                  )}
+                  
+                  {/* Proposta Comercial - admin sempre, vendedor se aprovado ou margem >= 15% */}
+                  {(() => {
+                    const marginTotal = margens.lucroPercent + margens.bdiPercent - margens.descontoPercent;
+                    const needsApproval = marginTotal < 15;
+                    const canGenerateProposta = isAdmin || !needsApproval || approvalStatus === 'APROVADA';
+                    
+                    if (canGenerateProposta) {
+                      return (
+                        <Button 
+                          variant="default"
+                          onClick={async () => {
+                            // Get vendor name from profile
+                            let nomeVendedor = '-';
+                            if (user?.id) {
+                              const { data: profile } = await supabase
+                                .from('profiles')
+                                .select('full_name')
+                                .eq('user_id', user.id)
+                                .single();
+                              nomeVendedor = profile?.full_name || user?.email || '-';
+                            }
+                            
+                            exportarPropostaComercialPDF({
+                              cliente: projeto.cliente,
+                              codigo: projeto.codigo,
+                              projeto: projeto.projeto,
+                              areaTotal: projeto.areaTotal || radier.areaM2,
+                              valorTotal: consolidado.totalVenda,
+                              valorPorM2: consolidado.precoPorM2Global,
+                              nomeVendedor,
+                              dataGeracao: new Date(),
+                            });
+                          }}
+                          className="flex items-center gap-2 btn-primary"
+                        >
+                          <FileText className="w-4 h-4" />
+                          Gerar Proposta Comercial
+                        </Button>
+                      );
+                    }
+                    
+                    // Vendedor sem aprovação
+                    return (
+                      <Button 
+                        variant="outline" 
+                        disabled
+                        className="flex items-center gap-2 opacity-50"
+                      >
+                        <Lock className="w-4 h-4" />
+                        Proposta (Requer Aprovação)
+                      </Button>
+                    );
+                  })()}
+                </div>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoParedes)}</div><div className="kpi-label">Paredes</div></div>
@@ -749,6 +808,7 @@ export default function NovoOrcamento() {
                 if (!canFinalize) {
                   return (
                     <div className="flex items-center gap-3">
+                      {/* Preview interno sempre disponível */}
                       <Button 
                         variant="outline" 
                         onClick={() => exportarOrcamentoPDF({

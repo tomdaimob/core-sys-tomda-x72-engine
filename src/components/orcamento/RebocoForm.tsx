@@ -111,6 +111,8 @@ export function RebocoForm({
               </p>
             </div>
             <Switch
+              id="aplicar_interno"
+              name="aplicar_interno"
               checked={reboco.aplicarInterno}
               onCheckedChange={(checked) => 
                 onRebocoChange({ ...reboco, aplicarInterno: checked })
@@ -133,6 +135,8 @@ export function RebocoForm({
               </p>
             </div>
             <Switch
+              id="aplicar_externo"
+              name="aplicar_externo"
               checked={reboco.aplicarExterno}
               onCheckedChange={(checked) => 
                 onRebocoChange({ ...reboco, aplicarExterno: checked })
@@ -150,8 +154,10 @@ export function RebocoForm({
       {/* Perda e Espessura */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="input-group">
-          <Label className="input-label">Perda/Desperdício (%)</Label>
+          <Label htmlFor="perda_percentual" className="input-label">Perda/Desperdício (%)</Label>
           <Input
+            id="perda_percentual"
+            name="perda_percentual"
             type="number"
             min="0"
             max="50"
@@ -169,8 +175,10 @@ export function RebocoForm({
           </p>
         </div>
         <div className="input-group">
-          <Label className="input-label">Espessura Média (mm) - Informativo</Label>
+          <Label htmlFor="espessura_media" className="input-label">Espessura Média (mm) - Informativo</Label>
           <Input
+            id="espessura_media"
+            name="espessura_media"
             type="number"
             min="1"
             max="10"

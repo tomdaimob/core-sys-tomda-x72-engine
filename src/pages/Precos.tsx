@@ -324,6 +324,8 @@ export default function Precos() {
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
+                  id="search_precos"
+                  name="search_precos"
                   placeholder="Buscar item..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -386,6 +388,8 @@ export default function Precos() {
                       </span>
                     </Button>
                     <input
+                      id="import_precos_file"
+                      name="import_precos_file"
                       type="file"
                       accept=".csv,.json"
                       onChange={handleImport}
@@ -446,6 +450,8 @@ export default function Precos() {
                           <div className="col-span-3">
                             {isAdmin ? (
                               <Input
+                                id={`unidade_${item.id}`}
+                                name={`unidade_${item.id}`}
                                 value={editedPrices[item.id]?.unidade || item.unidade}
                                 onChange={(e) => handleUnitChange(item.id, e.target.value)}
                                 className="h-9"
@@ -460,7 +466,9 @@ export default function Precos() {
                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                                   R$
                                 </span>
-                                <Input
+                              <Input
+                                  id={`preco_${item.id}`}
+                                  name={`preco_${item.id}`}
                                   type="number"
                                   step="0.01"
                                   min="0"

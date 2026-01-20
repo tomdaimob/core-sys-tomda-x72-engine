@@ -6,22 +6,37 @@ import {
   Settings, 
   LogOut,
   Building2,
-  DollarSign
+  DollarSign,
+  Users,
+  Shield,
+  User
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
-const menuItems = [
+interface MenuItem {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  path: string;
+  adminOnly?: boolean;
+}
+
+const menuItems: MenuItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: FileText, label: 'Orçamentos', path: '/orcamentos' },
   { icon: Plus, label: 'Novo Orçamento', path: '/orcamentos/novo' },
-  { icon: DollarSign, label: 'Preços', path: '/precos' },
+  { icon: DollarSign, label: 'Preços', path: '/precos', adminOnly: true },
+  { icon: Users, label: 'Usuários', path: '/usuarios', adminOnly: true },
   { icon: Settings, label: 'Configurações', path: '/configuracoes' },
 ];
 
 export function Sidebar() {
   const location = useLocation();
-  const { signOut, user } = useAuth();
+  const { signOut, user, isAdmin } = useAuth();
+
+  // Filter menu items based on user role
+  const visibleMenuItems = menuItems.filter(item => !item.adminOnly || isAdmin);
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar flex flex-col z-50">
@@ -44,7 +59,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1">
-        {menuItems.map((item) => {
+        {visibleMenuItems.map((item) => {
           const isActive = location.pathname === item.path || 
             (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
           
@@ -66,7 +81,20 @@ export function Sidebar() {
 
       {/* User section */}
       <div className="p-4 border-t border-sidebar-border">
-        <div className="mb-3 px-4">
+        <div className="mb-3 px-4 space-y-2">
+          <div className="flex items-center gap-2">
+            {isAdmin ? (
+              <Badge variant="default" className="bg-sidebar-primary text-sidebar-primary-foreground text-xs gap-1">
+                <Shield className="w-3 h-3" />
+                Administrador
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="text-xs gap-1">
+                <User className="w-3 h-3" />
+                Vendedor
+              </Badge>
+            )}
+          </div>
           <p className="text-xs text-sidebar-foreground/60 truncate">
             {user?.email}
           </p>

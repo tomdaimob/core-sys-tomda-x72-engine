@@ -48,11 +48,13 @@ import { AcabamentosForm, AcabamentosInput, calcularAcabamentosResultado } from 
 import { ParedesForm, ParedesInput, calcularParedesResultado } from '@/components/orcamento/ParedesForm';
 import { ApprovalSection } from '@/components/orcamento/ApprovalSection';
 import { ClienteForm, type ClienteFormData } from '@/components/orcamento/ClienteForm';
+import { MargensForm } from '@/components/orcamento/MargensForm';
 import { Link } from 'react-router-dom';
 import { exportarOrcamentoPDF } from '@/lib/pdf-export';
 import { exportarPropostaComercialPDF, TipoProposta } from '@/lib/pdf-proposta-comercial';
 import { useOrcamentoData } from '@/hooks/useOrcamentoData';
 import { validateClienteData, formatDocument, onlyDigits } from '@/lib/document-validation';
+import { useDiscountSystem } from '@/hooks/useDiscountSystem';
 
 interface ExtractedData {
   area_total_m2: number;
@@ -85,6 +87,7 @@ export default function NovoOrcamento() {
   const [showReview, setShowReview] = useState(false);
   const [tipoProposta, setTipoProposta] = useState<TipoProposta>('parede_cinza');
   const [approvalStatus, setApprovalStatus] = useState<'PENDENTE' | 'APROVADA' | 'NEGADA' | null>(null);
+  const [discountStatus, setDiscountStatus] = useState<'DISPENSADO' | 'PENDENTE' | 'APROVADO' | 'NEGADO'>('DISPENSADO');
   const [clienteValido, setClienteValido] = useState(false);
   const [showClienteErrors, setShowClienteErrors] = useState(false);
 
@@ -573,63 +576,13 @@ export default function NovoOrcamento() {
           )}
 
           {currentStep === 6 && (
-            <div className="space-y-6">
-              <h2 className="text-lg font-semibold">Margens e BDI</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="input-group">
-                  <Label htmlFor="lucro_percent" className="input-label">Lucro (%)</Label>
-                  <Input id="lucro_percent" name="lucro_percent" type="number" value={margens.lucroPercent} onChange={(e) => setMargens({...margens, lucroPercent: parseFloat(e.target.value) || 0})} />
-                </div>
-                <div className="input-group">
-                  <Label htmlFor="bdi_percent" className="input-label">BDI (%)</Label>
-                  <Input id="bdi_percent" name="bdi_percent" type="number" value={margens.bdiPercent} onChange={(e) => setMargens({...margens, bdiPercent: parseFloat(e.target.value) || 0})} />
-                </div>
-                <div className="input-group">
-                  <Label htmlFor="desconto_percent" className="input-label">Desconto (%)</Label>
-                  <Input id="desconto_percent" name="desconto_percent" type="number" value={margens.descontoPercent} onChange={(e) => setMargens({...margens, descontoPercent: parseFloat(e.target.value) || 0})} />
-                </div>
-              </div>
-              
-              {/* Margem Total Display */}
-              {consolidado.subtotal > 0 && (
-                <div className={`rounded-lg p-4 flex items-center gap-3 ${
-                  (margens.lucroPercent + margens.bdiPercent - margens.descontoPercent) < 15 
-                    ? 'bg-amber-500/10 border border-amber-500/30' 
-                    : 'bg-primary/10 border border-primary/30'
-                }`}>
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    (margens.lucroPercent + margens.bdiPercent - margens.descontoPercent) < 15 
-                      ? 'bg-amber-500/20' 
-                      : 'bg-primary/20'
-                  }`}>
-                    <Percent className={`w-5 h-5 ${
-                      (margens.lucroPercent + margens.bdiPercent - margens.descontoPercent) < 15 
-                        ? 'text-amber-600' 
-                        : 'text-primary'
-                    }`} />
-                  </div>
-                  <div>
-                    <p className="font-medium">Margem Total: {(margens.lucroPercent + margens.bdiPercent - margens.descontoPercent).toFixed(1)}%</p>
-                    {(margens.lucroPercent + margens.bdiPercent - margens.descontoPercent) < 15 && (
-                      <p className="text-sm text-amber-600">
-                        <AlertTriangle className="w-3 h-3 inline mr-1" />
-                        Margem abaixo de 15% requer aprovação do Gestor
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-              
-              {/* Approval Section */}
-              {(margens.lucroPercent + margens.bdiPercent - margens.descontoPercent) < 15 && (
-                <ApprovalSection 
-                  orcamentoId={orcamentoId}
-                  orcamentoCodigo={projeto.codigo}
-                  marginPercent={margens.lucroPercent + margens.bdiPercent - margens.descontoPercent}
-                  onApprovalStatusChange={setApprovalStatus}
-                />
-              )}
-            </div>
+            <MargensForm
+              margens={margens}
+              onMargensChange={setMargens}
+              consolidado={consolidado}
+              orcamentoId={orcamentoId}
+              orcamentoCodigo={projeto.codigo}
+            />
           )}
 
           {currentStep === 7 && (
@@ -663,8 +616,15 @@ export default function NovoOrcamento() {
               {/* Proposta Comercial Section - Vendedor UI */}
               {(() => {
                 const marginTotal = margens.lucroPercent + margens.bdiPercent - margens.descontoPercent;
-                const needsApproval = marginTotal < 15;
-                const canGenerateProposta = isAdmin || !needsApproval || approvalStatus === 'APROVADA';
+                const needsMarginApproval = marginTotal < 15;
+                const needsDiscountApproval = margens.descontoPercent > 5;
+                
+                // Check if can generate proposal:
+                // - Admin can always generate
+                // - Vendor needs: margin >= 15% OR margin approval, AND discount <= 5% OR discount approval
+                const canGenerateProposta = isAdmin || 
+                  ((!needsMarginApproval || approvalStatus === 'APROVADA') && 
+                   (!needsDiscountApproval || discountStatus === 'APROVADO' || discountStatus === 'DISPENSADO'));
                 
                 return (
                   <div className="bg-accent/30 rounded-xl p-5 border border-accent">
@@ -734,16 +694,22 @@ export default function NovoOrcamento() {
                         </Button>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                        <Lock className="w-5 h-5 text-amber-600" />
+                      <div className="flex items-center gap-3 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                        <Lock className="w-5 h-5 text-destructive" />
                         <div>
-                          <p className="font-medium text-amber-700">Proposta necessita de aprovação do Gestor</p>
-                          <p className="text-sm text-amber-600">
-                            {approvalStatus === 'PENDENTE' 
-                              ? 'Sua solicitação está sendo analisada.' 
-                              : approvalStatus === 'NEGADA'
-                                ? 'Solicitação negada. Revise a margem e solicite novamente.'
-                                : 'Margem abaixo de 15%. Solicite aprovação na aba Margens.'}
+                          <p className="font-medium text-destructive">Proposta necessita de aprovação do Gestor</p>
+                          <p className="text-sm text-destructive/80">
+                            {needsDiscountApproval && discountStatus === 'PENDENTE'
+                              ? 'Aguardando aprovação do desconto solicitado.'
+                              : needsDiscountApproval && discountStatus === 'NEGADO'
+                                ? 'Desconto negado. Revise e solicite novamente.'
+                                : needsMarginApproval && approvalStatus === 'PENDENTE' 
+                                  ? 'Aguardando aprovação da margem.'
+                                  : needsMarginApproval && approvalStatus === 'NEGADA'
+                                    ? 'Margem negada. Revise e solicite novamente.'
+                                    : needsDiscountApproval
+                                      ? 'Desconto acima de 5% requer aprovação na aba Margens.'
+                                      : 'Margem abaixo de 15%. Solicite aprovação na aba Margens.'}
                           </p>
                         </div>
                       </div>

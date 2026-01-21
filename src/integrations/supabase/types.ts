@@ -20,6 +20,7 @@ export type Database = {
           id: string
           is_read: boolean
           message: string
+          message_type: string | null
           orcamento_id: string
           request_id: string | null
           sender_role: string
@@ -30,6 +31,7 @@ export type Database = {
           id?: string
           is_read?: boolean
           message: string
+          message_type?: string | null
           orcamento_id: string
           request_id?: string | null
           sender_role: string
@@ -40,6 +42,7 @@ export type Database = {
           id?: string
           is_read?: boolean
           message?: string
+          message_type?: string | null
           orcamento_id?: string
           request_id?: string | null
           sender_role?: string
@@ -290,13 +293,21 @@ export type Database = {
         Row: {
           approval_status: string | null
           area_total_m2: number | null
+          bdi_percent: number | null
           cliente: string
           cliente_documento: string | null
           cliente_responsavel: string | null
           cliente_tipo: string | null
           codigo: string
           created_at: string
+          desconto_percent: number | null
+          discount_decided_at: string | null
+          discount_decided_by: string | null
+          discount_requested_at: string | null
+          discount_requested_by: string | null
+          discount_status: string | null
           id: string
+          lucro_percent: number | null
           margin_percent: number | null
           needs_approval: boolean | null
           projeto: string | null
@@ -308,13 +319,21 @@ export type Database = {
         Insert: {
           approval_status?: string | null
           area_total_m2?: number | null
+          bdi_percent?: number | null
           cliente: string
           cliente_documento?: string | null
           cliente_responsavel?: string | null
           cliente_tipo?: string | null
           codigo: string
           created_at?: string
+          desconto_percent?: number | null
+          discount_decided_at?: string | null
+          discount_decided_by?: string | null
+          discount_requested_at?: string | null
+          discount_requested_by?: string | null
+          discount_status?: string | null
           id?: string
+          lucro_percent?: number | null
           margin_percent?: number | null
           needs_approval?: boolean | null
           projeto?: string | null
@@ -326,13 +345,21 @@ export type Database = {
         Update: {
           approval_status?: string | null
           area_total_m2?: number | null
+          bdi_percent?: number | null
           cliente?: string
           cliente_documento?: string | null
           cliente_responsavel?: string | null
           cliente_tipo?: string | null
           codigo?: string
           created_at?: string
+          desconto_percent?: number | null
+          discount_decided_at?: string | null
+          discount_decided_by?: string | null
+          discount_requested_at?: string | null
+          discount_requested_by?: string | null
+          discount_status?: string | null
           id?: string
+          lucro_percent?: number | null
           margin_percent?: number | null
           needs_approval?: boolean | null
           projeto?: string | null

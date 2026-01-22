@@ -615,6 +615,7 @@ export default function NovoOrcamento() {
               onRevestimentoChange={setRevestimento}
               precos={precosRevestimento}
               resultado={resultadoRevestimentoCalc}
+              orcamentoId={orcamentoId}
             />
           )}
 

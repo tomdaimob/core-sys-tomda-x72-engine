@@ -1,1 +1,7 @@
 project_id = "oasrfhocuaqazvfmrtid"
+
+[functions.extract-pdf-data]
+verify_jwt = false
+
+[functions.extract-revestimento-medidas]
+verify_jwt = false

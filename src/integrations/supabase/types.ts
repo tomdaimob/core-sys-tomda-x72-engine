@@ -144,6 +144,30 @@ export type Database = {
           },
         ]
       }
+      configuracoes_globais: {
+        Row: {
+          chave: string
+          id: string
+          updated_at: string
+          updated_by: string | null
+          valor: Json
+        }
+        Insert: {
+          chave: string
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+          valor?: Json
+        }
+        Update: {
+          chave?: string
+          id?: string
+          updated_at?: string
+          updated_by?: string | null
+          valor?: Json
+        }
+        Relationships: []
+      }
       ia_extracoes: {
         Row: {
           aberturas_m2: number | null

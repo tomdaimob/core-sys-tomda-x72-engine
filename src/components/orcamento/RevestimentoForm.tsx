@@ -1,12 +1,29 @@
-import { useState, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, Home, Bath, ChefHat } from 'lucide-react';
+import { 
+  Plus, 
+  Trash2, 
+  Home, 
+  Bath, 
+  ChefHat, 
+  Upload, 
+  FileText, 
+  X, 
+  Loader2, 
+  Sparkles, 
+  AlertCircle,
+  CheckCircle2,
+  RefreshCw
+} from 'lucide-react';
 import { formatCurrency, formatNumber } from '@/lib/orcamento-calculos';
+import { useRevestimentoIA, AmbienteMedidas, ExtractionResult } from '@/hooks/useRevestimentoIA';
+import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
 
 // Types
 export type TipoAmbiente = 'cozinha' | 'banheiro';
@@ -26,6 +43,8 @@ export interface AmbienteRevestimento {
   areaAberturasM2: number;
   tipoMaterial: TipoMaterial;
   perdaPercentual: number;
+  // Flag to indicate if data came from AI
+  fromAI?: boolean;
 }
 
 export interface RevestimentoInput {
@@ -74,7 +93,7 @@ const createDefaultAmbiente = (tipo: TipoAmbiente, index = 1): AmbienteRevestime
   id: `${tipo}-${Date.now()}-${index}`,
   tipo,
   nome: tipo === 'cozinha' ? 'Cozinha' : `Banheiro ${index}`,
-  incluir: tipo === 'banheiro', // Default ON for bathroom, OFF for kitchen
+  incluir: tipo === 'banheiro',
   perimetroM: 0,
   tipoAltura: 'inteira',
   alturaInteiraM: 2.70,
@@ -83,6 +102,24 @@ const createDefaultAmbiente = (tipo: TipoAmbiente, index = 1): AmbienteRevestime
   areaAberturasM2: 0,
   tipoMaterial: 'ceramica',
   perdaPercentual: 10,
+  fromAI: false,
+});
+
+// Create ambiente from AI extraction
+const createAmbienteFromAI = (medidas: AmbienteMedidas, index: number): AmbienteRevestimento => ({
+  id: `${medidas.tipo}-ai-${Date.now()}-${index}`,
+  tipo: medidas.tipo,
+  nome: medidas.nome,
+  incluir: true, // Auto-include AI-extracted rooms
+  perimetroM: medidas.perimetro_m,
+  tipoAltura: 'inteira',
+  alturaInteiraM: medidas.altura_total_m,
+  alturaMeiaM: medidas.altura_meia_parede_m,
+  descontarAberturas: medidas.area_aberturas_total_m2 > 0,
+  areaAberturasM2: medidas.area_aberturas_total_m2,
+  tipoMaterial: 'ceramica',
+  perdaPercentual: 10,
+  fromAI: true,
 });
 
 export const DEFAULT_REVESTIMENTO: RevestimentoInput = {
@@ -156,6 +193,7 @@ interface RevestimentoFormProps {
   onRevestimentoChange: (revestimento: RevestimentoInput) => void;
   precos: PrecosRevestimento;
   resultado: ResultadoRevestimento;
+  orcamentoId?: string | null;
 }
 
 export function RevestimentoForm({
@@ -163,9 +201,97 @@ export function RevestimentoForm({
   onRevestimentoChange,
   precos,
   resultado,
+  orcamentoId,
 }: RevestimentoFormProps) {
+  const { isAdmin } = useAuth();
+  const { extracao, extracting, extractFromPdf, hasExtracao, clearExtracao } = useRevestimentoIA(orcamentoId);
+  const [file, setFile] = useState<File | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+
+  // Check if ambientes came from AI
+  const hasAIData = useMemo(() => 
+    revestimento.ambientes.some(a => a.fromAI), 
+    [revestimento.ambientes]
+  );
+  
+  const handleDrag = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files?.[0]) {
+      const droppedFile = e.dataTransfer.files[0];
+      if (droppedFile.type === 'application/pdf') {
+        setFile(droppedFile);
+      }
+    }
+  }, []);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.[0]) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const handleExtractFromPdf = async () => {
+    if (!file) return;
+    
+    const result = await extractFromPdf(file);
+    if (result && result.ambientes.length > 0) {
+      // Convert AI extraction to form data
+      const novosAmbientes = result.ambientes.map((medidas, idx) => 
+        createAmbienteFromAI(medidas, idx)
+      );
+      
+      onRevestimentoChange({
+        ...revestimento,
+        ambientes: novosAmbientes,
+      });
+      
+      setFile(null);
+    }
+  };
+
+  const handleClearAIData = () => {
+    clearExtracao();
+    onRevestimentoChange({
+      ...revestimento,
+      ambientes: [
+        createDefaultAmbiente('cozinha'),
+        createDefaultAmbiente('banheiro', 1),
+      ],
+    });
+  };
   
   const updateAmbiente = (id: string, updates: Partial<AmbienteRevestimento>) => {
+    // Vendedor can only update certain fields
+    if (!isAdmin) {
+      const allowedFields = ['incluir', 'tipoAltura', 'tipoMaterial'] as const;
+      const filteredUpdates: Partial<AmbienteRevestimento> = {};
+      
+      for (const key of allowedFields) {
+        if (key in updates) {
+          (filteredUpdates as Record<string, unknown>)[key] = updates[key];
+        }
+      }
+      
+      const newAmbientes = revestimento.ambientes.map(amb =>
+        amb.id === id ? { ...amb, ...filteredUpdates } : amb
+      );
+      onRevestimentoChange({ ...revestimento, ambientes: newAmbientes });
+      return;
+    }
+    
     const newAmbientes = revestimento.ambientes.map(amb =>
       amb.id === id ? { ...amb, ...updates } : amb
     );
@@ -173,6 +299,7 @@ export function RevestimentoForm({
   };
   
   const addBanheiro = () => {
+    if (!isAdmin) return;
     const banheiroCount = revestimento.ambientes.filter(a => a.tipo === 'banheiro').length;
     const newBanheiro = createDefaultAmbiente('banheiro', banheiroCount + 1);
     onRevestimentoChange({
@@ -182,8 +309,8 @@ export function RevestimentoForm({
   };
   
   const removeAmbiente = (id: string) => {
+    if (!isAdmin) return;
     const ambiente = revestimento.ambientes.find(a => a.id === id);
-    // Don't allow removing if it's the only bathroom or the kitchen
     if (ambiente?.tipo === 'cozinha') return;
     if (ambiente?.tipo === 'banheiro') {
       const banheiroCount = revestimento.ambientes.filter(a => a.tipo === 'banheiro').length;
@@ -202,40 +329,187 @@ export function RevestimentoForm({
   const getResultadoAmbiente = (id: string) => {
     return resultado.ambientes.find(a => a.id === id);
   };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
   
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Revestimento (Cozinha e Banheiros)</h2>
-        <Button variant="outline" size="sm" onClick={addBanheiro}>
-          <Plus className="w-4 h-4 mr-1" />
-          Adicionar Banheiro
-        </Button>
+        {hasAIData && (
+          <Badge variant="secondary" className="gap-1">
+            <Sparkles className="w-3 h-3" />
+            Medidas do PDF
+          </Badge>
+        )}
       </div>
+
+      {/* PDF Upload Section - Only show if no AI data */}
+      {!hasAIData && (
+        <div className="space-y-4">
+          <div
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+            className={cn(
+              'relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200',
+              dragActive 
+                ? 'border-primary bg-primary/5' 
+                : 'border-border hover:border-primary/50 hover:bg-muted/30',
+              file && 'border-primary/30 bg-primary/5'
+            )}
+          >
+            <input
+              type="file"
+              accept=".pdf"
+              onChange={handleFileSelect}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              disabled={extracting}
+            />
+            
+            {!file ? (
+              <div className="space-y-3">
+                <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto">
+                  <Upload className="w-8 h-8 text-primary" />
+                </div>
+                <div>
+                  <p className="text-foreground font-medium">
+                    Arraste a planta PDF aqui
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    ou clique para selecionar
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  A IA irá extrair automaticamente as medidas de cozinha e banheiros
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center">
+                    <FileText className="w-6 h-6 text-red-600" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-medium text-foreground truncate max-w-[200px]">
+                      {file.name}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {formatFileSize(file.size)}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setFile(null);
+                  }}
+                  disabled={extracting}
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Extract Button */}
+          {file && (
+            <Button
+              onClick={handleExtractFromPdf}
+              disabled={extracting || !orcamentoId}
+              className="w-full gap-2"
+            >
+              {extracting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Analisando planta com IA...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  Importar Medidas do PDF
+                </>
+              )}
+            </Button>
+          )}
+
+          {!orcamentoId && (
+            <div className="flex items-start gap-2 text-xs text-amber-600 bg-amber-500/10 rounded-lg p-3">
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <p>Salve o orçamento antes de importar medidas do PDF.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* AI Data Indicator and Reset */}
+      {hasAIData && (
+        <div className="flex items-center justify-between bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-green-600" />
+            <div>
+              <p className="font-medium text-green-700">Medidas extraídas do PDF</p>
+              <p className="text-sm text-green-600/80">
+                {revestimento.ambientes.length} ambiente(s) identificado(s)
+              </p>
+            </div>
+          </div>
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClearAIData}
+              className="border-green-500/30 text-green-700 hover:bg-green-500/10"
+            >
+              <RefreshCw className="w-4 h-4 mr-1" />
+              Reimportar
+            </Button>
+          )}
+        </div>
+      )}
       
       {/* Ambiente Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {revestimento.ambientes.map((ambiente) => {
           const Icon = getAmbienteIcon(ambiente.tipo);
           const resultadoAmb = getResultadoAmbiente(ambiente.id);
-          const canRemove = ambiente.tipo === 'banheiro' && 
+          const canRemove = isAdmin && ambiente.tipo === 'banheiro' && 
             revestimento.ambientes.filter(a => a.tipo === 'banheiro').length > 1;
           
           return (
             <Card 
               key={ambiente.id} 
-              className={`transition-all ${ambiente.incluir ? 'border-primary/50 bg-primary/5' : 'opacity-60'}`}
+              className={cn(
+                'transition-all',
+                ambiente.incluir ? 'border-primary/50 bg-primary/5' : 'opacity-60',
+                ambiente.fromAI && 'ring-1 ring-green-500/30'
+              )}
             >
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                    <div className={cn(
+                      'w-8 h-8 rounded-lg flex items-center justify-center',
                       ambiente.tipo === 'cozinha' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'
-                    }`}>
+                    )}>
                       <Icon className="w-4 h-4" />
                     </div>
                     <div>
-                      <CardTitle className="text-base">{ambiente.nome}</CardTitle>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        {ambiente.nome}
+                        {ambiente.fromAI && (
+                          <Badge variant="outline" className="text-xs bg-green-500/10 text-green-700 border-green-500/30">
+                            IA
+                          </Badge>
+                        )}
+                      </CardTitle>
                       {ambiente.incluir && resultadoAmb && (
                         <div className="flex gap-2 mt-1">
                           <Badge variant="secondary" className="text-xs">
@@ -275,10 +549,13 @@ export function RevestimentoForm({
               
               {ambiente.incluir && (
                 <CardContent className="space-y-4">
-                  {/* Perímetro */}
+                  {/* Perímetro - Read-only for vendedor if from AI */}
                   <div className="input-group">
                     <Label htmlFor={`perimetro-${ambiente.id}`} className="input-label">
-                      Perímetro do Ambiente (m) *
+                      Perímetro do Ambiente (m)
+                      {ambiente.fromAI && !isAdmin && (
+                        <Badge variant="outline" className="ml-2 text-xs">Detectado</Badge>
+                      )}
                     </Label>
                     <Input
                       id={`perimetro-${ambiente.id}`}
@@ -289,21 +566,24 @@ export function RevestimentoForm({
                         perimetroM: parseFloat(e.target.value) || 0 
                       })}
                       placeholder="Ex: 10"
+                      disabled={!isAdmin && ambiente.fromAI}
+                      className={cn(!isAdmin && ambiente.fromAI && 'bg-muted')}
                     />
                   </div>
                   
-                  {/* Altura do Revestimento */}
+                  {/* Altura do Revestimento - selectable by all */}
                   <div className="space-y-2">
                     <Label className="input-label">Altura do Revestimento</Label>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
                         onClick={() => updateAmbiente(ambiente.id, { tipoAltura: 'inteira' })}
-                        className={`p-3 rounded-lg border text-sm transition-all ${
+                        className={cn(
+                          'p-3 rounded-lg border text-sm transition-all',
                           ambiente.tipoAltura === 'inteira' 
                             ? 'border-primary bg-primary/10 text-primary' 
                             : 'border-border hover:border-primary/50'
-                        }`}
+                        )}
                       >
                         <div className="font-medium">Parede Inteira</div>
                         <div className="text-xs text-muted-foreground mt-1">
@@ -313,11 +593,12 @@ export function RevestimentoForm({
                       <button
                         type="button"
                         onClick={() => updateAmbiente(ambiente.id, { tipoAltura: 'meia' })}
-                        className={`p-3 rounded-lg border text-sm transition-all ${
+                        className={cn(
+                          'p-3 rounded-lg border text-sm transition-all',
                           ambiente.tipoAltura === 'meia' 
                             ? 'border-primary bg-primary/10 text-primary' 
                             : 'border-border hover:border-primary/50'
-                        }`}
+                        )}
                       >
                         <div className="font-medium">Meia Parede</div>
                         <div className="text-xs text-muted-foreground mt-1">
@@ -326,76 +607,88 @@ export function RevestimentoForm({
                       </button>
                     </div>
                     
-                    {/* Editable heights */}
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                      <div className="input-group">
-                        <Label htmlFor={`altura-inteira-${ambiente.id}`} className="text-xs text-muted-foreground">
-                          Altura inteira (m)
-                        </Label>
-                        <Input
-                          id={`altura-inteira-${ambiente.id}`}
-                          type="number"
-                          step="0.1"
-                          value={ambiente.alturaInteiraM || ''}
-                          onChange={(e) => updateAmbiente(ambiente.id, { 
-                            alturaInteiraM: parseFloat(e.target.value) || 0 
-                          })}
-                          className="h-8"
-                        />
-                      </div>
-                      <div className="input-group">
-                        <Label htmlFor={`altura-meia-${ambiente.id}`} className="text-xs text-muted-foreground">
-                          Altura meia (m)
-                        </Label>
-                        <Input
-                          id={`altura-meia-${ambiente.id}`}
-                          type="number"
-                          step="0.1"
-                          value={ambiente.alturaMeiaM || ''}
-                          onChange={(e) => updateAmbiente(ambiente.id, { 
-                            alturaMeiaM: parseFloat(e.target.value) || 0 
-                          })}
-                          className="h-8"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Descontar Aberturas */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        id={`aberturas-${ambiente.id}`}
-                        checked={ambiente.descontarAberturas}
-                        onCheckedChange={(checked) => updateAmbiente(ambiente.id, { 
-                          descontarAberturas: checked 
-                        })}
-                      />
-                      <Label htmlFor={`aberturas-${ambiente.id}`} className="text-sm">
-                        Descontar aberturas (portas/janelas)
-                      </Label>
-                    </div>
-                    {ambiente.descontarAberturas && (
-                      <div className="input-group pl-8">
-                        <Label htmlFor={`area-aberturas-${ambiente.id}`} className="text-xs text-muted-foreground">
-                          Área de aberturas (m²)
-                        </Label>
-                        <Input
-                          id={`area-aberturas-${ambiente.id}`}
-                          type="number"
-                          step="0.1"
-                          value={ambiente.areaAberturasM2 || ''}
-                          onChange={(e) => updateAmbiente(ambiente.id, { 
-                            areaAberturasM2: parseFloat(e.target.value) || 0 
-                          })}
-                          className="h-8"
-                          placeholder="Ex: 2.5"
-                        />
+                    {/* Editable heights - Admin only */}
+                    {isAdmin && (
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div className="input-group">
+                          <Label htmlFor={`altura-inteira-${ambiente.id}`} className="text-xs text-muted-foreground">
+                            Altura inteira (m)
+                          </Label>
+                          <Input
+                            id={`altura-inteira-${ambiente.id}`}
+                            type="number"
+                            step="0.1"
+                            value={ambiente.alturaInteiraM || ''}
+                            onChange={(e) => updateAmbiente(ambiente.id, { 
+                              alturaInteiraM: parseFloat(e.target.value) || 0 
+                            })}
+                            className="h-8"
+                          />
+                        </div>
+                        <div className="input-group">
+                          <Label htmlFor={`altura-meia-${ambiente.id}`} className="text-xs text-muted-foreground">
+                            Altura meia (m)
+                          </Label>
+                          <Input
+                            id={`altura-meia-${ambiente.id}`}
+                            type="number"
+                            step="0.1"
+                            value={ambiente.alturaMeiaM || ''}
+                            onChange={(e) => updateAmbiente(ambiente.id, { 
+                              alturaMeiaM: parseFloat(e.target.value) || 0 
+                            })}
+                            className="h-8"
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
                   
-                  {/* Tipo de Material */}
+                  {/* Aberturas - Read-only display for vendedor if from AI */}
+                  <div className="space-y-2">
+                    {ambiente.fromAI && ambiente.areaAberturasM2 > 0 ? (
+                      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <span className="text-sm">Aberturas descontadas</span>
+                        <Badge variant="secondary">{formatNumber(ambiente.areaAberturasM2, 2)} m²</Badge>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id={`aberturas-${ambiente.id}`}
+                            checked={ambiente.descontarAberturas}
+                            onCheckedChange={(checked) => updateAmbiente(ambiente.id, { 
+                              descontarAberturas: checked 
+                            })}
+                            disabled={!isAdmin && ambiente.fromAI}
+                          />
+                          <Label htmlFor={`aberturas-${ambiente.id}`} className="text-sm">
+                            Descontar aberturas (portas/janelas)
+                          </Label>
+                        </div>
+                        {ambiente.descontarAberturas && isAdmin && (
+                          <div className="input-group pl-8">
+                            <Label htmlFor={`area-aberturas-${ambiente.id}`} className="text-xs text-muted-foreground">
+                              Área de aberturas (m²)
+                            </Label>
+                            <Input
+                              id={`area-aberturas-${ambiente.id}`}
+                              type="number"
+                              step="0.1"
+                              value={ambiente.areaAberturasM2 || ''}
+                              onChange={(e) => updateAmbiente(ambiente.id, { 
+                                areaAberturasM2: parseFloat(e.target.value) || 0 
+                              })}
+                              className="h-8"
+                              placeholder="Ex: 2.5"
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  
+                  {/* Tipo de Material - Editable by all */}
                   <div className="input-group">
                     <Label htmlFor={`material-${ambiente.id}`} className="input-label">
                       Tipo de Material
@@ -413,31 +706,41 @@ export function RevestimentoForm({
                     </select>
                   </div>
                   
-                  {/* Perdas */}
-                  <div className="input-group">
-                    <Label htmlFor={`perdas-${ambiente.id}`} className="input-label">
-                      Perdas/Quebras (%)
-                    </Label>
-                    <Input
-                      id={`perdas-${ambiente.id}`}
-                      type="number"
-                      min={5}
-                      max={15}
-                      value={ambiente.perdaPercentual || ''}
-                      onChange={(e) => {
-                        const val = Math.min(15, Math.max(5, parseFloat(e.target.value) || 10));
-                        updateAmbiente(ambiente.id, { perdaPercentual: val });
-                      }}
-                      placeholder="10"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Entre 5% e 15%</p>
-                  </div>
+                  {/* Perdas - Admin only */}
+                  {isAdmin && (
+                    <div className="input-group">
+                      <Label htmlFor={`perdas-${ambiente.id}`} className="input-label">
+                        Perdas/Quebras (%)
+                      </Label>
+                      <Input
+                        id={`perdas-${ambiente.id}`}
+                        type="number"
+                        min={5}
+                        max={15}
+                        value={ambiente.perdaPercentual || ''}
+                        onChange={(e) => {
+                          const val = Math.min(15, Math.max(5, parseFloat(e.target.value) || 10));
+                          updateAmbiente(ambiente.id, { perdaPercentual: val });
+                        }}
+                        placeholder="10"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Entre 5% e 15%</p>
+                    </div>
+                  )}
                 </CardContent>
               )}
             </Card>
           );
         })}
       </div>
+
+      {/* Add Banheiro Button - Admin only */}
+      {isAdmin && (
+        <Button variant="outline" onClick={addBanheiro} className="w-full">
+          <Plus className="w-4 h-4 mr-1" />
+          Adicionar Banheiro
+        </Button>
+      )}
       
       {/* Global Options */}
       <div className="bg-accent/30 rounded-xl p-4 border border-accent">

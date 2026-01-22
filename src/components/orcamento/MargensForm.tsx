@@ -9,7 +9,8 @@ import {
   AlertTriangle,
   MessageSquare,
   Shield,
-  Loader2
+  Loader2,
+  Save
 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDiscountSystem, DiscountStatus } from '@/hooks/useDiscountSystem';
+import { useGlobalMargins } from '@/hooks/useGlobalMargins';
 import { formatCurrency } from '@/lib/orcamento-calculos';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -54,6 +56,7 @@ export function MargensForm({
   orcamentoCodigo,
 }: MargensFormProps) {
   const { isAdmin } = useAuth();
+  const { updateMargins, isUpdating } = useGlobalMargins();
   const {
     discountInfo,
     discountMessages,
@@ -72,6 +75,14 @@ export function MargensForm({
   const [gestorResposta, setGestorResposta] = useState('');
   const [localDesconto, setLocalDesconto] = useState(margens.descontoPercent);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Handler to save global margins (admin only)
+  const handleSaveGlobalMargins = () => {
+    updateMargins({
+      lucroPercent: margens.lucroPercent,
+      bdiPercent: margens.bdiPercent,
+    });
+  };
 
   // Sync local desconto with margens
   useEffect(() => {
@@ -196,46 +207,72 @@ export function MargensForm({
 
       {/* Lucro and BDI - ADMIN ONLY - completely hidden from vendors */}
       {isAdmin && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="input-group">
-            <Label htmlFor="lucro_percent" className="input-label">
-              Lucro (%)
-            </Label>
-            <Input
-              id="lucro_percent"
-              name="lucro_percent"
-              type="number"
-              min={0}
-              max={100}
-              value={margens.lucroPercent}
-              onChange={(e) => onMargensChange({ ...margens, lucroPercent: parseFloat(e.target.value) || 0 })}
-            />
-            {consolidado.subtotal > 0 && (
-              <p className="text-sm text-muted-foreground mt-1">
-                = {formatCurrency(consolidado.lucro)}
-              </p>
-            )}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="input-group">
+              <Label htmlFor="lucro_percent" className="input-label">
+                Lucro (%)
+              </Label>
+              <Input
+                id="lucro_percent"
+                name="lucro_percent"
+                type="number"
+                min={0}
+                max={100}
+                value={margens.lucroPercent}
+                onChange={(e) => onMargensChange({ ...margens, lucroPercent: parseFloat(e.target.value) || 0 })}
+              />
+              {consolidado.subtotal > 0 && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  = {formatCurrency(consolidado.lucro)}
+                </p>
+              )}
+            </div>
+
+            <div className="input-group">
+              <Label htmlFor="bdi_percent" className="input-label">
+                BDI (%)
+              </Label>
+              <Input
+                id="bdi_percent"
+                name="bdi_percent"
+                type="number"
+                min={0}
+                max={100}
+                value={margens.bdiPercent}
+                onChange={(e) => onMargensChange({ ...margens, bdiPercent: parseFloat(e.target.value) || 0 })}
+              />
+              {consolidado.subtotal > 0 && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  = {formatCurrency(consolidado.bdi)}
+                </p>
+              )}
+            </div>
           </div>
 
-          <div className="input-group">
-            <Label htmlFor="bdi_percent" className="input-label">
-              BDI (%)
-            </Label>
-            <Input
-              id="bdi_percent"
-              name="bdi_percent"
-              type="number"
-              min={0}
-              max={100}
-              value={margens.bdiPercent}
-              onChange={(e) => onMargensChange({ ...margens, bdiPercent: parseFloat(e.target.value) || 0 })}
-            />
-            {consolidado.subtotal > 0 && (
-              <p className="text-sm text-muted-foreground mt-1">
-                = {formatCurrency(consolidado.bdi)}
-              </p>
+          {/* Save Global Margins Button - ADMIN ONLY */}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleSaveGlobalMargins}
+            disabled={isUpdating}
+            className="w-full border-primary/50 text-primary hover:bg-primary/10"
+          >
+            {isUpdating ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Salvando...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-2" />
+                Salvar Lucro/BDI como Padrão Global
+              </>
             )}
-          </div>
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Ao salvar, estes valores serão aplicados como padrão para todos os novos orçamentos.
+          </p>
         </div>
       )}
 

@@ -190,16 +190,17 @@ export function MargensForm({
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold">Margens e BDI</h2>
+      <h2 className="text-lg font-semibold">
+        {isAdmin ? 'Margens e BDI' : 'Desconto Comercial'}
+      </h2>
 
-      {/* Lucro and BDI - Admin editable, Vendedor read-only */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="input-group">
-          <Label htmlFor="lucro_percent" className="input-label flex items-center gap-2">
-            Lucro (%)
-            {!isAdmin && <Lock className="w-3 h-3 text-muted-foreground" />}
-          </Label>
-          {isAdmin ? (
+      {/* Lucro and BDI - ADMIN ONLY - completely hidden from vendors */}
+      {isAdmin && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="input-group">
+            <Label htmlFor="lucro_percent" className="input-label">
+              Lucro (%)
+            </Label>
             <Input
               id="lucro_percent"
               name="lucro_percent"
@@ -209,25 +210,17 @@ export function MargensForm({
               value={margens.lucroPercent}
               onChange={(e) => onMargensChange({ ...margens, lucroPercent: parseFloat(e.target.value) || 0 })}
             />
-          ) : (
-            <div className="input-field bg-muted/50 cursor-not-allowed flex items-center">
-              <span className="text-foreground font-medium">{margens.lucroPercent.toFixed(1)}%</span>
-              <span className="ml-auto text-muted-foreground text-sm">Definido pelo Gestor</span>
-            </div>
-          )}
-          {consolidado.subtotal > 0 && (
-            <p className="text-sm text-muted-foreground mt-1">
-              = {formatCurrency(consolidado.lucro)}
-            </p>
-          )}
-        </div>
+            {consolidado.subtotal > 0 && (
+              <p className="text-sm text-muted-foreground mt-1">
+                = {formatCurrency(consolidado.lucro)}
+              </p>
+            )}
+          </div>
 
-        <div className="input-group">
-          <Label htmlFor="bdi_percent" className="input-label flex items-center gap-2">
-            BDI (%)
-            {!isAdmin && <Lock className="w-3 h-3 text-muted-foreground" />}
-          </Label>
-          {isAdmin ? (
+          <div className="input-group">
+            <Label htmlFor="bdi_percent" className="input-label">
+              BDI (%)
+            </Label>
             <Input
               id="bdi_percent"
               name="bdi_percent"
@@ -237,19 +230,14 @@ export function MargensForm({
               value={margens.bdiPercent}
               onChange={(e) => onMargensChange({ ...margens, bdiPercent: parseFloat(e.target.value) || 0 })}
             />
-          ) : (
-            <div className="input-field bg-muted/50 cursor-not-allowed flex items-center">
-              <span className="text-foreground font-medium">{margens.bdiPercent.toFixed(1)}%</span>
-              <span className="ml-auto text-muted-foreground text-sm">Definido pelo Gestor</span>
-            </div>
-          )}
-          {consolidado.subtotal > 0 && (
-            <p className="text-sm text-muted-foreground mt-1">
-              = {formatCurrency(consolidado.bdi)}
-            </p>
-          )}
+            {consolidado.subtotal > 0 && (
+              <p className="text-sm text-muted-foreground mt-1">
+                = {formatCurrency(consolidado.bdi)}
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Desconto - Vendedor editable with approval flow */}
       <div className={`rounded-xl p-5 border ${getDiscountBorderColor()} ${getDiscountBgColor()}`}>
@@ -478,8 +466,8 @@ export function MargensForm({
         )}
       </div>
 
-      {/* Summary - Margin Total */}
-      {consolidado.subtotal > 0 && (
+      {/* Summary - Margin Total - ADMIN ONLY for margin details */}
+      {consolidado.subtotal > 0 && isAdmin && (
         <div className={`rounded-lg p-4 flex items-center gap-3 ${
           margemTotal < 15 
             ? 'bg-amber-500/10 border border-amber-500/30' 
@@ -500,6 +488,22 @@ export function MargensForm({
                 Margem abaixo de 15% requer aprovação do Gestor
               </p>
             )}
+          </div>
+          <div className="text-right">
+            <p className="text-lg font-bold text-foreground">{formatCurrency(consolidado.totalVenda)}</p>
+            <p className="text-sm text-muted-foreground">Total Final</p>
+          </div>
+        </div>
+      )}
+
+      {/* Vendor: Show only total without margin details */}
+      {consolidado.subtotal > 0 && !isAdmin && (
+        <div className="rounded-lg p-4 flex items-center gap-3 bg-primary/10 border border-primary/30">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-primary/20">
+            <Percent className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <p className="font-medium text-foreground">Valor do Orçamento</p>
           </div>
           <div className="text-right">
             <p className="text-lg font-bold text-foreground">{formatCurrency(consolidado.totalVenda)}</p>

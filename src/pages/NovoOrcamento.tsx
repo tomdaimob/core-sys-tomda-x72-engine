@@ -74,8 +74,8 @@ const steps = [
   { id: 'radier', label: 'Radier', icon: Square },
   { id: 'laje', label: 'Laje', icon: Grid3X3 },
   { id: 'reboco', label: 'Reboco', icon: PaintBucket },
-  { id: 'revestimento', label: 'Revestimento', icon: Bath },
   { id: 'acabamentos', label: 'Acabamentos', icon: Sparkles },
+  { id: 'revestimento', label: 'Revestimento', icon: Bath },
   { id: 'margens', label: 'Margens', icon: Percent },
   { id: 'relatorio', label: 'Relatório', icon: FileText },
 ];
@@ -255,12 +255,25 @@ export default function NovoOrcamento() {
     projeto.areaTotal || radier.areaM2
   );
 
-  // Add revestimento cost to consolidado
+  // Add revestimento cost to consolidado - recalculate all derived values
+  const custoRevest = resultadoRevestimento?.custoTotal || 0;
+  const subtotalComRevestimento = consolidado.subtotal + custoRevest;
+  const lucroComRevestimento = subtotalComRevestimento * (margens.lucroPercent / 100);
+  const bdiComRevestimento = subtotalComRevestimento * (margens.bdiPercent / 100);
+  const totalBase = subtotalComRevestimento + lucroComRevestimento + bdiComRevestimento;
+  const descontoComRevestimento = totalBase * (margens.descontoPercent / 100);
+  const totalVendaComRevestimento = totalBase - descontoComRevestimento;
+  const areaTotal = projeto.areaTotal || radier.areaM2 || 1;
+  
   const consolidadoComRevestimento = {
     ...consolidado,
-    custoRevestimento: resultadoRevestimento?.custoTotal || 0,
-    subtotal: consolidado.subtotal + (resultadoRevestimento?.custoTotal || 0),
-    totalVenda: consolidado.totalVenda + (resultadoRevestimento?.custoTotal || 0) * (1 + margens.lucroPercent / 100) * (1 + margens.bdiPercent / 100) * (1 - margens.descontoPercent / 100),
+    custoRevestimento: custoRevest,
+    subtotal: subtotalComRevestimento,
+    lucro: lucroComRevestimento,
+    bdi: bdiComRevestimento,
+    desconto: descontoComRevestimento,
+    totalVenda: totalVendaComRevestimento,
+    precoPorM2Global: totalVendaComRevestimento / areaTotal,
   };
 
   // Save resultados whenever calculations change (debounced via the hook)
@@ -595,8 +608,8 @@ export default function NovoOrcamento() {
             </div>
           )}
 
-          {/* Step 5: Revestimento */}
-          {currentStep === 5 && (
+          {/* Step 6: Revestimento */}
+          {currentStep === 6 && (
             <RevestimentoForm
               revestimento={revestimento}
               onRevestimentoChange={setRevestimento}
@@ -626,12 +639,13 @@ export default function NovoOrcamento() {
                       variant="outline" 
                       onClick={() => exportarOrcamentoPDF({
                         projeto,
-                        consolidado,
+                        consolidado: consolidadoComRevestimento,
                         resultadoParedes,
                         resultadoRadier,
                         resultadoLaje: resultadoLajeCalc,
                         resultadoReboco: resultadoRebocoCalc,
                         resultadoAcabamentos: resultadoAcabamentosCalc,
+                        resultadoRevestimento,
                         margens,
                       })}
                       className="flex items-center gap-2"
@@ -707,8 +721,8 @@ export default function NovoOrcamento() {
                               codigo: projeto.codigo,
                               projeto: projeto.projeto,
                               areaTotal: projeto.areaTotal || radier.areaM2,
-                              valorTotal: consolidado.totalVenda,
-                              valorPorM2: consolidado.precoPorM2Global,
+                              valorTotal: consolidadoComRevestimento.totalVenda,
+                              valorPorM2: consolidadoComRevestimento.precoPorM2Global,
                               nomeVendedor,
                               dataGeracao: new Date(),
                               tipoProposta,
@@ -781,14 +795,14 @@ export default function NovoOrcamento() {
 
               <div className="bg-primary/10 rounded-xl p-6 mt-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div><span className="text-muted-foreground">Subtotal:</span> <span className="font-medium">{formatCurrency(consolidado.subtotal)}</span></div>
-                  <div><span className="text-muted-foreground">Lucro:</span> <span className="font-medium">{formatCurrency(consolidado.lucro)}</span></div>
-                  <div><span className="text-muted-foreground">BDI:</span> <span className="font-medium">{formatCurrency(consolidado.bdi)}</span></div>
-                  <div><span className="text-muted-foreground">Desconto:</span> <span className="font-medium">-{formatCurrency(consolidado.desconto)}</span></div>
+                  <div><span className="text-muted-foreground">Subtotal:</span> <span className="font-medium">{formatCurrency(consolidadoComRevestimento.subtotal)}</span></div>
+                  <div><span className="text-muted-foreground">Lucro:</span> <span className="font-medium">{formatCurrency(consolidadoComRevestimento.lucro)}</span></div>
+                  <div><span className="text-muted-foreground">BDI:</span> <span className="font-medium">{formatCurrency(consolidadoComRevestimento.bdi)}</span></div>
+                  <div><span className="text-muted-foreground">Desconto:</span> <span className="font-medium">-{formatCurrency(consolidadoComRevestimento.desconto)}</span></div>
                 </div>
                 <div className="border-t border-primary/20 mt-4 pt-4 flex justify-between items-center">
-                  <div className="text-xl font-bold text-primary">TOTAL: {formatCurrency(consolidado.totalVenda)}</div>
-                  <div className="text-muted-foreground">{formatCurrency(consolidado.precoPorM2Global)}/m²</div>
+                  <div className="text-xl font-bold text-primary">TOTAL: {formatCurrency(consolidadoComRevestimento.totalVenda)}</div>
+                  <div className="text-muted-foreground">{formatCurrency(consolidadoComRevestimento.precoPorM2Global)}/m²</div>
                 </div>
               </div>
             </div>
@@ -854,12 +868,13 @@ export default function NovoOrcamento() {
                         variant="outline" 
                         onClick={() => exportarOrcamentoPDF({
                           projeto,
-                          consolidado,
+                          consolidado: consolidadoComRevestimento,
                           resultadoParedes,
                           resultadoRadier,
                           resultadoLaje: resultadoLajeCalc,
                           resultadoReboco: resultadoRebocoCalc,
                           resultadoAcabamentos: resultadoAcabamentosCalc,
+                          resultadoRevestimento,
                           margens,
                         })}
                       >

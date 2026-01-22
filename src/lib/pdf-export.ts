@@ -101,6 +101,23 @@ interface ResultadoAcabamentos {
   custoTotal?: number;
 }
 
+interface ResultadoRevestimento {
+  areaTotalM2?: number;
+  custoMaterial?: number;
+  custoArgamassa?: number;
+  custoRejunte?: number;
+  custoMaoObra?: number;
+  custoTotal?: number;
+  precoPorM2?: number;
+  ambientes?: Array<{
+    nome: string;
+    tipo: 'cozinha' | 'banheiro';
+    areaComPerdaM2: number;
+    tipoMaterial: 'ceramica' | 'porcelanato';
+    custoTotal: number;
+  }>;
+}
+
 interface Margens {
   lucroPercent: number;
   bdiPercent: number;
@@ -115,11 +132,12 @@ interface PDFExportData {
   resultadoLaje?: ResultadoLaje | null;
   resultadoReboco?: ResultadoReboco | null;
   resultadoAcabamentos?: ResultadoAcabamentos | null;
+  resultadoRevestimento?: ResultadoRevestimento | null;
   margens: Margens;
 }
 
 export function exportarOrcamentoPDF(data: PDFExportData): void {
-  const { projeto, consolidado, resultadoParedes, resultadoRadier, resultadoLaje, resultadoReboco, resultadoAcabamentos, margens } = data;
+  const { projeto, consolidado, resultadoParedes, resultadoRadier, resultadoLaje, resultadoReboco, resultadoAcabamentos, resultadoRevestimento, margens } = data;
   
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -298,6 +316,45 @@ export function exportarOrcamentoPDF(data: PDFExportData): void {
     
     detalhesBody.push(
       ['  Subtotal Acabamentos', '', '', formatCurrency(resultadoAcabamentos.custoTotal || 0)],
+    );
+  }
+
+  // Revestimento (Cozinha e Banheiros)
+  if (resultadoRevestimento && (resultadoRevestimento.custoTotal || 0) > 0) {
+    detalhesBody.push(
+      ['REVESTIMENTO (COZINHA/BANHEIROS)', '', '', ''],
+    );
+    
+    // Detail by ambiente
+    if (resultadoRevestimento.ambientes && resultadoRevestimento.ambientes.length > 0) {
+      for (const amb of resultadoRevestimento.ambientes) {
+        const tipoMaterialDisplay = amb.tipoMaterial === 'porcelanato' ? 'Porcelanato' : 'Cerâmica';
+        detalhesBody.push(
+          [`  ${amb.nome} (${tipoMaterialDisplay})`, `${formatNumber(amb.areaComPerdaM2, 1)} m²`, '', formatCurrency(amb.custoTotal)],
+        );
+      }
+    } else {
+      detalhesBody.push(
+        ['  Área Total', `${formatNumber(resultadoRevestimento.areaTotalM2 || 0)} m²`, '', ''],
+      );
+    }
+    
+    // Cost breakdown
+    if ((resultadoRevestimento.custoMaterial || 0) > 0) {
+      detalhesBody.push(['  Material', '', formatCurrency(resultadoRevestimento.custoMaterial || 0), '']);
+    }
+    if ((resultadoRevestimento.custoArgamassa || 0) > 0) {
+      detalhesBody.push(['  Argamassa ACIII', '', formatCurrency(resultadoRevestimento.custoArgamassa || 0), '']);
+    }
+    if ((resultadoRevestimento.custoRejunte || 0) > 0) {
+      detalhesBody.push(['  Rejunte', '', formatCurrency(resultadoRevestimento.custoRejunte || 0), '']);
+    }
+    if ((resultadoRevestimento.custoMaoObra || 0) > 0) {
+      detalhesBody.push(['  Mão de Obra', '', formatCurrency(resultadoRevestimento.custoMaoObra || 0), '']);
+    }
+    
+    detalhesBody.push(
+      ['  Subtotal Revestimento', '', '', formatCurrency(resultadoRevestimento.custoTotal || 0)],
     );
   }
 

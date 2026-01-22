@@ -32,6 +32,13 @@ export interface AcabamentosInput {
   usarAreaReboco: boolean;
 }
 
+// Re-export RevestimentoInput from the component
+export type { RevestimentoInput } from '@/components/orcamento/RevestimentoForm';
+import { 
+  RevestimentoInput, 
+  DEFAULT_REVESTIMENTO 
+} from '@/components/orcamento/RevestimentoForm';
+
 // Types
 export interface ProjetoData {
   cliente: string;
@@ -61,6 +68,7 @@ export interface OrcamentoInputs {
   laje: LajeInput;
   reboco: RebocoInput;
   acabamentos: AcabamentosInput;
+  revestimento: RevestimentoInput;
   margens: Margens;
   currentStep: number;
 }
@@ -71,6 +79,7 @@ export interface ResultadosData {
   laje: any;
   reboco: any;
   acabamentos: any;
+  revestimento: any;
   consolidado: any;
 }
 
@@ -202,6 +211,7 @@ export function useOrcamentoData({
   const [laje, setLaje] = useState<LajeInput>(DEFAULT_LAJE);
   const [reboco, setReboco] = useState<RebocoInput>(DEFAULT_REBOCO);
   const [acabamentos, setAcabamentos] = useState<AcabamentosInput>(DEFAULT_ACABAMENTOS);
+  const [revestimento, setRevestimento] = useState<RevestimentoInput>(DEFAULT_REVESTIMENTO);
   const [margens, setMargens] = useState<Margens>(DEFAULT_MARGENS);
   const [currentStep, setCurrentStep] = useState(0);
   const [resultados, setResultados] = useState<ResultadosData | null>(null);
@@ -220,9 +230,10 @@ export function useOrcamentoData({
     laje,
     reboco,
     acabamentos,
+    revestimento,
     margens,
     currentStep,
-  }), [projeto, paredes, radier, laje, reboco, acabamentos, margens, currentStep]);
+  }), [projeto, paredes, radier, laje, reboco, acabamentos, revestimento, margens, currentStep]);
 
   // Load orcamento by ID
   const loadOrcamentoById = useCallback(async (id: string) => {
@@ -325,6 +336,12 @@ export function useOrcamentoData({
             ...dados.acabamentos,
           });
         }
+        if (dados.revestimento) {
+          setRevestimento({
+            ...DEFAULT_REVESTIMENTO,
+            ...dados.revestimento,
+          });
+        }
         if (dados.margens) {
           setMargens({
             ...DEFAULT_MARGENS,
@@ -360,6 +377,7 @@ export function useOrcamentoData({
           laje: resultadosData.laje,
           reboco: resultadosData.reboco,
           acabamentos: resultadosData.acabamentos,
+          revestimento: (resultadosData as any).revestimento || null,
           consolidado: resultadosData.consolidado,
         });
       }
@@ -608,7 +626,7 @@ export function useOrcamentoData({
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [projeto, paredes, radier, laje, reboco, acabamentos, margens, currentStep, userId, isPaused, isLoading, debounceMs, saveAll]);
+  }, [projeto, paredes, radier, laje, reboco, acabamentos, revestimento, margens, currentStep, userId, isPaused, isLoading, debounceMs, saveAll]);
 
   // Cleanup
   useEffect(() => {
@@ -680,6 +698,7 @@ export function useOrcamentoData({
       setLaje(DEFAULT_LAJE);
       setReboco(DEFAULT_REBOCO);
       setAcabamentos(DEFAULT_ACABAMENTOS);
+      setRevestimento(DEFAULT_REVESTIMENTO);
       setMargens(DEFAULT_MARGENS);
       setCurrentStep(0);
       setResultados(null);
@@ -716,6 +735,7 @@ export function useOrcamentoData({
     laje,
     reboco,
     acabamentos,
+    revestimento,
     margens,
     currentStep,
     resultados,
@@ -727,6 +747,7 @@ export function useOrcamentoData({
     setLaje,
     setReboco,
     setAcabamentos,
+    setRevestimento,
     setMargens,
     setCurrentStep,
     

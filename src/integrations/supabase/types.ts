@@ -253,6 +253,7 @@ export type Database = {
           paredes: Json | null
           radier: Json | null
           reboco: Json | null
+          revestimento: Json | null
           updated_at: string
         }
         Insert: {
@@ -265,6 +266,7 @@ export type Database = {
           paredes?: Json | null
           radier?: Json | null
           reboco?: Json | null
+          revestimento?: Json | null
           updated_at?: string
         }
         Update: {
@@ -277,6 +279,7 @@ export type Database = {
           paredes?: Json | null
           radier?: Json | null
           reboco?: Json | null
+          revestimento?: Json | null
           updated_at?: string
         }
         Relationships: [

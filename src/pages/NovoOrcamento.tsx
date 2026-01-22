@@ -14,6 +14,7 @@ import {
   FileText,
   Save,
   Upload,
+  Bath,
   RefreshCw,
   ExternalLink,
   Download,
@@ -46,6 +47,7 @@ import { LajeForm, LajeInput, calcularLajeResultado } from '@/components/orcamen
 import { RebocoForm, RebocoInput, calcularRebocoResultado } from '@/components/orcamento/RebocoForm';
 import { AcabamentosForm, AcabamentosInput, calcularAcabamentosResultado } from '@/components/orcamento/AcabamentosForm';
 import { ParedesForm, ParedesInput, calcularParedesResultado } from '@/components/orcamento/ParedesForm';
+import { RevestimentoForm, calcularRevestimentoResultado } from '@/components/orcamento/RevestimentoForm';
 import { ApprovalSection } from '@/components/orcamento/ApprovalSection';
 import { ClienteForm, type ClienteFormData } from '@/components/orcamento/ClienteForm';
 import { MargensForm } from '@/components/orcamento/MargensForm';
@@ -72,6 +74,7 @@ const steps = [
   { id: 'radier', label: 'Radier', icon: Square },
   { id: 'laje', label: 'Laje', icon: Grid3X3 },
   { id: 'reboco', label: 'Reboco', icon: PaintBucket },
+  { id: 'revestimento', label: 'Revestimento', icon: Bath },
   { id: 'acabamentos', label: 'Acabamentos', icon: Sparkles },
   { id: 'margens', label: 'Margens', icon: Percent },
   { id: 'relatorio', label: 'Relatório', icon: FileText },
@@ -100,7 +103,8 @@ export default function NovoOrcamento() {
     getRebocoMaoObraPrice,
     getConcretoOptions,
     getMaoObraLajePrice,
-    getAcabamentosPrecos
+    getAcabamentosPrecos,
+    getRevestimentoPrecos
   } = usePriceCatalog();
   const precos = mapCatalogToPrecos();
   const precoIcflexM2 = getIcflexPrice();
@@ -108,6 +112,7 @@ export default function NovoOrcamento() {
   const concretoOptions = getConcretoOptions();
   const precoMaoObraLajeM2 = getMaoObraLajePrice();
   const precosAcabamentos = getAcabamentosPrecos();
+  const precosRevestimento = getRevestimentoPrecos();
 
   // Use centralized orcamento data hook
   const {
@@ -124,6 +129,7 @@ export default function NovoOrcamento() {
     laje,
     reboco,
     acabamentos,
+    revestimento,
     margens,
     currentStep,
     setProjeto,
@@ -132,6 +138,7 @@ export default function NovoOrcamento() {
     setLaje,
     setReboco,
     setAcabamentos,
+    setRevestimento,
     setMargens,
     setCurrentStep,
     saveWithResultados,
@@ -232,6 +239,10 @@ export default function NovoOrcamento() {
   );
   const resultadoAcabamentos = resultadoAcabamentosCalc.custoTotal > 0 ? resultadoAcabamentosCalc : null;
 
+  // Calculate revestimento (kitchen/bathroom tiling)
+  const resultadoRevestimentoCalc = calcularRevestimentoResultado(revestimento, precosRevestimento);
+  const resultadoRevestimento = resultadoRevestimentoCalc.areaTotalM2 > 0 ? resultadoRevestimentoCalc : null;
+
   const consolidado = consolidarOrcamento(
     { 
       paredes: resultadoParedes || undefined, 
@@ -244,6 +255,14 @@ export default function NovoOrcamento() {
     projeto.areaTotal || radier.areaM2
   );
 
+  // Add revestimento cost to consolidado
+  const consolidadoComRevestimento = {
+    ...consolidado,
+    custoRevestimento: resultadoRevestimento?.custoTotal || 0,
+    subtotal: consolidado.subtotal + (resultadoRevestimento?.custoTotal || 0),
+    totalVenda: consolidado.totalVenda + (resultadoRevestimento?.custoTotal || 0) * (1 + margens.lucroPercent / 100) * (1 + margens.bdiPercent / 100) * (1 - margens.descontoPercent / 100),
+  };
+
   // Save resultados whenever calculations change (debounced via the hook)
   useEffect(() => {
     if (!isLoadingOrcamento && projeto.cliente && consolidado.subtotal > 0) {
@@ -253,10 +272,11 @@ export default function NovoOrcamento() {
         laje: resultadoLaje,
         reboco: resultadoReboco,
         acabamentos: resultadoAcabamentos,
-        consolidado,
+        revestimento: resultadoRevestimento,
+        consolidado: consolidadoComRevestimento,
       });
     }
-  }, [consolidado.subtotal]);
+  }, [consolidado.subtotal, resultadoRevestimento?.custoTotal]);
 
   const salvarOrcamento = async () => {
     if (!projeto.cliente) {
@@ -575,17 +595,27 @@ export default function NovoOrcamento() {
             </div>
           )}
 
-          {currentStep === 6 && (
+          {/* Step 5: Revestimento */}
+          {currentStep === 5 && (
+            <RevestimentoForm
+              revestimento={revestimento}
+              onRevestimentoChange={setRevestimento}
+              precos={precosRevestimento}
+              resultado={resultadoRevestimentoCalc}
+            />
+          )}
+
+          {currentStep === 7 && (
             <MargensForm
               margens={margens}
               onMargensChange={setMargens}
-              consolidado={consolidado}
+              consolidado={consolidadoComRevestimento}
               orcamentoId={orcamentoId}
               orcamentoCodigo={projeto.codigo}
             />
           )}
 
-          {currentStep === 7 && (
+          {currentStep === 8 && (
             <div className="space-y-6">
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <h2 className="text-lg font-semibold">Relatório Consolidado</h2>
@@ -717,11 +747,12 @@ export default function NovoOrcamento() {
                   </div>
                 );
               })()}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoParedes)}</div><div className="kpi-label">Paredes</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoRadier)}</div><div className="kpi-label">Radier</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoLaje)}</div><div className="kpi-label">Laje</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoReboco)}</div><div className="kpi-label">Reboco</div></div>
+                <div className="kpi-card"><div className="kpi-value">{formatCurrency(resultadoRevestimento?.custoTotal || 0)}</div><div className="kpi-label">Revestimento</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoAcabamentos)}</div><div className="kpi-label">Acabamentos</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatNumber(resultadoLajeCalc.volumeTotalM3, 2)} m³</div><div className="kpi-label">Volume Laje</div></div>
               </div>

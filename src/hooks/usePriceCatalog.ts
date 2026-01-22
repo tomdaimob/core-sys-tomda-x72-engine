@@ -131,6 +131,35 @@ export function getAcabamentosPrecos(items: PriceCatalogItem[]): AcabamentosPrec
   };
 }
 
+// Get revestimento (tiling) prices from catalog
+export interface RevestimentoPrecos {
+  ceramicaM2: number;
+  porcelanatoM2: number;
+  argamassaM2: number;
+  rejunteM2: number;
+  maoObraM2: number;
+}
+
+export function getRevestimentoPrecos(items: PriceCatalogItem[]): RevestimentoPrecos {
+  const findPrice = (searchTerms: string[], defaultValue: number): number => {
+    for (const term of searchTerms) {
+      const item = items.find(i => 
+        i.nome.toLowerCase().includes(term.toLowerCase()) && i.ativo
+      );
+      if (item) return item.preco;
+    }
+    return defaultValue;
+  };
+
+  return {
+    ceramicaM2: findPrice(['revestimento cerâmica', 'revestimento ceramica'], 65.00),
+    porcelanatoM2: findPrice(['revestimento porcelanato'], 120.00),
+    argamassaM2: findPrice(['argamassa aciii', 'argamassa ac3', 'argamassa ac iii'], 8.50),
+    rejunteM2: findPrice(['rejunte'], 4.50),
+    maoObraM2: findPrice(['mão de obra revestimento', 'mao de obra revestimento'], 55.00),
+  };
+}
+
 export function usePriceCatalog() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -300,5 +329,6 @@ export function usePriceCatalog() {
     getConcretoOptions: () => getConcretoOptions(items),
     getMaoObraLajePrice: () => getMaoObraLajePrice(items),
     getAcabamentosPrecos: () => getAcabamentosPrecos(items),
+    getRevestimentoPrecos: () => getRevestimentoPrecos(items),
   };
 }

@@ -4,7 +4,13 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { 
   DoorOpen,
   Warehouse,
@@ -16,8 +22,13 @@ import {
   AlertCircle,
   CheckCircle2,
   RefreshCw,
-  ChevronDown,
-  Lock
+  Lock,
+  Plus,
+  Trash2,
+  Copy,
+  RotateCcw,
+  AlertTriangle,
+  Info
 } from 'lucide-react';
 import { formatCurrency, formatNumber } from '@/lib/orcamento-calculos';
 import { usePortasPortoesIA, PortasPortoesExtractionResult } from '@/hooks/usePortasPortoesIA';
@@ -27,15 +38,48 @@ import { cn } from '@/lib/utils';
 // Types
 export type TipoMaterialPorta = 'MADEIRA' | 'ALUMINIO';
 export type TipoMaterialPortao = 'FERRO' | 'ALUMINIO';
+export type ModoPortasPortoes = 'IMPORT' | 'MANUAL';
+export type OrigemItem = 'PDF' | 'MANUAL' | 'DUPLICADO';
+export type TipoPorta = 'INTERNA' | 'EXTERNA';
+
+export interface DoorItem {
+  id: string;
+  label: string;
+  tipo: TipoPorta;
+  material: TipoMaterialPorta;
+  width_m: number;
+  height_m: number;
+  area_m2: number;
+  origem: OrigemItem;
+  confianca?: number;
+  inferred?: boolean;
+  page_number?: number;
+}
+
+export interface GateItem {
+  id: string;
+  label: string;
+  material: TipoMaterialPortao;
+  width_m: number;
+  height_m: number;
+  area_m2: number;
+  origem: OrigemItem;
+  confianca?: number;
+  inferred?: boolean;
+  page_number?: number;
+}
 
 export interface PortasPortoesInput {
-  areaPortasM2: number;
-  areaPortoesM2: number;
-  materialPorta: TipoMaterialPorta;
-  materialPortao: TipoMaterialPortao;
-  // Flag to indicate if data came from AI
+  mode: ModoPortasPortoes;
+  doorsItems: DoorItem[];
+  gatesItems: GateItem[];
+  unitsCount: number;
+  // Deprecated - keeping for backward compatibility
+  areaPortasM2?: number;
+  areaPortoesM2?: number;
+  materialPorta?: TipoMaterialPorta;
+  materialPortao?: TipoMaterialPortao;
   fromAI?: boolean;
-  // Individual items for detail display
   portasItems?: Array<{ label: string; width_m: number; height_m: number; area_m2: number }>;
   portoesItems?: Array<{ label: string; width_m: number; height_m: number; area_m2: number }>;
 }
@@ -43,13 +87,11 @@ export interface PortasPortoesInput {
 export interface ResultadoPortasPortoes {
   areaPortasM2: number;
   areaPortoesM2: number;
-  materialPorta: TipoMaterialPorta;
-  materialPortao: TipoMaterialPortao;
-  precoPortaM2: number;
-  precoPortaoM2: number;
   custoPortas: number;
   custoPortoes: number;
   custoTotal: number;
+  doorsItems: DoorItem[];
+  gatesItems: GateItem[];
 }
 
 export interface PrecosPortasPortoes {
@@ -61,6 +103,10 @@ export interface PrecosPortasPortoes {
 
 // Default values
 export const DEFAULT_PORTAS_PORTOES: PortasPortoesInput = {
+  mode: 'IMPORT',
+  doorsItems: [],
+  gatesItems: [],
+  unitsCount: 1,
   areaPortasM2: 0,
   areaPortoesM2: 0,
   materialPorta: 'MADEIRA',
@@ -68,33 +114,42 @@ export const DEFAULT_PORTAS_PORTOES: PortasPortoesInput = {
   fromAI: false,
 };
 
+// Generate unique ID
+function generateId(): string {
+  return 'item_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36).slice(-4);
+}
+
 // Calculate function
 export function calcularPortasPortoesResultado(
   input: PortasPortoesInput,
   precos: PrecosPortasPortoes
 ): ResultadoPortasPortoes {
-  const precoPortaM2 = input.materialPorta === 'MADEIRA' 
-    ? precos.portaMadeiraM2 
-    : precos.portaAluminioM2;
-  
-  const precoPortaoM2 = input.materialPortao === 'FERRO' 
-    ? precos.portaoFerroM2 
-    : precos.portaoAluminioM2;
-  
-  const custoPortas = input.areaPortasM2 * precoPortaM2;
-  const custoPortoes = input.areaPortoesM2 * precoPortaoM2;
-  const custoTotal = custoPortas + custoPortoes;
-  
+  // Calculate costs per item
+  let custoPortas = 0;
+  let custoPortoes = 0;
+  let areaPortasM2 = 0;
+  let areaPortoesM2 = 0;
+
+  for (const door of input.doorsItems) {
+    const preco = door.material === 'MADEIRA' ? precos.portaMadeiraM2 : precos.portaAluminioM2;
+    custoPortas += door.area_m2 * preco;
+    areaPortasM2 += door.area_m2;
+  }
+
+  for (const gate of input.gatesItems) {
+    const preco = gate.material === 'FERRO' ? precos.portaoFerroM2 : precos.portaoAluminioM2;
+    custoPortoes += gate.area_m2 * preco;
+    areaPortoesM2 += gate.area_m2;
+  }
+
   return {
-    areaPortasM2: input.areaPortasM2,
-    areaPortoesM2: input.areaPortoesM2,
-    materialPorta: input.materialPorta,
-    materialPortao: input.materialPortao,
-    precoPortaM2,
-    precoPortaoM2,
+    areaPortasM2,
+    areaPortoesM2,
     custoPortas,
     custoPortoes,
-    custoTotal,
+    custoTotal: custoPortas + custoPortoes,
+    doorsItems: input.doorsItems,
+    gatesItems: input.gatesItems,
   };
 }
 
@@ -116,21 +171,47 @@ export function PortasPortoesForm({
   tipoProposta,
 }: PortasPortoesFormProps) {
   const { isAdmin } = useAuth();
-  const { extractedData, extracting, extractFromPdf, hasExtracao, clearExtracao } = usePortasPortoesIA(orcamentoId);
+  const { extractedData, extracting, extractFromPdf, hasExtracao, clearExtracao, extracao } = usePortasPortoesIA(orcamentoId);
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
-  const [portasOpen, setPortasOpen] = useState(false);
-  const [portoesOpen, setPortoesOpen] = useState(false);
 
-  // Auto-populate from extraction when available
+  // Migrate old data format to new format
   useEffect(() => {
-    if (extractedData && !portasPortoes.fromAI) {
+    if (extractedData && portasPortoes.doorsItems.length === 0 && portasPortoes.gatesItems.length === 0) {
+      // Migrate from extracted data
+      const newDoors: DoorItem[] = extractedData.doors.items.map(item => ({
+        id: item.id || generateId(),
+        label: item.label,
+        tipo: (item as any).tipo || 'INTERNA',
+        material: (item as any).material || 'MADEIRA',
+        width_m: item.width_m,
+        height_m: item.height_m,
+        area_m2: item.area_m2,
+        origem: 'PDF' as const,
+        confianca: item.confianca,
+        inferred: (item as any).inferred,
+        page_number: (item as any).page_number,
+      }));
+
+      const newGates: GateItem[] = extractedData.gates.items.map(item => ({
+        id: item.id || generateId(),
+        label: item.label,
+        material: (item as any).material || 'FERRO',
+        width_m: item.width_m,
+        height_m: item.height_m,
+        area_m2: item.area_m2,
+        origem: 'PDF' as const,
+        confianca: item.confianca,
+        inferred: (item as any).inferred,
+        page_number: (item as any).page_number,
+      }));
+
       onPortasPortoesChange({
         ...portasPortoes,
-        areaPortasM2: extractedData.doors.area_total_m2,
-        areaPortoesM2: extractedData.gates.area_total_m2,
-        portasItems: extractedData.doors.items,
-        portoesItems: extractedData.gates.items,
+        mode: 'IMPORT',
+        doorsItems: newDoors,
+        gatesItems: newGates,
+        unitsCount: extractedData.source?.detected_units || 1,
         fromAI: true,
       });
     }
@@ -173,12 +254,39 @@ export function PortasPortoesForm({
     
     const result = await extractFromPdf(file);
     if (result) {
+      const newDoors: DoorItem[] = result.doors.items.map(item => ({
+        id: item.id || generateId(),
+        label: item.label,
+        tipo: (item as any).tipo || 'INTERNA',
+        material: (item as any).material || 'MADEIRA',
+        width_m: item.width_m,
+        height_m: item.height_m,
+        area_m2: item.area_m2,
+        origem: 'PDF' as const,
+        confianca: item.confianca,
+        inferred: (item as any).inferred,
+        page_number: (item as any).page_number,
+      }));
+
+      const newGates: GateItem[] = result.gates.items.map(item => ({
+        id: item.id || generateId(),
+        label: item.label,
+        material: (item as any).material || 'FERRO',
+        width_m: item.width_m,
+        height_m: item.height_m,
+        area_m2: item.area_m2,
+        origem: 'PDF' as const,
+        confianca: item.confianca,
+        inferred: (item as any).inferred,
+        page_number: (item as any).page_number,
+      }));
+
       onPortasPortoesChange({
         ...portasPortoes,
-        areaPortasM2: result.doors.area_total_m2,
-        areaPortoesM2: result.gates.area_total_m2,
-        portasItems: result.doors.items,
-        portoesItems: result.gates.items,
+        mode: 'IMPORT',
+        doorsItems: newDoors,
+        gatesItems: newGates,
+        unitsCount: result.source?.detected_units || 1,
         fromAI: true,
       });
       
@@ -186,9 +294,189 @@ export function PortasPortoesForm({
     }
   };
 
+  const handleModeChange = (mode: ModoPortasPortoes) => {
+    onPortasPortoesChange({
+      ...portasPortoes,
+      mode,
+    });
+  };
+
   const handleClearData = () => {
     clearExtracao();
     onPortasPortoesChange(DEFAULT_PORTAS_PORTOES);
+  };
+
+  // Door item handlers
+  const addDoor = () => {
+    const newDoor: DoorItem = {
+      id: generateId(),
+      label: `P${portasPortoes.doorsItems.length + 1}`,
+      tipo: 'INTERNA',
+      material: 'MADEIRA',
+      width_m: 0.80,
+      height_m: 2.10,
+      area_m2: 0.80 * 2.10,
+      origem: 'MANUAL',
+    };
+    onPortasPortoesChange({
+      ...portasPortoes,
+      doorsItems: [...portasPortoes.doorsItems, newDoor],
+    });
+  };
+
+  const updateDoor = (id: string, updates: Partial<DoorItem>) => {
+    const newDoors = portasPortoes.doorsItems.map(door => {
+      if (door.id === id) {
+        const updated = { ...door, ...updates };
+        // Recalculate area
+        if (updates.width_m !== undefined || updates.height_m !== undefined) {
+          updated.area_m2 = updated.width_m * updated.height_m;
+        }
+        return updated;
+      }
+      return door;
+    });
+    onPortasPortoesChange({
+      ...portasPortoes,
+      doorsItems: newDoors,
+    });
+  };
+
+  const removeDoor = (id: string) => {
+    onPortasPortoesChange({
+      ...portasPortoes,
+      doorsItems: portasPortoes.doorsItems.filter(d => d.id !== id),
+    });
+  };
+
+  // Gate item handlers
+  const addGate = () => {
+    const newGate: GateItem = {
+      id: generateId(),
+      label: `G${portasPortoes.gatesItems.length + 1}`,
+      material: 'FERRO',
+      width_m: 3.00,
+      height_m: 2.20,
+      area_m2: 3.00 * 2.20,
+      origem: 'MANUAL',
+    };
+    onPortasPortoesChange({
+      ...portasPortoes,
+      gatesItems: [...portasPortoes.gatesItems, newGate],
+    });
+  };
+
+  const updateGate = (id: string, updates: Partial<GateItem>) => {
+    const newGates = portasPortoes.gatesItems.map(gate => {
+      if (gate.id === id) {
+        const updated = { ...gate, ...updates };
+        // Recalculate area
+        if (updates.width_m !== undefined || updates.height_m !== undefined) {
+          updated.area_m2 = updated.width_m * updated.height_m;
+        }
+        return updated;
+      }
+      return gate;
+    });
+    onPortasPortoesChange({
+      ...portasPortoes,
+      gatesItems: newGates,
+    });
+  };
+
+  const removeGate = (id: string) => {
+    onPortasPortoesChange({
+      ...portasPortoes,
+      gatesItems: portasPortoes.gatesItems.filter(g => g.id !== id),
+    });
+  };
+
+  // Duplication logic
+  const hasDuplicatedDoors = portasPortoes.doorsItems.some(d => d.origem === 'DUPLICADO');
+  const hasDuplicatedGates = portasPortoes.gatesItems.some(g => g.origem === 'DUPLICADO');
+
+  const duplicateDoors = () => {
+    if (hasDuplicatedDoors) return;
+
+    const baseDoors = portasPortoes.doorsItems.filter(d => d.origem !== 'DUPLICADO');
+    const duplicates: DoorItem[] = baseDoors.map(door => {
+      // Update original label to have -A suffix if not already
+      const originalLabel = door.label.endsWith('-A') ? door.label : door.label + '-A';
+      const duplicateLabel = door.label.replace(/-A$/, '') + '-B';
+      
+      return {
+        ...door,
+        id: generateId(),
+        label: duplicateLabel,
+        origem: 'DUPLICADO' as const,
+      };
+    });
+
+    // Update original labels to have -A
+    const updatedOriginals = baseDoors.map(door => ({
+      ...door,
+      label: door.label.endsWith('-A') ? door.label : door.label + '-A',
+    }));
+
+    onPortasPortoesChange({
+      ...portasPortoes,
+      doorsItems: [...updatedOriginals, ...duplicates],
+    });
+  };
+
+  const resetDoorsDuplication = () => {
+    const baseDoors = portasPortoes.doorsItems
+      .filter(d => d.origem !== 'DUPLICADO')
+      .map(door => ({
+        ...door,
+        label: door.label.replace(/-A$/, ''),
+      }));
+    
+    onPortasPortoesChange({
+      ...portasPortoes,
+      doorsItems: baseDoors,
+    });
+  };
+
+  const duplicateGates = () => {
+    if (hasDuplicatedGates) return;
+
+    const baseGates = portasPortoes.gatesItems.filter(g => g.origem !== 'DUPLICADO');
+    const duplicates: GateItem[] = baseGates.map(gate => {
+      const duplicateLabel = gate.label.replace(/-A$/, '') + '-B';
+      
+      return {
+        ...gate,
+        id: generateId(),
+        label: duplicateLabel,
+        origem: 'DUPLICADO' as const,
+      };
+    });
+
+    // Update original labels to have -A
+    const updatedOriginals = baseGates.map(gate => ({
+      ...gate,
+      label: gate.label.endsWith('-A') ? gate.label : gate.label + '-A',
+    }));
+
+    onPortasPortoesChange({
+      ...portasPortoes,
+      gatesItems: [...updatedOriginals, ...duplicates],
+    });
+  };
+
+  const resetGatesDuplication = () => {
+    const baseGates = portasPortoes.gatesItems
+      .filter(g => g.origem !== 'DUPLICADO')
+      .map(gate => ({
+        ...gate,
+        label: gate.label.replace(/-A$/, ''),
+      }));
+    
+    onPortasPortoesChange({
+      ...portasPortoes,
+      gatesItems: baseGates,
+    });
   };
 
   const formatFileSize = (bytes: number) => {
@@ -197,7 +485,15 @@ export function PortasPortoesForm({
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  const hasAIData = portasPortoes.fromAI;
+  const hasItems = portasPortoes.doorsItems.length > 0 || portasPortoes.gatesItems.length > 0;
+  const showDuplicationButtons = portasPortoes.unitsCount >= 2;
+
+  // Check for warnings from extraction
+  const extractionWarnings = extractedData?.source?.warnings || [];
+  const avgConfidence = [...portasPortoes.doorsItems, ...portasPortoes.gatesItems]
+    .filter(item => item.confianca !== undefined)
+    .reduce((sum, item, _, arr) => sum + (item.confianca || 0) / arr.length, 0);
+  const hasLowConfidence = avgConfidence > 0 && avgConfidence < 0.75;
 
   // Render disabled state for parede cinza
   if (isDisabled) {
@@ -224,16 +520,42 @@ export function PortasPortoesForm({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Portas e Portões</h2>
-        {hasAIData && (
+        {hasItems && (
           <Badge variant="secondary" className="gap-1">
-            <Sparkles className="w-3 h-3" />
-            Medidas do PDF
+            {portasPortoes.doorsItems.length} porta(s), {portasPortoes.gatesItems.length} portão(ões)
           </Badge>
         )}
       </div>
 
-      {/* PDF Upload Section - Only show if no AI data */}
-      {!hasAIData && (
+      {/* Mode Selector */}
+      <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-lg">
+        <Label className="text-sm font-medium">Modo de entrada:</Label>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant={portasPortoes.mode === 'IMPORT' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleModeChange('IMPORT')}
+            className="gap-2"
+          >
+            <Sparkles className="w-4 h-4" />
+            Importar do PDF
+          </Button>
+          <Button
+            type="button"
+            variant={portasPortoes.mode === 'MANUAL' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleModeChange('MANUAL')}
+            className="gap-2"
+          >
+            <FileText className="w-4 h-4" />
+            Manual
+          </Button>
+        </div>
+      </div>
+
+      {/* PDF Upload Section - Only for IMPORT mode when no items */}
+      {portasPortoes.mode === 'IMPORT' && !hasItems && (
         <div className="space-y-4">
           <div
             onDragEnter={handleDrag}
@@ -270,7 +592,7 @@ export function PortasPortoesForm({
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  A IA irá identificar automaticamente portas e portões do projeto
+                  A IA irá identificar automaticamente portas e portões de TODAS as páginas
                 </p>
               </div>
             ) : (
@@ -333,28 +655,74 @@ export function PortasPortoesForm({
         </div>
       )}
 
-      {/* AI Data Indicator and Reset */}
-      {hasAIData && (
+      {/* Reimport button when items exist in IMPORT mode */}
+      {portasPortoes.mode === 'IMPORT' && hasItems && (
         <div className="flex items-center justify-between bg-green-500/10 border border-green-500/30 rounded-lg p-4">
           <div className="flex items-center gap-3">
             <CheckCircle2 className="w-5 h-5 text-green-600" />
             <div>
-              <p className="font-medium text-green-700">Dados extraídos do PDF</p>
+              <p className="font-medium text-green-700">Dados importados do PDF</p>
               <p className="text-sm text-green-600/80">
-                {portasPortoes.portasItems?.length || 0} porta(s) e {portasPortoes.portoesItems?.length || 0} portão(ões)
+                {portasPortoes.doorsItems.length} porta(s) e {portasPortoes.gatesItems.length} portão(ões)
+                {extractedData?.source?.pages_used?.length && (
+                  <> em {extractedData.source.pages_used.length} página(s)</>
+                )}
               </p>
             </div>
           </div>
-          {isAdmin && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClearData}
-              className="border-green-500/30 text-green-700 hover:bg-green-500/10"
-            >
-              <RefreshCw className="w-4 h-4 mr-1" />
-              Reimportar
-            </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleClearData}
+            className="border-green-500/30 text-green-700 hover:bg-green-500/10"
+          >
+            <RefreshCw className="w-4 h-4 mr-1" />
+            Reimportar
+          </Button>
+        </div>
+      )}
+
+      {/* Warnings */}
+      {(extractionWarnings.length > 0 || hasLowConfidence) && hasItems && (
+        <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium text-amber-800">Atenção</p>
+            {hasLowConfidence && (
+              <p className="text-sm text-amber-700 mt-1">
+                A importação pode não ter capturado todas as aberturas. Confira a lista e adicione manualmente se necessário.
+              </p>
+            )}
+            {extractionWarnings.map((warning, idx) => (
+              <p key={idx} className="text-sm text-amber-700 mt-1">• {warning}</p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Units count for duplication */}
+      {hasItems && (
+        <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-lg">
+          <Label className="text-sm font-medium">Unidades da obra (casas geminadas):</Label>
+          <Select
+            value={portasPortoes.unitsCount.toString()}
+            onValueChange={(val) => onPortasPortoesChange({ ...portasPortoes, unitsCount: parseInt(val) })}
+          >
+            <SelectTrigger className="w-24">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">1</SelectItem>
+              <SelectItem value="2">2</SelectItem>
+              <SelectItem value="3">3</SelectItem>
+              <SelectItem value="4">4</SelectItem>
+            </SelectContent>
+          </Select>
+          {showDuplicationButtons && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Info className="w-4 h-4" />
+              Use os botões de duplicação abaixo para copiar itens
+            </div>
           )}
         </div>
       )}
@@ -364,95 +732,165 @@ export function PortasPortoesForm({
         {/* CARD A: PORTAS */}
         <Card className="border-blue-200 bg-blue-50/50">
           <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                <DoorOpen className="w-5 h-5 text-blue-600" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <DoorOpen className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Portas</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Área total: <span className="font-semibold text-foreground">{formatNumber(resultado.areaPortasM2, 2)} m²</span>
+                  </p>
+                </div>
               </div>
-              <div>
-                <CardTitle className="text-base">Portas</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Área total: <span className="font-semibold text-foreground">{formatNumber(portasPortoes.areaPortasM2, 2)} m²</span>
-                </p>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addDoor}
+                className="gap-1"
+              >
+                <Plus className="w-4 h-4" />
+                Adicionar
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Items detail (collapsible) */}
-            {portasPortoes.portasItems && portasPortoes.portasItems.length > 0 && (
-              <Collapsible open={portasOpen} onOpenChange={setPortasOpen}>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="w-full justify-between">
-                    <span className="text-xs text-muted-foreground">
-                      {portasPortoes.portasItems.length} porta(s) detectada(s)
-                    </span>
-                    <ChevronDown className={cn(
-                      "w-4 h-4 transition-transform",
-                      portasOpen && "rotate-180"
-                    )} />
+            {/* Duplication buttons */}
+            {showDuplicationButtons && portasPortoes.doorsItems.length > 0 && (
+              <div className="flex gap-2 pb-3 border-b">
+                {!hasDuplicatedDoors ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={duplicateDoors}
+                    className="gap-1 text-blue-700 border-blue-300 hover:bg-blue-100"
+                  >
+                    <Copy className="w-4 h-4" />
+                    Duplicar portas para Casa 2
                   </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2">
-                  <div className="text-xs space-y-1 bg-white/50 rounded-lg p-3">
-                    {portasPortoes.portasItems.map((item, idx) => (
-                      <div key={idx} className="flex justify-between">
-                        <span>{item.label}</span>
-                        <span className="text-muted-foreground">
-                          {formatNumber(item.width_m, 2)}m × {formatNumber(item.height_m, 2)}m = {formatNumber(item.area_m2, 2)} m²
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={resetDoorsDuplication}
+                    className="gap-1 text-red-700 border-red-300 hover:bg-red-100"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Resetar duplicação
+                  </Button>
+                )}
+              </div>
             )}
 
-            {/* Material Selection */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Material</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => onPortasPortoesChange({ ...portasPortoes, materialPorta: 'MADEIRA' })}
-                  className={cn(
-                    'p-3 rounded-lg border-2 text-left transition-all',
-                    portasPortoes.materialPorta === 'MADEIRA'
-                      ? 'border-blue-500 bg-blue-100'
-                      : 'border-gray-200 hover:border-blue-300'
-                  )}
-                >
-                  <p className="font-medium text-sm">Madeira</p>
-                  <p className="text-xs text-muted-foreground">{formatCurrency(precos.portaMadeiraM2)}/m²</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onPortasPortoesChange({ ...portasPortoes, materialPorta: 'ALUMINIO' })}
-                  className={cn(
-                    'p-3 rounded-lg border-2 text-left transition-all',
-                    portasPortoes.materialPorta === 'ALUMINIO'
-                      ? 'border-blue-500 bg-blue-100'
-                      : 'border-gray-200 hover:border-blue-300'
-                  )}
-                >
-                  <p className="font-medium text-sm">Alumínio</p>
-                  <p className="text-xs text-muted-foreground">{formatCurrency(precos.portaAluminioM2)}/m²</p>
-                </button>
-              </div>
-            </div>
-
-            {/* Admin manual edit */}
-            {isAdmin && (
-              <div className="pt-2 border-t">
-                <Label className="text-xs text-muted-foreground">Área (m²) - Edição Admin</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={portasPortoes.areaPortasM2 || ''}
-                  onChange={(e) => onPortasPortoesChange({ 
-                    ...portasPortoes, 
-                    areaPortasM2: parseFloat(e.target.value) || 0 
-                  })}
-                  className="mt-1"
-                />
+            {/* Items list */}
+            {portasPortoes.doorsItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Nenhuma porta adicionada
+              </p>
+            ) : (
+              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                {portasPortoes.doorsItems.map((door) => (
+                  <div key={door.id} className="bg-white/70 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={door.label}
+                          onChange={(e) => updateDoor(door.id, { label: e.target.value })}
+                          className="w-20 h-7 text-sm font-medium"
+                        />
+                        <Badge variant="outline" className={cn(
+                          "text-xs",
+                          door.origem === 'PDF' && "bg-green-50 text-green-700",
+                          door.origem === 'MANUAL' && "bg-blue-50 text-blue-700",
+                          door.origem === 'DUPLICADO' && "bg-purple-50 text-purple-700"
+                        )}>
+                          {door.origem}
+                        </Badge>
+                        {door.confianca !== undefined && door.confianca < 0.8 && (
+                          <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700">
+                            {Math.round(door.confianca * 100)}%
+                          </Badge>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-100"
+                        onClick={() => removeDoor(door.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-5 gap-2 items-end">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Tipo</Label>
+                        <Select
+                          value={door.tipo}
+                          onValueChange={(val) => updateDoor(door.id, { tipo: val as TipoPorta })}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="INTERNA">Interna</SelectItem>
+                            <SelectItem value="EXTERNA">Externa</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Material</Label>
+                        <Select
+                          value={door.material}
+                          onValueChange={(val) => updateDoor(door.id, { material: val as TipoMaterialPorta })}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="MADEIRA">Madeira</SelectItem>
+                            <SelectItem value="ALUMINIO">Alumínio</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Larg. (m)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={door.width_m}
+                          onChange={(e) => updateDoor(door.id, { width_m: parseFloat(e.target.value) || 0 })}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Alt. (m)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={door.height_m}
+                          onChange={(e) => updateDoor(door.id, { height_m: parseFloat(e.target.value) || 0 })}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Área (m²)</Label>
+                        <Input
+                          type="number"
+                          value={door.area_m2.toFixed(2)}
+                          readOnly
+                          className="h-8 text-xs bg-muted/50"
+                        />
+                      </div>
+                    </div>
+                    <div className="text-xs text-right text-muted-foreground">
+                      {door.material === 'MADEIRA' ? formatCurrency(precos.portaMadeiraM2) : formatCurrency(precos.portaAluminioM2)}/m² 
+                      = <span className="font-medium text-blue-700">
+                        {formatCurrency(door.area_m2 * (door.material === 'MADEIRA' ? precos.portaMadeiraM2 : precos.portaAluminioM2))}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -469,95 +907,150 @@ export function PortasPortoesForm({
         {/* CARD B: PORTÕES */}
         <Card className="border-amber-200 bg-amber-50/50">
           <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                <Warehouse className="w-5 h-5 text-amber-600" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                  <Warehouse className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Portões</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Área total: <span className="font-semibold text-foreground">{formatNumber(resultado.areaPortoesM2, 2)} m²</span>
+                  </p>
+                </div>
               </div>
-              <div>
-                <CardTitle className="text-base">Portões</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Área total: <span className="font-semibold text-foreground">{formatNumber(portasPortoes.areaPortoesM2, 2)} m²</span>
-                </p>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addGate}
+                className="gap-1"
+              >
+                <Plus className="w-4 h-4" />
+                Adicionar
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Items detail (collapsible) */}
-            {portasPortoes.portoesItems && portasPortoes.portoesItems.length > 0 && (
-              <Collapsible open={portoesOpen} onOpenChange={setPortoesOpen}>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="w-full justify-between">
-                    <span className="text-xs text-muted-foreground">
-                      {portasPortoes.portoesItems.length} portão(ões) detectado(s)
-                    </span>
-                    <ChevronDown className={cn(
-                      "w-4 h-4 transition-transform",
-                      portoesOpen && "rotate-180"
-                    )} />
+            {/* Duplication buttons */}
+            {showDuplicationButtons && portasPortoes.gatesItems.length > 0 && (
+              <div className="flex gap-2 pb-3 border-b">
+                {!hasDuplicatedGates ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={duplicateGates}
+                    className="gap-1 text-amber-700 border-amber-300 hover:bg-amber-100"
+                  >
+                    <Copy className="w-4 h-4" />
+                    Duplicar portões para Casa 2
                   </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2">
-                  <div className="text-xs space-y-1 bg-white/50 rounded-lg p-3">
-                    {portasPortoes.portoesItems.map((item, idx) => (
-                      <div key={idx} className="flex justify-between">
-                        <span>{item.label}</span>
-                        <span className="text-muted-foreground">
-                          {formatNumber(item.width_m, 2)}m × {formatNumber(item.height_m, 2)}m = {formatNumber(item.area_m2, 2)} m²
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={resetGatesDuplication}
+                    className="gap-1 text-red-700 border-red-300 hover:bg-red-100"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Resetar duplicação
+                  </Button>
+                )}
+              </div>
             )}
 
-            {/* Material Selection */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Material</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => onPortasPortoesChange({ ...portasPortoes, materialPortao: 'FERRO' })}
-                  className={cn(
-                    'p-3 rounded-lg border-2 text-left transition-all',
-                    portasPortoes.materialPortao === 'FERRO'
-                      ? 'border-amber-500 bg-amber-100'
-                      : 'border-gray-200 hover:border-amber-300'
-                  )}
-                >
-                  <p className="font-medium text-sm">Ferro</p>
-                  <p className="text-xs text-muted-foreground">{formatCurrency(precos.portaoFerroM2)}/m²</p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onPortasPortoesChange({ ...portasPortoes, materialPortao: 'ALUMINIO' })}
-                  className={cn(
-                    'p-3 rounded-lg border-2 text-left transition-all',
-                    portasPortoes.materialPortao === 'ALUMINIO'
-                      ? 'border-amber-500 bg-amber-100'
-                      : 'border-gray-200 hover:border-amber-300'
-                  )}
-                >
-                  <p className="font-medium text-sm">Alumínio</p>
-                  <p className="text-xs text-muted-foreground">{formatCurrency(precos.portaoAluminioM2)}/m²</p>
-                </button>
-              </div>
-            </div>
-
-            {/* Admin manual edit */}
-            {isAdmin && (
-              <div className="pt-2 border-t">
-                <Label className="text-xs text-muted-foreground">Área (m²) - Edição Admin</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={portasPortoes.areaPortoesM2 || ''}
-                  onChange={(e) => onPortasPortoesChange({ 
-                    ...portasPortoes, 
-                    areaPortoesM2: parseFloat(e.target.value) || 0 
-                  })}
-                  className="mt-1"
-                />
+            {/* Items list */}
+            {portasPortoes.gatesItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Nenhum portão adicionado
+              </p>
+            ) : (
+              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                {portasPortoes.gatesItems.map((gate) => (
+                  <div key={gate.id} className="bg-white/70 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={gate.label}
+                          onChange={(e) => updateGate(gate.id, { label: e.target.value })}
+                          className="w-20 h-7 text-sm font-medium"
+                        />
+                        <Badge variant="outline" className={cn(
+                          "text-xs",
+                          gate.origem === 'PDF' && "bg-green-50 text-green-700",
+                          gate.origem === 'MANUAL' && "bg-blue-50 text-blue-700",
+                          gate.origem === 'DUPLICADO' && "bg-purple-50 text-purple-700"
+                        )}>
+                          {gate.origem}
+                        </Badge>
+                        {gate.confianca !== undefined && gate.confianca < 0.8 && (
+                          <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700">
+                            {Math.round(gate.confianca * 100)}%
+                          </Badge>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-100"
+                        onClick={() => removeGate(gate.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 items-end">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Material</Label>
+                        <Select
+                          value={gate.material}
+                          onValueChange={(val) => updateGate(gate.id, { material: val as TipoMaterialPortao })}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="FERRO">Ferro</SelectItem>
+                            <SelectItem value="ALUMINIO">Alumínio</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Larg. (m)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={gate.width_m}
+                          onChange={(e) => updateGate(gate.id, { width_m: parseFloat(e.target.value) || 0 })}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Alt. (m)</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={gate.height_m}
+                          onChange={(e) => updateGate(gate.id, { height_m: parseFloat(e.target.value) || 0 })}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Área (m²)</Label>
+                        <Input
+                          type="number"
+                          value={gate.area_m2.toFixed(2)}
+                          readOnly
+                          className="h-8 text-xs bg-muted/50"
+                        />
+                      </div>
+                    </div>
+                    <div className="text-xs text-right text-muted-foreground">
+                      {gate.material === 'FERRO' ? formatCurrency(precos.portaoFerroM2) : formatCurrency(precos.portaoAluminioM2)}/m² 
+                      = <span className="font-medium text-amber-700">
+                        {formatCurrency(gate.area_m2 * (gate.material === 'FERRO' ? precos.portaoFerroM2 : precos.portaoAluminioM2))}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 

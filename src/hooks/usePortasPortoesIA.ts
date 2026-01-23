@@ -3,11 +3,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 export interface DoorGateItem {
+  id?: string;
   label: string;
   width_m: number;
   height_m: number;
   area_m2: number;
   confianca: number;
+  page_number?: number;
+  inferred?: boolean;
+  tipo?: 'INTERNA' | 'EXTERNA';
+  material?: 'MADEIRA' | 'ALUMINIO' | 'FERRO';
+  origem?: 'PDF' | 'MANUAL' | 'DUPLICADO';
 }
 
 export interface PortasPortoesExtractionResult {
@@ -15,15 +21,21 @@ export interface PortasPortoesExtractionResult {
     count: number;
     items: DoorGateItem[];
     area_total_m2: number;
+    counts_per_page?: Record<number, number>;
   };
   gates: {
     count: number;
     items: DoorGateItem[];
     area_total_m2: number;
+    counts_per_page?: Record<number, number>;
   };
   source: {
     pages_used: number[];
+    pages_total?: number;
     notes: string;
+    warnings?: string[];
+    detected_units?: number;
+    is_geminada?: boolean;
   };
 }
 
@@ -102,27 +114,58 @@ export function usePortasPortoesIA(orcamentoId: string | null | undefined) {
         new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
       );
 
+      // Try to get default dimensions from global config
+      let defaultDimensions = null;
+      try {
+        const { data: configData } = await supabase
+          .from('configuracoes_globais')
+          .select('valor')
+          .eq('chave', 'portas_portoes_padroes')
+          .single();
+        
+        if (configData?.valor) {
+          defaultDimensions = configData.valor;
+        }
+      } catch (e) {
+        // Use defaults from edge function
+      }
+
       // Call edge function
       const { data, error } = await supabase.functions.invoke('extract-openings-doors-gates', {
         body: {
           pdfBase64: base64,
           fileName: file.name,
           orcamentoId,
+          defaultDimensions,
         },
       });
 
       if (error) throw error;
 
       if (data?.success && data?.data) {
+        const result = data.data as PortasPortoesExtractionResult;
+        const warnings = result.source?.warnings || [];
+        
         toast({
           title: 'Portas e portões identificados!',
-          description: data.message || `${data.data.doors.count} porta(s) e ${data.data.gates.count} portão(ões)`,
+          description: data.message || `${result.doors.count} porta(s) e ${result.gates.count} portão(ões)`,
         });
+        
+        // Show warnings if any
+        if (warnings.length > 0) {
+          setTimeout(() => {
+            toast({
+              title: 'Atenção',
+              description: warnings[0],
+              variant: 'destructive',
+            });
+          }, 1000);
+        }
         
         // Refresh extraction data
         await fetchExtracao();
         
-        return data.data as PortasPortoesExtractionResult;
+        return result;
       } else if (data?.error) {
         throw new Error(data.error);
       }

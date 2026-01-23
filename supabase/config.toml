@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.extract-revestimento-medidas]
 verify_jwt = false
+
+[functions.extract-openings-doors-gates]
+verify_jwt = false

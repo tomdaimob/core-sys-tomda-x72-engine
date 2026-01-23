@@ -157,6 +157,33 @@ export function getRevestimentoPrecos(items: PriceCatalogItem[]): RevestimentoPr
     argamassaM2: findPrice(['argamassa aciii', 'argamassa ac3', 'argamassa ac iii'], 8.50),
     rejunteM2: findPrice(['rejunte'], 4.50),
     maoObraM2: findPrice(['mão de obra revestimento', 'mao de obra revestimento'], 55.00),
+};
+}
+
+// Get portas e portões prices from catalog
+export interface PortasPortoesPrecos {
+  portaMadeiraM2: number;
+  portaAluminioM2: number;
+  portaoFerroM2: number;
+  portaoAluminioM2: number;
+}
+
+export function getPortasPortoesPrecos(items: PriceCatalogItem[]): PortasPortoesPrecos {
+  const findPrice = (searchTerms: string[], defaultValue: number): number => {
+    for (const term of searchTerms) {
+      const item = items.find(i => 
+        i.nome.toLowerCase().includes(term.toLowerCase()) && i.ativo
+      );
+      if (item) return item.preco;
+    }
+    return defaultValue;
+  };
+
+  return {
+    portaMadeiraM2: findPrice(['porta de madeira'], 350.00),
+    portaAluminioM2: findPrice(['porta de alumínio', 'porta de aluminio'], 2000.00),
+    portaoFerroM2: findPrice(['portão de ferro', 'portao de ferro'], 600.00),
+    portaoAluminioM2: findPrice(['portão de alumínio', 'portao de aluminio'], 1800.00),
   };
 }
 
@@ -330,5 +357,6 @@ export function usePriceCatalog() {
     getMaoObraLajePrice: () => getMaoObraLajePrice(items),
     getAcabamentosPrecos: () => getAcabamentosPrecos(items),
     getRevestimentoPrecos: () => getRevestimentoPrecos(items),
+    getPortasPortoesPrecos: () => getPortasPortoesPrecos(items),
   };
 }

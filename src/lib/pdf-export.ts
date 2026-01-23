@@ -118,6 +118,18 @@ interface ResultadoRevestimento {
   }>;
 }
 
+interface ResultadoPortasPortoes {
+  areaPortasM2?: number;
+  areaPortoesM2?: number;
+  materialPorta?: 'MADEIRA' | 'ALUMINIO';
+  materialPortao?: 'FERRO' | 'ALUMINIO';
+  precoPortaM2?: number;
+  precoPortaoM2?: number;
+  custoPortas?: number;
+  custoPortoes?: number;
+  custoTotal?: number;
+}
+
 interface Margens {
   lucroPercent: number;
   bdiPercent: number;
@@ -133,11 +145,12 @@ interface PDFExportData {
   resultadoReboco?: ResultadoReboco | null;
   resultadoAcabamentos?: ResultadoAcabamentos | null;
   resultadoRevestimento?: ResultadoRevestimento | null;
+  resultadoPortasPortoes?: ResultadoPortasPortoes | null;
   margens: Margens;
 }
 
 export function exportarOrcamentoPDF(data: PDFExportData): void {
-  const { projeto, consolidado, resultadoParedes, resultadoRadier, resultadoLaje, resultadoReboco, resultadoAcabamentos, resultadoRevestimento, margens } = data;
+  const { projeto, consolidado, resultadoParedes, resultadoRadier, resultadoLaje, resultadoReboco, resultadoAcabamentos, resultadoRevestimento, resultadoPortasPortoes, margens } = data;
   
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -355,6 +368,34 @@ export function exportarOrcamentoPDF(data: PDFExportData): void {
     
     detalhesBody.push(
       ['  Subtotal Revestimento', '', '', formatCurrency(resultadoRevestimento.custoTotal || 0)],
+    );
+  }
+
+  // Portas e Portões (Admin only)
+  if (resultadoPortasPortoes && (resultadoPortasPortoes.custoTotal || 0) > 0) {
+    const materialPortaDisplay = resultadoPortasPortoes.materialPorta === 'ALUMINIO' ? 'Alumínio' : 'Madeira';
+    const materialPortaoDisplay = resultadoPortasPortoes.materialPortao === 'ALUMINIO' ? 'Alumínio' : 'Ferro';
+    
+    detalhesBody.push(
+      ['PORTAS E PORTÕES', '', '', ''],
+    );
+    
+    // Portas
+    if ((resultadoPortasPortoes.areaPortasM2 || 0) > 0) {
+      detalhesBody.push(
+        [`  Portas (${materialPortaDisplay})`, `${formatNumber(resultadoPortasPortoes.areaPortasM2 || 0)} m²`, formatCurrency(resultadoPortasPortoes.precoPortaM2 || 0), formatCurrency(resultadoPortasPortoes.custoPortas || 0)],
+      );
+    }
+    
+    // Portões
+    if ((resultadoPortasPortoes.areaPortoesM2 || 0) > 0) {
+      detalhesBody.push(
+        [`  Portões (${materialPortaoDisplay})`, `${formatNumber(resultadoPortasPortoes.areaPortoesM2 || 0)} m²`, formatCurrency(resultadoPortasPortoes.precoPortaoM2 || 0), formatCurrency(resultadoPortasPortoes.custoPortoes || 0)],
+      );
+    }
+    
+    detalhesBody.push(
+      ['  Subtotal Portas/Portões', '', '', formatCurrency(resultadoPortasPortoes.custoTotal || 0)],
     );
   }
 

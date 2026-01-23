@@ -80,6 +80,7 @@ export interface ResultadosData {
   reboco: any;
   acabamentos: any;
   revestimento: any;
+  portasPortoes?: any;
   consolidado: any;
 }
 

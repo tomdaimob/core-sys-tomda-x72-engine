@@ -22,7 +22,8 @@ import {
   Cloud,
   Loader2,
   AlertTriangle,
-  Lock
+  Lock,
+  DoorOpen
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -48,6 +49,7 @@ import { RebocoForm, RebocoInput, calcularRebocoResultado } from '@/components/o
 import { AcabamentosForm, AcabamentosInput, calcularAcabamentosResultado } from '@/components/orcamento/AcabamentosForm';
 import { ParedesForm, ParedesInput, calcularParedesResultado } from '@/components/orcamento/ParedesForm';
 import { RevestimentoForm, calcularRevestimentoResultado } from '@/components/orcamento/RevestimentoForm';
+import { PortasPortoesForm, calcularPortasPortoesResultado, DEFAULT_PORTAS_PORTOES, type PortasPortoesInput } from '@/components/orcamento/PortasPortoesForm';
 import { ApprovalSection } from '@/components/orcamento/ApprovalSection';
 import { ClienteForm, type ClienteFormData } from '@/components/orcamento/ClienteForm';
 import { MargensForm } from '@/components/orcamento/MargensForm';
@@ -76,6 +78,7 @@ const steps = [
   { id: 'reboco', label: 'Reboco', icon: PaintBucket },
   { id: 'acabamentos', label: 'Acabamentos', icon: Sparkles },
   { id: 'revestimento', label: 'Revestimento', icon: Bath },
+  { id: 'portas_portoes', label: 'Portas/Portões', icon: DoorOpen },
   { id: 'margens', label: 'Margens', icon: Percent },
   { id: 'relatorio', label: 'Relatório', icon: FileText },
 ];
@@ -93,6 +96,7 @@ export default function NovoOrcamento() {
   const [discountStatus, setDiscountStatus] = useState<'DISPENSADO' | 'PENDENTE' | 'APROVADO' | 'NEGADO'>('DISPENSADO');
   const [clienteValido, setClienteValido] = useState(false);
   const [showClienteErrors, setShowClienteErrors] = useState(false);
+  const [portasPortoes, setPortasPortoes] = useState<PortasPortoesInput>(DEFAULT_PORTAS_PORTOES);
 
   // Fetch prices from global catalog
   const { 
@@ -104,7 +108,8 @@ export default function NovoOrcamento() {
     getConcretoOptions,
     getMaoObraLajePrice,
     getAcabamentosPrecos,
-    getRevestimentoPrecos
+    getRevestimentoPrecos,
+    getPortasPortoesPrecos
   } = usePriceCatalog();
   const precos = mapCatalogToPrecos();
   const precoIcflexM2 = getIcflexPrice();
@@ -113,6 +118,7 @@ export default function NovoOrcamento() {
   const precoMaoObraLajeM2 = getMaoObraLajePrice();
   const precosAcabamentos = getAcabamentosPrecos();
   const precosRevestimento = getRevestimentoPrecos();
+  const precosPortasPortoes = getPortasPortoesPrecos();
 
   // Use centralized orcamento data hook
   const {
@@ -243,6 +249,12 @@ export default function NovoOrcamento() {
   const resultadoRevestimentoCalc = calcularRevestimentoResultado(revestimento, precosRevestimento);
   const resultadoRevestimento = resultadoRevestimentoCalc.areaTotalM2 > 0 ? resultadoRevestimentoCalc : null;
 
+  // Calculate portas/portoes
+  const resultadoPortasPortoesCalc = calcularPortasPortoesResultado(portasPortoes, precosPortasPortoes);
+  const resultadoPortasPortoes = (tipoProposta === 'obra_completa' && resultadoPortasPortoesCalc.custoTotal > 0) 
+    ? resultadoPortasPortoesCalc 
+    : null;
+
   const consolidado = consolidarOrcamento(
     { 
       paredes: resultadoParedes || undefined, 
@@ -255,25 +267,27 @@ export default function NovoOrcamento() {
     projeto.areaTotal || radier.areaM2
   );
 
-  // Add revestimento cost to consolidado - recalculate all derived values
+  // Add revestimento and portas/portoes cost to consolidado - recalculate all derived values
   const custoRevest = resultadoRevestimento?.custoTotal || 0;
-  const subtotalComRevestimento = consolidado.subtotal + custoRevest;
-  const lucroComRevestimento = subtotalComRevestimento * (margens.lucroPercent / 100);
-  const bdiComRevestimento = subtotalComRevestimento * (margens.bdiPercent / 100);
-  const totalBase = subtotalComRevestimento + lucroComRevestimento + bdiComRevestimento;
-  const descontoComRevestimento = totalBase * (margens.descontoPercent / 100);
-  const totalVendaComRevestimento = totalBase - descontoComRevestimento;
+  const custoPortasPortoes = resultadoPortasPortoes?.custoTotal || 0;
+  const subtotalComExtras = consolidado.subtotal + custoRevest + custoPortasPortoes;
+  const lucroComExtras = subtotalComExtras * (margens.lucroPercent / 100);
+  const bdiComExtras = subtotalComExtras * (margens.bdiPercent / 100);
+  const totalBase = subtotalComExtras + lucroComExtras + bdiComExtras;
+  const descontoComExtras = totalBase * (margens.descontoPercent / 100);
+  const totalVendaComExtras = totalBase - descontoComExtras;
   const areaTotal = projeto.areaTotal || radier.areaM2 || 1;
   
   const consolidadoComRevestimento = {
     ...consolidado,
     custoRevestimento: custoRevest,
-    subtotal: subtotalComRevestimento,
-    lucro: lucroComRevestimento,
-    bdi: bdiComRevestimento,
-    desconto: descontoComRevestimento,
-    totalVenda: totalVendaComRevestimento,
-    precoPorM2Global: totalVendaComRevestimento / areaTotal,
+    custoPortasPortoes,
+    subtotal: subtotalComExtras,
+    lucro: lucroComExtras,
+    bdi: bdiComExtras,
+    desconto: descontoComExtras,
+    totalVenda: totalVendaComExtras,
+    precoPorM2Global: totalVendaComExtras / areaTotal,
   };
 
   // Save resultados whenever calculations change (debounced via the hook)
@@ -286,10 +300,11 @@ export default function NovoOrcamento() {
         reboco: resultadoReboco,
         acabamentos: resultadoAcabamentos,
         revestimento: resultadoRevestimento,
+        portasPortoes: resultadoPortasPortoes,
         consolidado: consolidadoComRevestimento,
       });
     }
-  }, [consolidado.subtotal, resultadoRevestimento?.custoTotal]);
+  }, [consolidado.subtotal, resultadoRevestimento?.custoTotal, resultadoPortasPortoes?.custoTotal]);
 
   const salvarOrcamento = async () => {
     if (!projeto.cliente) {
@@ -619,7 +634,20 @@ export default function NovoOrcamento() {
             />
           )}
 
+          {/* Step 7: Portas/Portões */}
           {currentStep === 7 && (
+            <PortasPortoesForm
+              portasPortoes={portasPortoes}
+              onPortasPortoesChange={setPortasPortoes}
+              precos={precosPortasPortoes}
+              resultado={resultadoPortasPortoesCalc}
+              orcamentoId={orcamentoId}
+              tipoProposta={tipoProposta}
+            />
+          )}
+
+          {/* Step 8: Margens */}
+          {currentStep === 8 && (
             <MargensForm
               margens={margens}
               onMargensChange={setMargens}
@@ -629,7 +657,7 @@ export default function NovoOrcamento() {
             />
           )}
 
-          {currentStep === 8 && (
+          {currentStep === 9 && (
             <div className="space-y-6">
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <h2 className="text-lg font-semibold">Relatório Consolidado</h2>
@@ -647,6 +675,7 @@ export default function NovoOrcamento() {
                         resultadoReboco: resultadoRebocoCalc,
                         resultadoAcabamentos: resultadoAcabamentosCalc,
                         resultadoRevestimento,
+                        resultadoPortasPortoes,
                         margens,
                       })}
                       className="flex items-center gap-2"
@@ -762,13 +791,16 @@ export default function NovoOrcamento() {
                   </div>
                 );
               })()}
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoParedes)}</div><div className="kpi-label">Paredes</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoRadier)}</div><div className="kpi-label">Radier</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoLaje)}</div><div className="kpi-label">Laje</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoReboco)}</div><div className="kpi-label">Reboco</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(resultadoRevestimento?.custoTotal || 0)}</div><div className="kpi-label">Revestimento</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoAcabamentos)}</div><div className="kpi-label">Acabamentos</div></div>
+                {tipoProposta === 'obra_completa' && (
+                  <div className="kpi-card"><div className="kpi-value">{formatCurrency(resultadoPortasPortoes?.custoTotal || 0)}</div><div className="kpi-label">Portas/Portões</div></div>
+                )}
                 <div className="kpi-card"><div className="kpi-value">{formatNumber(resultadoLajeCalc.volumeTotalM3, 2)} m³</div><div className="kpi-label">Volume Laje</div></div>
               </div>
               {/* Dados do Cliente */}
@@ -876,6 +908,7 @@ export default function NovoOrcamento() {
                           resultadoReboco: resultadoRebocoCalc,
                           resultadoAcabamentos: resultadoAcabamentosCalc,
                           resultadoRevestimento,
+                          resultadoPortasPortoes,
                           margens,
                         })}
                       >

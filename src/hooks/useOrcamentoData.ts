@@ -39,6 +39,12 @@ import {
   DEFAULT_REVESTIMENTO 
 } from '@/components/orcamento/RevestimentoForm';
 
+// Import PortasPortoes types
+import { 
+  PortasPortoesInput, 
+  DEFAULT_PORTAS_PORTOES 
+} from '@/components/orcamento/PortasPortoesForm';
+
 // Types
 export interface ProjetoData {
   cliente: string;
@@ -69,6 +75,7 @@ export interface OrcamentoInputs {
   reboco: RebocoInput;
   acabamentos: AcabamentosInput;
   revestimento: RevestimentoInput;
+  portasPortoes: PortasPortoesInput;
   margens: Margens;
   currentStep: number;
 }
@@ -213,6 +220,7 @@ export function useOrcamentoData({
   const [reboco, setReboco] = useState<RebocoInput>(DEFAULT_REBOCO);
   const [acabamentos, setAcabamentos] = useState<AcabamentosInput>(DEFAULT_ACABAMENTOS);
   const [revestimento, setRevestimento] = useState<RevestimentoInput>(DEFAULT_REVESTIMENTO);
+  const [portasPortoes, setPortasPortoes] = useState<PortasPortoesInput>(DEFAULT_PORTAS_PORTOES);
   const [margens, setMargens] = useState<Margens>(DEFAULT_MARGENS);
   const [currentStep, setCurrentStep] = useState(0);
   const [resultados, setResultados] = useState<ResultadosData | null>(null);
@@ -232,9 +240,10 @@ export function useOrcamentoData({
     reboco,
     acabamentos,
     revestimento,
+    portasPortoes,
     margens,
     currentStep,
-  }), [projeto, paredes, radier, laje, reboco, acabamentos, revestimento, margens, currentStep]);
+  }), [projeto, paredes, radier, laje, reboco, acabamentos, revestimento, portasPortoes, margens, currentStep]);
 
   // Load orcamento by ID
   const loadOrcamentoById = useCallback(async (id: string) => {
@@ -343,6 +352,12 @@ export function useOrcamentoData({
             ...dados.revestimento,
           });
         }
+        if (dados.portasPortoes) {
+          setPortasPortoes({
+            ...DEFAULT_PORTAS_PORTOES,
+            ...dados.portasPortoes,
+          });
+        }
         if (dados.margens) {
           setMargens({
             ...DEFAULT_MARGENS,
@@ -379,6 +394,7 @@ export function useOrcamentoData({
           reboco: resultadosData.reboco,
           acabamentos: resultadosData.acabamentos,
           revestimento: (resultadosData as any).revestimento || null,
+          portasPortoes: (resultadosData as any).portasPortoes || null,
           consolidado: resultadosData.consolidado,
         });
       }
@@ -700,6 +716,7 @@ export function useOrcamentoData({
       setReboco(DEFAULT_REBOCO);
       setAcabamentos(DEFAULT_ACABAMENTOS);
       setRevestimento(DEFAULT_REVESTIMENTO);
+      setPortasPortoes(DEFAULT_PORTAS_PORTOES);
       setMargens(DEFAULT_MARGENS);
       setCurrentStep(0);
       setResultados(null);
@@ -737,6 +754,7 @@ export function useOrcamentoData({
     reboco,
     acabamentos,
     revestimento,
+    portasPortoes,
     margens,
     currentStep,
     resultados,
@@ -749,6 +767,7 @@ export function useOrcamentoData({
     setReboco,
     setAcabamentos,
     setRevestimento,
+    setPortasPortoes,
     setMargens,
     setCurrentStep,
     

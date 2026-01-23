@@ -49,7 +49,7 @@ import { RebocoForm, RebocoInput, calcularRebocoResultado } from '@/components/o
 import { AcabamentosForm, AcabamentosInput, calcularAcabamentosResultado } from '@/components/orcamento/AcabamentosForm';
 import { ParedesForm, ParedesInput, calcularParedesResultado } from '@/components/orcamento/ParedesForm';
 import { RevestimentoForm, calcularRevestimentoResultado } from '@/components/orcamento/RevestimentoForm';
-import { PortasPortoesForm, calcularPortasPortoesResultado, DEFAULT_PORTAS_PORTOES, type PortasPortoesInput } from '@/components/orcamento/PortasPortoesForm';
+import { PortasPortoesForm, calcularPortasPortoesResultado, type PortasPortoesInput } from '@/components/orcamento/PortasPortoesForm';
 import { ApprovalSection } from '@/components/orcamento/ApprovalSection';
 import { ClienteForm, type ClienteFormData } from '@/components/orcamento/ClienteForm';
 import { MargensForm } from '@/components/orcamento/MargensForm';
@@ -96,7 +96,6 @@ export default function NovoOrcamento() {
   const [discountStatus, setDiscountStatus] = useState<'DISPENSADO' | 'PENDENTE' | 'APROVADO' | 'NEGADO'>('DISPENSADO');
   const [clienteValido, setClienteValido] = useState(false);
   const [showClienteErrors, setShowClienteErrors] = useState(false);
-  const [portasPortoes, setPortasPortoes] = useState<PortasPortoesInput>(DEFAULT_PORTAS_PORTOES);
 
   // Fetch prices from global catalog
   const { 
@@ -136,6 +135,7 @@ export default function NovoOrcamento() {
     reboco,
     acabamentos,
     revestimento,
+    portasPortoes,
     margens,
     currentStep,
     setProjeto,
@@ -145,6 +145,7 @@ export default function NovoOrcamento() {
     setReboco,
     setAcabamentos,
     setRevestimento,
+    setPortasPortoes,
     setMargens,
     setCurrentStep,
     saveWithResultados,

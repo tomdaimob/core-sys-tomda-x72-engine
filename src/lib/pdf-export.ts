@@ -86,7 +86,7 @@ interface ResultadoReboco {
 interface ResultadoAcabamentos {
   // Piso
   areaPisoM2?: number;
-  tipoPiso?: 'ceramico' | 'porcelanato';
+  tipoPiso?: 'ceramico' | 'porcelanato' | 'ceramico_premium' | 'porcelanato_premium';
   custoPiso?: number;
   custoMaoObraPiso?: number;
   subtotalPiso?: number;
@@ -94,6 +94,7 @@ interface ResultadoAcabamentos {
   areaPinturaM2?: number;
   demaosPintura?: number;
   quantidadeTinta?: number;
+  tipoTinta?: 'fosca' | 'semi_brilho';
   custoPintura?: number;
   custoMaoObraPintura?: number;
   subtotalPintura?: number;
@@ -300,7 +301,11 @@ export function exportarOrcamentoPDF(data: PDFExportData): void {
 
   // Acabamentos
   if (resultadoAcabamentos && (resultadoAcabamentos.custoTotal || 0) > 0) {
-    const tipoPisoDisplay = resultadoAcabamentos.tipoPiso === 'porcelanato' ? 'Porcelanato' : 'Cerâmico';
+    const tipoPisoDisplay = 
+      resultadoAcabamentos.tipoPiso === 'porcelanato_premium' ? 'Porcelanato Premium' :
+      resultadoAcabamentos.tipoPiso === 'porcelanato' ? 'Porcelanato' :
+      resultadoAcabamentos.tipoPiso === 'ceramico_premium' ? 'Cerâmica Premium' : 'Cerâmico';
+    const tipoTintaDisplay = resultadoAcabamentos.tipoTinta === 'semi_brilho' ? 'Semi Brilho' : 'Fosca';
     const demaosDisplay = resultadoAcabamentos.demaosPintura || 2;
     
     detalhesBody.push(

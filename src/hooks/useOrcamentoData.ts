@@ -25,9 +25,10 @@ export interface RebocoInput {
 
 export interface AcabamentosInput {
   areaPiso: number;
-  tipoPiso: 'ceramico' | 'porcelanato';
+  tipoPiso: 'ceramico' | 'porcelanato' | 'ceramico_premium' | 'porcelanato_premium';
   areaPintura: number;
   demaosPintura: number;
+  tipoTinta: 'fosca' | 'semi_brilho';
   usarAreaRadier: boolean;
   usarAreaReboco: boolean;
 }
@@ -191,6 +192,7 @@ export const DEFAULT_ACABAMENTOS: AcabamentosInput = {
   tipoPiso: 'ceramico',
   areaPintura: 0,
   demaosPintura: 2,
+  tipoTinta: 'fosca',
   usarAreaRadier: true,
   usarAreaReboco: true,
 };

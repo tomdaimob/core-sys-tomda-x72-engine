@@ -78,6 +78,9 @@ export interface ResultadoRevestimento {
   custoMaoObra: number;
   custoTotal: number;
   precoPorM2: number;
+  // New: quantity breakdown for PDF
+  argamassaQtd: number;
+  rejunteQtd: number;
 }
 
 export interface PrecosRevestimento {
@@ -132,6 +135,10 @@ export const DEFAULT_REVESTIMENTO: RevestimentoInput = {
   incluirMaoObra: true,
 };
 
+// Constants for coverage calculation
+const ARGAMASSA_COBERTURA_M2 = 20; // 1 unit covers 20 m²
+const REJUNTE_COBERTURA_M2 = 8;    // 1 unit covers 8 m²
+
 // Calculate function
 export function calcularRevestimentoResultado(
   input: RevestimentoInput,
@@ -147,8 +154,14 @@ export function calcularRevestimentoResultado(
       
       const precoMaterial = amb.tipoMaterial === 'ceramica' ? precos.ceramicaM2 : precos.porcelanatoM2;
       const custoMaterial = areaComPerdaM2 * precoMaterial;
-      const custoArgamassa = input.incluirArgamassa ? areaComPerdaM2 * precos.argamassaM2 : 0;
-      const custoRejunte = input.incluirRejunte ? areaComPerdaM2 * precos.rejunteM2 : 0;
+      
+      // Calculate quantities based on coverage rate
+      const argamassaQtd = Math.ceil(areaComPerdaM2 / ARGAMASSA_COBERTURA_M2);
+      const rejunteQtd = Math.ceil(areaComPerdaM2 / REJUNTE_COBERTURA_M2);
+      
+      // Calculate costs: precos.argamassaM2 is price per unit, not per m²
+      const custoArgamassa = input.incluirArgamassa ? argamassaQtd * precos.argamassaM2 * ARGAMASSA_COBERTURA_M2 : 0;
+      const custoRejunte = input.incluirRejunte ? rejunteQtd * precos.rejunteM2 * REJUNTE_COBERTURA_M2 : 0;
       const custoMaoObra = input.incluirMaoObra ? areaComPerdaM2 * precos.maoObraM2 : 0;
       const custoTotal = custoMaterial + custoArgamassa + custoRejunte + custoMaoObra;
       
@@ -176,6 +189,10 @@ export function calcularRevestimentoResultado(
   const custoTotal = custoMaterial + custoArgamassa + custoRejunte + custoMaoObra;
   const precoPorM2 = areaTotalM2 > 0 ? custoTotal / areaTotalM2 : 0;
   
+  // Total quantities for PDF
+  const argamassaQtd = input.incluirArgamassa ? Math.ceil(areaTotalM2 / ARGAMASSA_COBERTURA_M2) : 0;
+  const rejunteQtd = input.incluirRejunte ? Math.ceil(areaTotalM2 / REJUNTE_COBERTURA_M2) : 0;
+  
   return {
     ambientes: ambientesResultado,
     areaTotalM2,
@@ -185,6 +202,8 @@ export function calcularRevestimentoResultado(
     custoMaoObra,
     custoTotal,
     precoPorM2,
+    argamassaQtd,
+    rejunteQtd,
   };
 }
 

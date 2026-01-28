@@ -2,8 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { formatCurrency, formatNumber } from './orcamento-calculos';
 import { formatDocument } from './document-validation';
-
-// Proposta comercial is now exported from pdf-proposta-comercial.ts directly
+import icfLogoNew from '@/assets/icf-logo-new.png';
 
 interface ProjetoData {
   cliente: string;
@@ -150,41 +149,72 @@ interface PDFExportData {
   margens: Margens;
 }
 
-export function exportarOrcamentoPDF(data: PDFExportData): void {
+// Proposta comercial is now exported from pdf-proposta-comercial.ts directly
+
+export async function exportarOrcamentoPDF(data: PDFExportData): Promise<void> {
   const { projeto, consolidado, resultadoParedes, resultadoRadier, resultadoLaje, resultadoReboco, resultadoAcabamentos, resultadoRevestimento, resultadoPortasPortoes, margens } = data;
   
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 20;
   let yPos = 20;
 
-  // === HEADER ===
-  // Logo placeholder (green rectangle with company name)
-  doc.setFillColor(11, 143, 59); // #0B8F3B
-  doc.rect(margin, yPos, 50, 15, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text('ICF TECNOLOGIA', margin + 3, yPos + 10);
+  // Load the new logo
+  const logoImg = new Image();
+  logoImg.crossOrigin = 'anonymous';
+  
+  await new Promise<void>((resolve) => {
+    logoImg.onload = () => resolve();
+    logoImg.onerror = () => resolve();
+    logoImg.src = icfLogoNew;
+  });
+
+  // === HEADER WITH WHITE BACKGROUND ===
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageWidth, 45, 'F');
+  
+  // Add logo if loaded
+  if (logoImg.complete && logoImg.naturalWidth > 0) {
+    try {
+      const maxLogoHeight = 30;
+      const logoAspectRatio = logoImg.naturalWidth / logoImg.naturalHeight;
+      const logoHeight = Math.min(maxLogoHeight, 30);
+      const logoWidth = logoHeight * logoAspectRatio;
+      
+      doc.addImage(logoImg, 'PNG', margin, 8, logoWidth, logoHeight);
+    } catch (e) {
+      // Fallback text
+      doc.setTextColor(11, 61, 46);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('ICF TECNOLOGIA', margin + 3, yPos + 10);
+    }
+  } else {
+    // Fallback text
+    doc.setTextColor(11, 61, 46);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ICF TECNOLOGIA', margin + 3, yPos + 10);
+  }
   
   // Title
-  doc.setTextColor(0, 0, 0);
+  doc.setTextColor(11, 61, 46); // Forest green for text
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
-  doc.text('ORÇAMENTO DE CONSTRUÇÃO ICF', pageWidth / 2, yPos + 8, { align: 'center' });
+  doc.text('ORÇAMENTO DE CONSTRUÇÃO ICF', pageWidth / 2, 25, { align: 'center' });
   
-  yPos += 25;
+  yPos = 50;
   
   // Divider
-  doc.setDrawColor(11, 143, 59);
+  doc.setDrawColor(11, 61, 46);
   doc.setLineWidth(1);
-  doc.line(margin, yPos, pageWidth - margin, yPos);
-  yPos += 10;
+  doc.line(margin, yPos - 5, pageWidth - margin, yPos - 5);
 
   // === DADOS DO CLIENTE ===
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(11, 143, 59);
+  doc.setTextColor(11, 61, 46);
   doc.text('DADOS DO CLIENTE', margin, yPos);
   yPos += 8;
 
@@ -473,8 +503,8 @@ export function exportarOrcamentoPDF(data: PDFExportData): void {
 
   yPos = (doc as any).lastAutoTable.finalY + 5;
 
-  // Total Box
-  doc.setFillColor(11, 143, 59);
+  // Total Box - using forest green
+  doc.setFillColor(11, 61, 46); // Forest green
   doc.rect(margin, yPos, pageWidth - 2 * margin, 20, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(14);
@@ -491,16 +521,14 @@ export function exportarOrcamentoPDF(data: PDFExportData): void {
   doc.setFont('helvetica', 'normal');
   doc.text(`Preço por m²: ${formatCurrency(consolidado.precoPorM2Global)}`, margin, yPos);
 
-  // === FOOTER ===
-  const footerY = doc.internal.pageSize.getHeight() - 20;
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.5);
-  doc.line(margin, footerY - 10, pageWidth - margin, footerY - 10);
+  // === FOOTER - Forest green bar ===
+  const footerY = pageHeight - 15;
+  doc.setFillColor(11, 61, 46); // Forest green
+  doc.rect(0, footerY - 5, pageWidth, 20, 'F');
   
-  doc.setFontSize(8);
-  doc.setTextColor(128, 128, 128);
-  doc.text('ICF TECNOLOGIA E CONSTRUÇÃO - Orçamento gerado pelo Sistema de Simulador Orçamentário', pageWidth / 2, footerY, { align: 'center' });
-  doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, pageWidth / 2, footerY + 5, { align: 'center' });
+  doc.setFontSize(9);
+  doc.setTextColor(255, 255, 255);
+  doc.text('www.icfconstrucoes.com.br  |  @icftecnologiaeconstrucao', pageWidth / 2, footerY + 5, { align: 'center' });
 
   // Save
   const fileName = `orcamento_${projeto.codigo}_${projeto.cliente.replace(/\s+/g, '_')}.pdf`;

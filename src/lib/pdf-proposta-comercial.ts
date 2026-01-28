@@ -414,15 +414,15 @@ export async function exportarPropostaComercialPDF(data: PropostaData): Promise<
 function addFooter(doc: jsPDF, pageWidth: number, pageHeight: number) {
   const footerY = pageHeight - 15;
   
-  // Forest green footer bar (#0B3D2E)
-  doc.setFillColor(11, 61, 46); // Forest green
+  // Turquoise green footer bar
+  doc.setFillColor(11, 143, 59); // Turquoise green (#0B8F3B)
   doc.rect(0, footerY - 5, pageWidth, 20, 'F');
   
   // Footer text
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text('www.icfconstrucoes.com.br  |  @icftecnologiaeconstrucao', pageWidth / 2, footerY + 5, { align: 'center' });
+  doc.text('CNPJ: 36.263.498/0001-22  |  @icftecnologiaeconstrucao', pageWidth / 2, footerY + 5, { align: 'center' });
 }
 
 // Re-export legacy function for backwards compatibility

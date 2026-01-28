@@ -78,10 +78,18 @@ export function AcabamentosForm({
   const areaRadierDisponivel = resultadoRadier && resultadoRadier.areaM2 > 0;
   const areaRebocoDisponivel = resultadoReboco && resultadoReboco.areaTotal > 0;
 
+  // Fields that should remain as strings (not parsed as numbers)
+  const stringFields: (keyof AcabamentosInput)[] = ['tipoPiso', 'tipoTinta'];
+  
   const updateField = (field: keyof AcabamentosInput, value: string | number | boolean) => {
     if (typeof value === 'string') {
-      const numValue = Math.max(0, parseFloat(value) || 0);
-      onAcabamentosChange({ ...acabamentos, [field]: numValue });
+      // Keep string fields as strings, parse numeric fields
+      if (stringFields.includes(field)) {
+        onAcabamentosChange({ ...acabamentos, [field]: value });
+      } else {
+        const numValue = Math.max(0, parseFloat(value) || 0);
+        onAcabamentosChange({ ...acabamentos, [field]: numValue });
+      }
     } else {
       onAcabamentosChange({ ...acabamentos, [field]: value });
     }

@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import { formatCurrency, formatNumber } from './orcamento-calculos';
 import { formatDocument } from './document-validation';
+import icfLogoNew from '@/assets/icf-logo-new.png';
 
 export type TipoProposta = 'parede_cinza' | 'obra_completa';
 
@@ -97,44 +98,41 @@ export async function exportarPropostaComercialPDF(data: PropostaData): Promise<
   const margin = 20;
   let yPos = 15;
 
-  // Load the logo
+  // Load the new logo
   const logoImg = new Image();
   logoImg.crossOrigin = 'anonymous';
   
   await new Promise<void>((resolve) => {
     logoImg.onload = () => resolve();
     logoImg.onerror = () => resolve(); // Continue even if logo fails
-    // Use dynamic import for the logo
-    import('@/assets/icf-logo.png').then((module) => {
-      logoImg.src = module.default;
-    }).catch(() => resolve());
+    logoImg.src = icfLogoNew;
   });
 
-  // === HEADER WITH LOGO ===
-  // Green header bar
-  doc.setFillColor(11, 143, 59); // #0B8F3B
+  // === HEADER WITH WHITE BACKGROUND ===
+  // White header bar
+  doc.setFillColor(255, 255, 255); // White
   doc.rect(0, 0, pageWidth, 45, 'F');
   
   // Add logo if loaded
   if (logoImg.complete && logoImg.naturalWidth > 0) {
     try {
-      // Calculate logo dimensions (max height 30px, maintain aspect ratio)
-      const maxLogoHeight = 30;
+      // Calculate logo dimensions (max height 35px, maintain aspect ratio)
+      const maxLogoHeight = 35;
       const logoAspectRatio = logoImg.naturalWidth / logoImg.naturalHeight;
-      const logoHeight = Math.min(maxLogoHeight, 30);
+      const logoHeight = Math.min(maxLogoHeight, 35);
       const logoWidth = logoHeight * logoAspectRatio;
       
-      doc.addImage(logoImg, 'PNG', margin, 7, logoWidth, logoHeight);
+      doc.addImage(logoImg, 'PNG', margin, 5, logoWidth, logoHeight);
     } catch (e) {
       // If logo fails, just show text
-      doc.setTextColor(255, 255, 255);
+      doc.setTextColor(11, 61, 46); // Forest green for text
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
-      doc.text('ICF', margin, 25);
+      doc.text('ICF TECNOLOGIA E CONSTRUÇÃO', margin, 28);
     }
   } else {
     // Fallback text if no logo
-    doc.setTextColor(255, 255, 255);
+    doc.setTextColor(11, 61, 46); // Forest green for text
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text('ICF TECNOLOGIA E CONSTRUÇÃO', margin, 28);
@@ -416,8 +414,8 @@ export async function exportarPropostaComercialPDF(data: PropostaData): Promise<
 function addFooter(doc: jsPDF, pageWidth: number, pageHeight: number) {
   const footerY = pageHeight - 15;
   
-  // Green footer bar
-  doc.setFillColor(11, 143, 59);
+  // Forest green footer bar (#0B3D2E)
+  doc.setFillColor(11, 61, 46); // Forest green
   doc.rect(0, footerY - 5, pageWidth, 20, 'F');
   
   // Footer text

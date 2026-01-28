@@ -23,7 +23,8 @@ import {
   Loader2,
   AlertTriangle,
   Lock,
-  DoorOpen
+  DoorOpen,
+  Building2
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,7 @@ import { PortasPortoesForm, calcularPortasPortoesResultado, type PortasPortoesIn
 import { ApprovalSection } from '@/components/orcamento/ApprovalSection';
 import { ClienteForm, type ClienteFormData } from '@/components/orcamento/ClienteForm';
 import { MargensForm } from '@/components/orcamento/MargensForm';
+import { TipoPropostaSelector } from '@/components/orcamento/TipoPropostaSelector';
 import { Link } from 'react-router-dom';
 import { exportarOrcamentoPDF } from '@/lib/pdf-export';
 import { exportarPropostaComercialPDF, TipoProposta } from '@/lib/pdf-proposta-comercial';
@@ -626,25 +628,49 @@ export default function NovoOrcamento() {
 
           {/* Step 6: Revestimento */}
           {currentStep === 6 && (
-            <RevestimentoForm
-              revestimento={revestimento}
-              onRevestimentoChange={setRevestimento}
-              precos={precosRevestimento}
-              resultado={resultadoRevestimentoCalc}
-              orcamentoId={orcamentoId}
-            />
+            tipoProposta === 'obra_completa' ? (
+              <RevestimentoForm
+                revestimento={revestimento}
+                onRevestimentoChange={setRevestimento}
+                precos={precosRevestimento}
+                resultado={resultadoRevestimentoCalc}
+                orcamentoId={orcamentoId}
+              />
+            ) : (
+              <div className="text-center py-12 bg-muted/30 rounded-xl border border-dashed border-muted-foreground/30">
+                <Bath className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
+                <p className="text-lg font-medium text-muted-foreground">
+                  Revestimento não incluído
+                </p>
+                <p className="text-sm text-muted-foreground/70 mt-2">
+                  Disponível apenas na modalidade "Obra Completa"
+                </p>
+              </div>
+            )
           )}
 
           {/* Step 7: Portas/Portões */}
           {currentStep === 7 && (
-            <PortasPortoesForm
-              portasPortoes={portasPortoes}
-              onPortasPortoesChange={setPortasPortoes}
-              precos={precosPortasPortoes}
-              resultado={resultadoPortasPortoesCalc}
-              orcamentoId={orcamentoId}
-              tipoProposta={tipoProposta}
-            />
+            tipoProposta === 'obra_completa' ? (
+              <PortasPortoesForm
+                portasPortoes={portasPortoes}
+                onPortasPortoesChange={setPortasPortoes}
+                precos={precosPortasPortoes}
+                resultado={resultadoPortasPortoesCalc}
+                orcamentoId={orcamentoId}
+                tipoProposta={tipoProposta}
+              />
+            ) : (
+              <div className="text-center py-12 bg-muted/30 rounded-xl border border-dashed border-muted-foreground/30">
+                <DoorOpen className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
+                <p className="text-lg font-medium text-muted-foreground">
+                  Portas/Portões não incluídos
+                </p>
+                <p className="text-sm text-muted-foreground/70 mt-2">
+                  Disponível apenas na modalidade "Obra Completa"
+                </p>
+              </div>
+            )
           )}
 
           {/* Step 8: Margens */}
@@ -692,7 +718,7 @@ export default function NovoOrcamento() {
               {(() => {
                 const marginTotal = margens.lucroPercent + margens.bdiPercent - margens.descontoPercent;
                 const needsMarginApproval = marginTotal < 15;
-                const needsDiscountApproval = margens.descontoPercent > 5;
+                const needsDiscountApproval = margens.descontoPercent > 7;
                 
                 // Check if can generate proposal:
                 // - Admin can always generate
@@ -718,19 +744,22 @@ export default function NovoOrcamento() {
                     {canGenerateProposta ? (
                       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
                         <div className="flex-1 w-full sm:w-auto">
-                          <Label htmlFor="tipo_proposta" className="text-sm text-muted-foreground mb-1 block">
-                            Tipo de proposta
-                          </Label>
-                          <select 
-                            id="tipo_proposta" 
-                            name="tipo_proposta"
-                            value={tipoProposta}
-                            onChange={(e) => setTipoProposta(e.target.value as TipoProposta)}
-                            className="input-field w-full sm:w-[240px]"
-                          >
-                            <option value="parede_cinza">Parede Cinza (sem acabamentos)</option>
-                            <option value="obra_completa">Obra Completa (com acabamentos)</option>
-                          </select>
+                          <p className="text-sm text-muted-foreground mb-1">
+                            Tipo selecionado
+                          </p>
+                          <div className="flex items-center gap-2 p-2 bg-primary/10 rounded-lg">
+                            {tipoProposta === 'obra_completa' ? (
+                              <>
+                                <Building2 className="w-4 h-4 text-primary" />
+                                <span className="font-medium text-primary">Obra Completa</span>
+                              </>
+                            ) : (
+                              <>
+                                <Building2 className="w-4 h-4 text-primary" />
+                                <span className="font-medium text-primary">Parede Cinza</span>
+                              </>
+                            )}
+                          </div>
                         </div>
                         
                         <Button 
@@ -762,7 +791,7 @@ export default function NovoOrcamento() {
                               clienteResponsavel: projeto.clienteResponsavel,
                             });
                           }}
-                          className="flex items-center gap-2 btn-primary sm:mt-5"
+                          className="flex items-center gap-2 btn-primary"
                         >
                           <FileText className="w-4 h-4" />
                           Gerar Proposta Comercial (PDF)
@@ -869,15 +898,35 @@ export default function NovoOrcamento() {
 
           {/* Step 5: Acabamentos */}
           {currentStep === 5 && (
-            <AcabamentosForm
-              acabamentos={acabamentos}
-              onAcabamentosChange={setAcabamentos}
-              precos={precos}
-              precosAcabamentos={precosAcabamentos}
-              resultado={resultadoAcabamentosCalc}
-              resultadoRadier={resultadoRadier}
-              resultadoReboco={resultadoRebocoCalc}
-            />
+            <div className="space-y-6">
+              {/* Tipo de Proposta Selector - always at the top */}
+              <TipoPropostaSelector
+                tipoProposta={tipoProposta}
+                onTipoPropostaChange={setTipoProposta}
+              />
+              
+              {tipoProposta === 'obra_completa' ? (
+                <AcabamentosForm
+                  acabamentos={acabamentos}
+                  onAcabamentosChange={setAcabamentos}
+                  precos={precos}
+                  precosAcabamentos={precosAcabamentos}
+                  resultado={resultadoAcabamentosCalc}
+                  resultadoRadier={resultadoRadier}
+                  resultadoReboco={resultadoRebocoCalc}
+                />
+              ) : (
+                <div className="text-center py-12 bg-muted/30 rounded-xl border border-dashed border-muted-foreground/30">
+                  <Building2 className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
+                  <p className="text-lg font-medium text-muted-foreground">
+                    Acabamentos não incluídos
+                  </p>
+                  <p className="text-sm text-muted-foreground/70 mt-2">
+                    Disponível apenas na modalidade "Obra Completa"
+                  </p>
+                </div>
+              )}
+            </div>
           )}
         </div>
 

@@ -128,8 +128,7 @@ export function MargensForm({
     const success = await denyDiscount(gestorResposta || undefined);
     if (success) {
       setGestorResposta('');
-      // Update local state with reset value
-      handleDescontoChange(5);
+      // Do NOT reset discount automatically - let vendor adjust
     }
   };
 
@@ -341,8 +340,8 @@ export function MargensForm({
             }`} />
             <p className={`text-sm ${highException ? 'text-red-700' : 'text-yellow-700'}`}>
               {highException 
-                ? 'Desconto alto: somente com autorização do Gestor'
-                : 'Desconto acima de 5% requer aprovação do Gestor'}
+                ? 'Desconto alto (11%+): somente com autorização do Gestor'
+                : 'Desconto acima de 7% requer aprovação do Gestor'}
             </p>
           </div>
         )}
@@ -462,7 +461,7 @@ export function MargensForm({
                   className="flex-1"
                 >
                   {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <XCircle className="w-4 h-4 mr-2" />}
-                  Negar (volta p/ 5%)
+                  Negar Desconto
                 </Button>
                 <Button
                   type="button"

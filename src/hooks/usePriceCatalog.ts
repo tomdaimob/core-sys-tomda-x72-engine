@@ -105,9 +105,12 @@ export function getMaoObraLajePrice(items: PriceCatalogItem[]): number {
 // Get acabamentos prices from catalog
 export interface AcabamentosPrecos {
   pisoCeramicoM2: number;
+  pisoCeramicoPremiumM2: number;
   porcelanatoPisoM2: number;
+  porcelanatoPisoPremiumM2: number;
   assentamentoPisoM2: number;
   tintaGalao: number;
+  tintaSemiBrilhoGalao: number;
   pinturaAplicacaoM2: number;
 }
 
@@ -123,11 +126,14 @@ export function getAcabamentosPrecos(items: PriceCatalogItem[]): AcabamentosPrec
   };
 
   return {
-    pisoCeramicoM2: findPrice(['piso cerâmico', 'ceramico'], 45.00),
-    porcelanatoPisoM2: findPrice(['porcelanato piso'], 85.00),
-    assentamentoPisoM2: findPrice(['assentamento piso'], 35.00),
-    tintaGalao: findPrice(['tinta látex', 'tinta latex', 'tinta galão'], 180.00),
-    pinturaAplicacaoM2: findPrice(['pintura (aplicação)', 'pintura aplicação', 'pintura aplicacao'], 18.00),
+    pisoCeramicoM2: findPrice(['piso cerâmico', 'ceramico'], 50.00),
+    pisoCeramicoPremiumM2: findPrice(['cerâmica premium', 'ceramica premium'], 75.00),
+    porcelanatoPisoM2: findPrice(['porcelanato piso'], 95.00),
+    porcelanatoPisoPremiumM2: findPrice(['porcelanato premium'], 130.00),
+    assentamentoPisoM2: findPrice(['assentamento piso'], 45.00),
+    tintaGalao: findPrice(['tinta látex galão', 'tinta latex galão'], 600.00),
+    tintaSemiBrilhoGalao: findPrice(['tinta semi brilho', 'semi brilho'], 900.00),
+    pinturaAplicacaoM2: findPrice(['pintura (aplicação)', 'pintura aplicação', 'pintura aplicacao'], 20.00),
   };
 }
 

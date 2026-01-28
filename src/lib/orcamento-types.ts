@@ -161,10 +161,21 @@ export interface ResultadoReboco {
 }
 
 export interface ResultadoAcabamentos {
+  areaPisoM2?: number;
+  tipoPiso?: 'ceramico' | 'porcelanato' | 'ceramico_premium' | 'porcelanato_premium';
+  precoPisoM2?: number;
   custoPiso: number;
   custoMaoObraPiso: number;
+  subtotalPiso?: number;
+  areaPinturaM2?: number;
+  demaosPintura?: number;
+  areaPinturaComDemaos?: number;
+  quantidadeTinta?: number;
+  tipoTinta?: 'fosca' | 'semi_brilho';
+  precoTintaGalao?: number;
   custoPintura: number;
   custoMaoObraPintura: number;
+  subtotalPintura?: number;
   custoTotal: number;
 }
 

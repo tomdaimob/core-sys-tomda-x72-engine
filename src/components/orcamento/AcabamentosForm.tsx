@@ -10,25 +10,29 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export interface AcabamentosInput {
   areaPiso: number;
-  tipoPiso: 'ceramico' | 'porcelanato';
+  tipoPiso: 'ceramico' | 'porcelanato' | 'ceramico_premium' | 'porcelanato_premium';
   areaPintura: number;
   demaosPintura: number;
+  tipoTinta: 'fosca' | 'semi_brilho';
   usarAreaRadier: boolean; // Auto-fill from Radier
   usarAreaReboco: boolean; // Auto-fill from Reboco
 }
 
 export interface AcabamentosPrecos {
   pisoCeramicoM2: number;
+  pisoCeramicoPremiumM2: number;
   porcelanatoPisoM2: number;
+  porcelanatoPisoPremiumM2: number;
   assentamentoPisoM2: number;
   tintaGalao: number;
+  tintaSemiBrilhoGalao: number;
   pinturaAplicacaoM2: number;
 }
 
 export interface ResultadoAcabamentosCalculado {
   // Piso
   areaPisoM2: number;
-  tipoPiso: 'ceramico' | 'porcelanato';
+  tipoPiso: 'ceramico' | 'porcelanato' | 'ceramico_premium' | 'porcelanato_premium';
   precoPisoM2: number;
   custoPiso: number;
   precoAssentamentoM2: number;
@@ -39,6 +43,7 @@ export interface ResultadoAcabamentosCalculado {
   demaosPintura: number;
   areaPinturaComDemaos: number;
   quantidadeTinta: number;
+  tipoTinta: 'fosca' | 'semi_brilho';
   precoTintaGalao: number;
   custoPintura: number;
   precoPinturaAplicacaoM2: number;
@@ -189,17 +194,24 @@ export function AcabamentosForm({
               id="tipo_piso"
               name="tipo_piso"
               value={acabamentos.tipoPiso}
-              onChange={(e) => updateField('tipoPiso', e.target.value as 'ceramico' | 'porcelanato')}
+              onChange={(e) => updateField('tipoPiso', e.target.value as AcabamentosInput['tipoPiso'])}
               className="input-field"
             >
               <option value="ceramico">Cerâmico ({formatCurrency(precosAcabamentos.pisoCeramicoM2)}/m²)</option>
+              <option value="ceramico_premium">Cerâmica Premium ({formatCurrency(precosAcabamentos.pisoCeramicoPremiumM2)}/m²)</option>
               <option value="porcelanato">Porcelanato ({formatCurrency(precosAcabamentos.porcelanatoPisoM2)}/m²)</option>
+              <option value="porcelanato_premium">Porcelanato Premium ({formatCurrency(precosAcabamentos.porcelanatoPisoPremiumM2)}/m²)</option>
             </select>
           </div>
         </div>
         
         <div className="flex gap-4 text-xs text-muted-foreground">
-          <span>Material: {formatCurrency(acabamentos.tipoPiso === 'ceramico' ? precosAcabamentos.pisoCeramicoM2 : precosAcabamentos.porcelanatoPisoM2)}/m²</span>
+          <span>Material: {formatCurrency(
+            acabamentos.tipoPiso === 'ceramico' ? precosAcabamentos.pisoCeramicoM2 :
+            acabamentos.tipoPiso === 'ceramico_premium' ? precosAcabamentos.pisoCeramicoPremiumM2 :
+            acabamentos.tipoPiso === 'porcelanato' ? precosAcabamentos.porcelanatoPisoM2 :
+            precosAcabamentos.porcelanatoPisoPremiumM2
+          )}/m²</span>
           <span>Assentamento: {formatCurrency(precosAcabamentos.assentamentoPisoM2)}/m²</span>
         </div>
       </div>
@@ -263,10 +275,23 @@ export function AcabamentosForm({
               <option value={3}>3 demãos</option>
             </select>
           </div>
+          <div className="input-group">
+            <Label htmlFor="tipo_tinta" className="input-label">Tipo de Tinta</Label>
+            <select
+              id="tipo_tinta"
+              name="tipo_tinta"
+              value={acabamentos.tipoTinta || 'fosca'}
+              onChange={(e) => updateField('tipoTinta', e.target.value as 'fosca' | 'semi_brilho')}
+              className="input-field"
+            >
+              <option value="fosca">Tinta Fosca ({formatCurrency(precosAcabamentos.tintaGalao)}/lata)</option>
+              <option value="semi_brilho">Tinta Semi Brilho ({formatCurrency(precosAcabamentos.tintaSemiBrilhoGalao)}/lata)</option>
+            </select>
+          </div>
         </div>
         
         <div className="flex gap-4 text-xs text-muted-foreground">
-          <span>Tinta (18L): {formatCurrency(precosAcabamentos.tintaGalao)}/galão</span>
+          <span>Tinta: {formatCurrency(acabamentos.tipoTinta === 'semi_brilho' ? precosAcabamentos.tintaSemiBrilhoGalao : precosAcabamentos.tintaGalao)}/galão</span>
           <span>Aplicação: {formatCurrency(precosAcabamentos.pinturaAplicacaoM2)}/m²</span>
         </div>
       </div>
@@ -417,9 +442,11 @@ export function calcularAcabamentosResultado(
 
   // Floor calculation
   const tipoPiso = acabamentos.tipoPiso || 'ceramico';
-  const precoPisoM2 = tipoPiso === 'ceramico' 
-    ? precosAcabamentos.pisoCeramicoM2 
-    : precosAcabamentos.porcelanatoPisoM2;
+  const precoPisoM2 = 
+    tipoPiso === 'ceramico' ? precosAcabamentos.pisoCeramicoM2 :
+    tipoPiso === 'ceramico_premium' ? precosAcabamentos.pisoCeramicoPremiumM2 :
+    tipoPiso === 'porcelanato' ? precosAcabamentos.porcelanatoPisoM2 :
+    precosAcabamentos.porcelanatoPisoPremiumM2;
   const custoPiso = areaPisoM2 * precoPisoM2;
   const precoAssentamentoM2 = precosAcabamentos.assentamentoPisoM2;
   const custoMaoObraPiso = areaPisoM2 * precoAssentamentoM2;
@@ -427,9 +454,12 @@ export function calcularAcabamentosResultado(
 
   // Painting calculation
   const demaosPintura = Math.max(1, acabamentos.demaosPintura || 2);
+  const tipoTinta = acabamentos.tipoTinta || 'fosca';
   const areaPinturaComDemaos = areaPinturaM2 * demaosPintura;
   const quantidadeTinta = Math.ceil(areaPinturaComDemaos / RENDIMENTO_TINTA_M2);
-  const precoTintaGalao = precosAcabamentos.tintaGalao;
+  const precoTintaGalao = tipoTinta === 'semi_brilho' 
+    ? precosAcabamentos.tintaSemiBrilhoGalao 
+    : precosAcabamentos.tintaGalao;
   const custoPintura = quantidadeTinta * precoTintaGalao;
   const precoPinturaAplicacaoM2 = precosAcabamentos.pinturaAplicacaoM2;
   const custoMaoObraPintura = areaPinturaM2 * precoPinturaAplicacaoM2;
@@ -451,6 +481,7 @@ export function calcularAcabamentosResultado(
     demaosPintura,
     areaPinturaComDemaos,
     quantidadeTinta,
+    tipoTinta,
     precoTintaGalao,
     custoPintura,
     precoPinturaAplicacaoM2,

@@ -415,7 +415,7 @@ function addFooter(doc: jsPDF, pageWidth: number, pageHeight: number) {
   const footerY = pageHeight - 15;
   
   // Turquoise green footer bar
-  doc.setFillColor(11, 143, 59); // Turquoise green (#0B8F3B)
+  doc.setFillColor(8, 196, 138); // Turquoise green (#08C48A)
   doc.rect(0, footerY - 5, pageWidth, 20, 'F');
   
   // Footer text

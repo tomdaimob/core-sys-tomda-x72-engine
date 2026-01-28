@@ -26,7 +26,7 @@ export interface DiscountMessage {
 }
 
 // Thresholds for discount approval
-const DISCOUNT_AUTO_APPROVE_LIMIT = 5; // Up to 5% is auto-approved
+const DISCOUNT_AUTO_APPROVE_LIMIT = 7; // Up to 7% is auto-approved
 const DISCOUNT_HIGH_EXCEPTION_LIMIT = 11; // 11%+ is high exception
 
 export function useDiscountSystem(orcamentoId?: string | null) {
@@ -223,7 +223,7 @@ export function useDiscountSystem(orcamentoId?: string | null) {
     }
   };
 
-  // Deny discount (admin) - resets to 5%
+  // Deny discount (admin) - does NOT reset automatically, just blocks PDF/conclude
   const denyDiscount = async (resposta?: string): Promise<boolean> => {
     if (!orcamentoId || !user) return false;
 
@@ -232,7 +232,7 @@ export function useDiscountSystem(orcamentoId?: string | null) {
       const { error: updateError } = await supabase
         .from('orcamentos')
         .update({
-          desconto_percent: 5, // Reset to max allowed without approval
+          // Do NOT reset desconto_percent - let vendor adjust manually
           discount_status: 'NEGADO',
           discount_decided_at: new Date().toISOString(),
           discount_decided_by: user.id,
@@ -243,7 +243,7 @@ export function useDiscountSystem(orcamentoId?: string | null) {
       if (updateError) throw updateError;
 
       // Send denial message
-      const messageContent = `⛔ Desconto negado pelo Gestor. Valor reduzido para 5%.${resposta ? `\n\n${resposta}` : ''}`;
+      const messageContent = `⛔ Desconto negado pelo Gestor. Ajuste o valor para até 7% ou aguarde nova aprovação.${resposta ? `\n\n${resposta}` : ''}`;
       await supabase
         .from('approval_messages')
         .insert({
@@ -259,7 +259,7 @@ export function useDiscountSystem(orcamentoId?: string | null) {
 
       toast({
         title: 'Desconto negado',
-        description: 'Valor reduzido para 5%.',
+        description: 'Vendedor pode ajustar para até 7% ou solicitar nova aprovação.',
       });
       return true;
     } catch (error: any) {

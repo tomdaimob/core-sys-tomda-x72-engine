@@ -24,7 +24,8 @@ import {
   AlertTriangle,
   Lock,
   DoorOpen,
-  Building2
+  Building2,
+  Paperclip
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -55,6 +56,7 @@ import { ApprovalSection } from '@/components/orcamento/ApprovalSection';
 import { ClienteForm, type ClienteFormData } from '@/components/orcamento/ClienteForm';
 import { MargensForm } from '@/components/orcamento/MargensForm';
 import { TipoPropostaSelector } from '@/components/orcamento/TipoPropostaSelector';
+import { AdminPdfAttachments } from '@/components/orcamento/AdminPdfAttachments';
 import { Link } from 'react-router-dom';
 import { exportarOrcamentoPDF } from '@/lib/pdf-export';
 import { exportarPropostaComercialPDF, TipoProposta } from '@/lib/pdf-proposta-comercial';
@@ -868,6 +870,24 @@ export default function NovoOrcamento() {
                   <div className="text-muted-foreground">{formatCurrency(consolidadoComRevestimento.precoPorM2Global)}/m²</div>
                 </div>
               </div>
+
+              {/* Admin Only: Anexos do Orçamento (PDF da Planta) */}
+              {isAdmin && orcamentoId && (
+                <div className="mt-8 border-t border-border pt-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center">
+                      <Paperclip className="w-5 h-5 text-accent-foreground" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-foreground">Anexos do Orçamento</h3>
+                      <p className="text-sm text-muted-foreground">
+                        PDFs de plantas enviados pelo vendedor para conferência da IA
+                      </p>
+                    </div>
+                  </div>
+                  <AdminPdfAttachments orcamentoId={orcamentoId} />
+                </div>
+              )}
             </div>
           )}
 

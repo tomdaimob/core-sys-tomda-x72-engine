@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useProjectPdfStorage } from '@/hooks/useProjectPdfStorage';
 
 interface ExtractedData {
   area_total_m2: number;
@@ -26,6 +27,7 @@ export function PdfUpload({ onDataExtracted, orcamentoId }: PdfUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const { uploadProjectPdf } = useProjectPdfStorage(orcamentoId);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -72,6 +74,12 @@ export function PdfUpload({ onDataExtracted, orcamentoId }: PdfUploadProps) {
     setExtracting(true);
     
     try {
+      // Upload PDF to storage first (if orcamentoId exists)
+      let arquivoId: string | null = null;
+      if (orcamentoId) {
+        arquivoId = await uploadProjectPdf(file);
+      }
+
       // Convert file to base64
       const buffer = await file.arrayBuffer();
       const base64 = btoa(
@@ -83,6 +91,8 @@ export function PdfUpload({ onDataExtracted, orcamentoId }: PdfUploadProps) {
         body: {
           pdfBase64: base64,
           fileName: file.name,
+          orcamentoId,
+          arquivoId,
         },
       });
 
@@ -97,11 +107,12 @@ export function PdfUpload({ onDataExtracted, orcamentoId }: PdfUploadProps) {
       } else if (data?.error) {
         throw new Error(data.error);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Não foi possível extrair os dados do PDF.';
       console.error('Error extracting PDF:', error);
       toast({
         title: 'Erro na extração',
-        description: error.message || 'Não foi possível extrair os dados do PDF.',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {

@@ -108,31 +108,40 @@ export type Database = {
       }
       arquivos: {
         Row: {
+          ativo: boolean | null
           created_at: string
           id: string
+          mime_type: string | null
           nome: string
           orcamento_id: string
           storage_path: string
           tamanho_bytes: number | null
           tipo: string
+          uploaded_by: string | null
         }
         Insert: {
+          ativo?: boolean | null
           created_at?: string
           id?: string
+          mime_type?: string | null
           nome: string
           orcamento_id: string
           storage_path: string
           tamanho_bytes?: number | null
           tipo: string
+          uploaded_by?: string | null
         }
         Update: {
+          ativo?: boolean | null
           created_at?: string
           id?: string
+          mime_type?: string | null
           nome?: string
           orcamento_id?: string
           storage_path?: string
           tamanho_bytes?: number | null
           tipo?: string
+          uploaded_by?: string | null
         }
         Relationships: [
           {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useProjectPdfStorage } from '@/hooks/useProjectPdfStorage';
 
 export interface AmbienteMedidas {
   nome: string;
@@ -38,6 +39,7 @@ export function useRevestimentoIA(orcamentoId: string | null | undefined) {
   const [extracao, setExtracao] = useState<IAExtracao | null>(null);
   const [loading, setLoading] = useState(true);
   const [extracting, setExtracting] = useState(false);
+  const { uploadProjectPdf, getActiveArquivoId } = useProjectPdfStorage(orcamentoId);
 
   // Fetch existing extraction
   const fetchExtracao = useCallback(async () => {
@@ -83,18 +85,25 @@ export function useRevestimentoIA(orcamentoId: string | null | undefined) {
     setExtracting(true);
 
     try {
+      // Upload PDF to storage first
+      const arquivoId = await uploadProjectPdf(file);
+      if (!arquivoId) {
+        throw new Error('Falha ao salvar o arquivo PDF.');
+      }
+
       // Convert file to base64
       const buffer = await file.arrayBuffer();
       const base64 = btoa(
         new Uint8Array(buffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
       );
 
-      // Call edge function
+      // Call edge function with arquivo_id
       const { data, error } = await supabase.functions.invoke('extract-revestimento-medidas', {
         body: {
           pdfBase64: base64,
           fileName: file.name,
           orcamentoId,
+          arquivoId,
         },
       });
 

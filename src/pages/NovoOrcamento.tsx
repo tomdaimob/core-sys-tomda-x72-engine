@@ -237,8 +237,8 @@ export default function NovoOrcamento() {
     custoMaoObra: resultadoLajeCalc.custoMaoObra,
   } : null;
 
-  // Calculate reboco - using paredes result
-  const resultadoRebocoCalc = calcularRebocoResultado(reboco, resultadoParedesCalc, precoIcflexM2, precoMaoObraRebocoM2);
+  // Calculate reboco - using paredes INPUT for accurate internal/external areas
+  const resultadoRebocoCalc = calcularRebocoResultado(reboco, resultadoParedesCalc, precoIcflexM2, precoMaoObraRebocoM2, paredes);
   const resultadoReboco = resultadoRebocoCalc.areaTotal > 0 ? resultadoRebocoCalc : null;
 
   // Calculate acabamentos with automatic area from Radier and Reboco

@@ -108,7 +108,7 @@ export type Database = {
       }
       arquivos: {
         Row: {
-          ativo: boolean | null
+          ativo: boolean
           created_at: string
           id: string
           mime_type: string | null
@@ -121,7 +121,7 @@ export type Database = {
           version: number
         }
         Insert: {
-          ativo?: boolean | null
+          ativo?: boolean
           created_at?: string
           id?: string
           mime_type?: string | null
@@ -134,7 +134,7 @@ export type Database = {
           version?: number
         }
         Update: {
-          ativo?: boolean | null
+          ativo?: boolean
           created_at?: string
           id?: string
           mime_type?: string | null

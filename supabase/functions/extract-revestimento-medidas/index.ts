@@ -27,6 +27,8 @@ interface ExtractionResult {
   };
 }
 
+const EXTRACAO_TIPO = 'REVESTIMENTO_MEDIDAS';
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -34,7 +36,7 @@ serve(async (req) => {
 
   try {
     const { pdfBase64, fileName, orcamentoId, arquivoId } = await req.json();
-    
+
     if (!pdfBase64) {
       throw new Error('PDF não fornecido');
     }
@@ -203,9 +205,9 @@ IMPORTANTE:
 
     // Extract the tool call result
     const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
-    
+
     let extractedData: ExtractionResult | null = null;
-    
+
     if (toolCall?.function?.arguments) {
       extractedData = JSON.parse(toolCall.function.arguments);
       console.log('Extracted data:', extractedData);
@@ -240,21 +242,19 @@ IMPORTANTE:
       const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-      // Delete any existing extraction for this orcamento
-      await supabase
-        .from('ia_extracoes')
-        .delete()
-        .eq('orcamento_id', orcamentoId);
+      // Insert NEW extraction record (do NOT delete old; allows history and multi-type)
+      const confiancaMedia = extractedData.ambientes.reduce((sum, a) => sum + a.confianca, 0) / extractedData.ambientes.length;
 
-      // Insert new extraction record with arquivo_id
       const { error: dbError } = await supabase
         .from('ia_extracoes')
         .insert({
           orcamento_id: orcamentoId,
           arquivo_id: arquivoId,
+          tipo: EXTRACAO_TIPO,
           status: 'sucesso',
           dados_brutos: extractedData,
-          confianca: extractedData.ambientes.reduce((sum, a) => sum + a.confianca, 0) / extractedData.ambientes.length * 100,
+          payload_json: extractedData,
+          confianca: confiancaMedia * 100,
           observacoes: extractedData.metadados?.observacoes || 'Extração automática de medidas para revestimento'
         });
 
@@ -274,9 +274,9 @@ IMPORTANTE:
   } catch (error) {
     console.error('Error in extract-revestimento-medidas:', error);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: error instanceof Error ? error.message : 'Erro ao processar PDF',
-        success: false 
+        success: false
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

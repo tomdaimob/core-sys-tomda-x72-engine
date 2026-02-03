@@ -13,6 +13,7 @@ export interface ArquivoProjeto {
   ativo: boolean | null;
   created_at: string;
   tamanho_bytes: number | null;
+  version: number;
   uploader_name?: string;
 }
 
@@ -54,15 +55,7 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
 
       if (uploadError) throw uploadError;
 
-      // Deactivate previous PROJETO_PDF files for this orcamento
-      await supabase
-        .from('arquivos')
-        .update({ ativo: false })
-        .eq('orcamento_id', orcamentoId)
-        .eq('tipo', 'PROJETO_PDF')
-        .eq('ativo', true);
-
-      // Create arquivo record
+      // Insert novo registro – trigger DB já desativa anteriores e incrementa version
       const { data: arquivo, error: insertError } = await supabase
         .from('arquivos')
         .insert({
@@ -72,7 +65,6 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
           nome: file.name,
           mime_type: 'application/pdf',
           uploaded_by: user.id,
-          ativo: true,
           tamanho_bytes: file.size,
         })
         .select()

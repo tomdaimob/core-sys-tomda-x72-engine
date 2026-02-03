@@ -118,6 +118,7 @@ export type Database = {
           tamanho_bytes: number | null
           tipo: string
           uploaded_by: string | null
+          version: number
         }
         Insert: {
           ativo?: boolean | null
@@ -130,6 +131,7 @@ export type Database = {
           tamanho_bytes?: number | null
           tipo: string
           uploaded_by?: string | null
+          version?: number
         }
         Update: {
           ativo?: boolean | null
@@ -142,6 +144,7 @@ export type Database = {
           tamanho_bytes?: number | null
           tipo?: string
           uploaded_by?: string | null
+          version?: number
         }
         Relationships: [
           {
@@ -189,9 +192,11 @@ export type Database = {
           observacoes: string | null
           orcamento_id: string
           paredes_internas_m: number | null
+          payload_json: Json | null
           pe_direito_m: number | null
           perimetro_externo_m: number | null
           status: string | null
+          tipo: string | null
         }
         Insert: {
           aberturas_m2?: number | null
@@ -204,9 +209,11 @@ export type Database = {
           observacoes?: string | null
           orcamento_id: string
           paredes_internas_m?: number | null
+          payload_json?: Json | null
           pe_direito_m?: number | null
           perimetro_externo_m?: number | null
           status?: string | null
+          tipo?: string | null
         }
         Update: {
           aberturas_m2?: number | null
@@ -219,9 +226,11 @@ export type Database = {
           observacoes?: string | null
           orcamento_id?: string
           paredes_internas_m?: number | null
+          payload_json?: Json | null
           pe_direito_m?: number | null
           perimetro_externo_m?: number | null
           status?: string | null
+          tipo?: string | null
         }
         Relationships: [
           {

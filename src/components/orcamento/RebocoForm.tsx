@@ -269,34 +269,56 @@ export function RebocoForm({
   );
 }
 
-// Calculate reboco results based on paredes
+// Calculate reboco results based on paredes INPUT (not just resultado)
 export function calcularRebocoResultado(
   reboco: RebocoInput, 
   resultadoParedes: ResultadoParedesDetalhado | null,
   precoIcflexM2: number,
-  precoMaoObraM2: number
+  precoMaoObraM2: number,
+  paredesInput?: { areaExternaM2?: number; areaInternaM2?: number; modoAvancado?: boolean; segmentos?: Array<{ areaParedeM2: number; tipoForma: string }> }
 ): ResultadoRebocoCalculado {
-  // Get areas from paredes result
-  // In simple mode: use areaInternaM2 for internal, areaExternaM2 for external from paredes input
-  // In advanced mode: sum segments - we need to estimate internal/external from segments
-  
+  // Get areas from paredes INPUT - use the actual values entered by the user
   let areaInternaM2 = 0;
   let areaExternaM2 = 0;
 
-  if (resultadoParedes && resultadoParedes.areaLiquidaTotal > 0) {
-    // If paredes has the breakdown, use it
-    // For now, estimate based on typical distribution (can be refined)
-    // External walls are typically ICF 18, internal are ICF 12
-    const totalArea = resultadoParedes.areaLiquidaTotal;
+  if (paredesInput) {
+    if (paredesInput.modoAvancado && paredesInput.segmentos && paredesInput.segmentos.length > 0) {
+      // Advanced mode: estimate based on form type
+      // ICF 18 are typically external, ICF 12 are typically internal
+      paredesInput.segmentos.forEach((seg) => {
+        if (seg.tipoForma === 'ICF 18') {
+          areaExternaM2 += seg.areaParedeM2;
+        } else {
+          areaInternaM2 += seg.areaParedeM2;
+        }
+      });
+      
+      // If all same type, split by 70/30
+      const totalFromSegments = areaExternaM2 + areaInternaM2;
+      if (areaExternaM2 === 0 && totalFromSegments > 0) {
+        areaExternaM2 = totalFromSegments * 0.7;
+        areaInternaM2 = totalFromSegments * 0.3;
+      } else if (areaInternaM2 === 0 && totalFromSegments > 0) {
+        areaExternaM2 = totalFromSegments * 0.7;
+        areaInternaM2 = totalFromSegments * 0.3;
+      }
+    } else {
+      // Simple mode: use the direct input values
+      areaExternaM2 = paredesInput.areaExternaM2 || 0;
+      areaInternaM2 = paredesInput.areaInternaM2 || 0;
+    }
+  } else if (resultadoParedes && resultadoParedes.areaLiquidaTotal > 0) {
+    // Fallback to resultado if no input provided
+    // Estimate based on form distribution
     const formas18Area = resultadoParedes.formas18Qtd * 0.5; // Each form = 0.5 m²
     const formas12Area = resultadoParedes.formas12Qtd * 0.5;
     
-    // Estimate: ICF 18 forms are likely external, ICF 12 are likely internal
     areaExternaM2 = formas18Area;
     areaInternaM2 = formas12Area;
     
-    // If all same type, split 70/30 (typical house ratio)
+    // If all same type, split 70/30
     if (areaExternaM2 === 0 && areaInternaM2 === 0) {
+      const totalArea = resultadoParedes.areaLiquidaTotal;
       areaExternaM2 = totalArea * 0.7;
       areaInternaM2 = totalArea * 0.3;
     }

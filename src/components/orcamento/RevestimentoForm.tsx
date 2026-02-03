@@ -223,9 +223,19 @@ export function RevestimentoForm({
   orcamentoId,
 }: RevestimentoFormProps) {
   const { isAdmin } = useAuth();
-  const { extracao, extracting, extractFromPdf, hasExtracao, clearExtracao } = useRevestimentoIA(orcamentoId);
+  const { 
+    extracao, 
+    extracting, 
+    extractFromPdf, 
+    reimportFromActiveArquivo,
+    hasExtracao, 
+    clearExtracao,
+    arquivoAtivo,
+    hasArquivoAtivo,
+  } = useRevestimentoIA(orcamentoId);
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [showUploadNew, setShowUploadNew] = useState(false);
 
   // Check if ambientes came from AI
   const hasAIData = useMemo(() => 
@@ -278,17 +288,45 @@ export function RevestimentoForm({
       });
       
       setFile(null);
+      setShowUploadNew(false);
+    }
+  };
+
+  const handleReimportFromPdf = async () => {
+    const result = await reimportFromActiveArquivo();
+    if (result && result.ambientes.length > 0) {
+      const novosAmbientes = result.ambientes.map((medidas, idx) => 
+        createAmbienteFromAI(medidas, idx)
+      );
+      
+      onRevestimentoChange({
+        ...revestimento,
+        ambientes: novosAmbientes,
+      });
     }
   };
 
   const handleClearAIData = () => {
     clearExtracao();
+    setShowUploadNew(false);
     onRevestimentoChange({
       ...revestimento,
       ambientes: [
         createDefaultAmbiente('cozinha'),
         createDefaultAmbiente('banheiro', 1),
       ],
+    });
+  };
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('pt-BR', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
   
@@ -468,28 +506,163 @@ export function RevestimentoForm({
         </div>
       )}
 
-      {/* AI Data Indicator and Reset */}
+      {/* AI Data Indicator with Update/Reimport Options */}
       {hasAIData && (
-        <div className="flex items-center justify-between bg-green-500/10 border border-green-500/30 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <CheckCircle2 className="w-5 h-5 text-green-600" />
-            <div>
-              <p className="font-medium text-green-700">Medidas extraídas do PDF</p>
-              <p className="text-sm text-green-600/80">
-                {revestimento.ambientes.length} ambiente(s) identificado(s)
-              </p>
+        <div className="space-y-4">
+          {/* Status Card */}
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-primary" />
+                <div>
+                  <p className="font-medium text-foreground">Medidas extraídas do PDF</p>
+                  <p className="text-sm text-muted-foreground">
+                    {revestimento.ambientes.length} ambiente(s) identificado(s)
+                  </p>
+                  {arquivoAtivo && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      <span>Arquivo: {arquivoAtivo.nome}</span>
+                      <span className="mx-2">•</span>
+                      <span>Importado: {formatDate(arquivoAtivo.created_at)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <Badge variant="secondary" className="gap-1">
+                <Sparkles className="w-3 h-3" />
+                IA
+              </Badge>
             </div>
           </div>
-          {isAdmin && (
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap gap-2">
+            {/* Reimport from existing PDF */}
+            {hasArquivoAtivo && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleReimportFromPdf}
+                disabled={extracting}
+                className="gap-2"
+              >
+                {extracting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+                Reimportar Medidas do PDF
+              </Button>
+            )}
+
+            {/* Upload new PDF */}
             <Button
               variant="outline"
               size="sm"
-              onClick={handleClearAIData}
-              className="border-green-500/30 text-green-700 hover:bg-green-500/10"
+              onClick={() => setShowUploadNew(!showUploadNew)}
+              className="gap-2"
             >
-              <RefreshCw className="w-4 h-4 mr-1" />
-              Reimportar
+              <Upload className="w-4 h-4" />
+              Atualizar Projeto (PDF)
             </Button>
+
+            {/* Clear AI data (Admin only) */}
+            {isAdmin && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClearAIData}
+                className="gap-2 text-muted-foreground hover:text-destructive"
+              >
+                <X className="w-4 h-4" />
+                Limpar Dados IA
+              </Button>
+            )}
+          </div>
+
+          {/* Upload new PDF section (expandable) */}
+          {showUploadNew && (
+            <div className="space-y-3 p-4 border border-dashed border-primary/30 rounded-lg bg-muted/30">
+              <div
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+                className={cn(
+                  'relative border-2 border-dashed rounded-xl p-6 text-center transition-all duration-200',
+                  dragActive 
+                    ? 'border-primary bg-primary/5' 
+                    : 'border-border hover:border-primary/50',
+                  file && 'border-primary/30 bg-primary/5'
+                )}
+              >
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileSelect}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  disabled={extracting}
+                />
+                
+                {!file ? (
+                  <div className="space-y-2">
+                    <Upload className="w-8 h-8 text-muted-foreground mx-auto" />
+                    <p className="text-sm text-muted-foreground">
+                      Arraste o novo PDF ou clique para selecionar
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-3">
+                    <FileText className="w-6 h-6 text-primary" />
+                    <span className="text-sm font-medium truncate max-w-[200px]">
+                      {file.name}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setFile(null);
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {file && (
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleExtractFromPdf}
+                    disabled={extracting || !orcamentoId}
+                    className="flex-1 gap-2"
+                  >
+                    {extracting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Analisando...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Importar Novo PDF
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setFile(null);
+                      setShowUploadNew(false);
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

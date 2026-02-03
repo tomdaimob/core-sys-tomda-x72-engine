@@ -33,13 +33,17 @@ serve(async (req) => {
   }
 
   try {
-    const { pdfBase64, fileName, orcamentoId } = await req.json();
+    const { pdfBase64, fileName, orcamentoId, arquivoId } = await req.json();
     
     if (!pdfBase64) {
       throw new Error('PDF não fornecido');
     }
 
-    console.log(`Processing PDF for revestimento: ${fileName}, orcamento: ${orcamentoId}`);
+    if (!arquivoId) {
+      throw new Error('arquivo_id não fornecido');
+    }
+
+    console.log(`Processing PDF for revestimento: ${fileName}, orcamento: ${orcamentoId}, arquivo: ${arquivoId}`);
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -231,22 +235,27 @@ IMPORTANTE:
     }
 
     // Save extraction to database if orcamentoId provided
-    if (orcamentoId) {
+    if (orcamentoId && arquivoId) {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
       const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-      // Upsert extraction record
+      // Delete any existing extraction for this orcamento
+      await supabase
+        .from('ia_extracoes')
+        .delete()
+        .eq('orcamento_id', orcamentoId);
+
+      // Insert new extraction record with arquivo_id
       const { error: dbError } = await supabase
         .from('ia_extracoes')
-        .upsert({
+        .insert({
           orcamento_id: orcamentoId,
+          arquivo_id: arquivoId,
           status: 'sucesso',
           dados_brutos: extractedData,
           confianca: extractedData.ambientes.reduce((sum, a) => sum + a.confianca, 0) / extractedData.ambientes.length * 100,
           observacoes: extractedData.metadados?.observacoes || 'Extração automática de medidas para revestimento'
-        }, {
-          onConflict: 'orcamento_id'
         });
 
       if (dbError) {

@@ -232,6 +232,8 @@ export function RevestimentoForm({
     clearExtracao,
     arquivoAtivo,
     hasArquivoAtivo,
+    extracaoMatchesArquivo,
+    refetch: refetchExtracao,
   } = useRevestimentoIA(orcamentoId);
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -520,10 +522,21 @@ export function RevestimentoForm({
                     {revestimento.ambientes.length} ambiente(s) identificado(s)
                   </p>
                   {arquivoAtivo && (
-                    <div className="text-xs text-muted-foreground mt-1">
-                      <span>Arquivo: {arquivoAtivo.nome}</span>
-                      <span className="mx-2">•</span>
-                      <span>Importado: {formatDate(arquivoAtivo.created_at)}</span>
+                    <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium">Arquivo (v{arquivoAtivo.version}):</span>
+                        <span>{arquivoAtivo.nome}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium">Upload:</span>
+                        <span>{formatDate(arquivoAtivo.created_at)}</span>
+                      </div>
+                      {extracao && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium">Extração:</span>
+                          <span>{formatDate(extracao.created_at)}</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

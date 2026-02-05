@@ -1,9 +1,11 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
-import { Calculator, Grid3X3, AlertCircle, Building, Home } from 'lucide-react';
+import { Calculator, Grid3X3, AlertCircle, Building, Home, Power, PowerOff } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -18,6 +20,7 @@ export type TipoLaje = 'AUTO' | 'PISO_2_ANDAR' | 'FORRO';
 
 export interface LajeInput {
   tipo: TipoLaje;
+  laje_enabled: boolean; // Toggle para incluir/excluir laje do orçamento
   areaM2: number;
   espessuraM: number;
   concretoItemId: string;
@@ -67,6 +70,11 @@ export function LajeForm({
 }: LajeFormProps) {
   // Determine if we have valid data
   const hasData = resultado.areaTotalM2 > 0;
+  const lajeEnabled = laje.laje_enabled ?? true;
+
+  const handleLajeEnabledChange = (enabled: boolean) => {
+    onLajeChange({ ...laje, laje_enabled: enabled });
+  };
 
   // Handle second floor toggle
   const handleSegundoAndarChange = (checked: boolean) => {
@@ -108,17 +116,73 @@ export function LajeForm({
   // Get selected concrete info
   const selectedConcreto = concretoOptions.find(c => c.id === laje.concretoItemId) || concretoOptions[0];
 
+  // Disabled state render
+  if (!lajeEnabled) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Grid3X3 className="w-5 h-5 text-primary" />
+            Laje
+          </h2>
+          <div className="flex items-center gap-3">
+            <Switch
+              id="laje_enabled"
+              checked={lajeEnabled}
+              onCheckedChange={handleLajeEnabledChange}
+            />
+            <Label htmlFor="laje_enabled" className="text-sm font-medium cursor-pointer">
+              Incluir no orçamento
+            </Label>
+          </div>
+        </div>
+
+        <Card className="border-dashed bg-muted/30">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <PowerOff className="w-12 h-12 text-muted-foreground/50 mb-4" />
+            <h3 className="text-lg font-medium text-muted-foreground mb-2">
+              Laje desativada neste orçamento
+            </h3>
+            <p className="text-sm text-muted-foreground/70 mb-4">
+              Ative para incluir os custos de laje no orçamento
+            </p>
+            <Button 
+              variant="outline" 
+              onClick={() => handleLajeEnabledChange(true)}
+              className="flex items-center gap-2"
+            >
+              <Power className="w-4 h-4" />
+              Ativar Laje
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <Grid3X3 className="w-5 h-5 text-primary" />
-          Laje
-        </h2>
-        <p className="text-muted-foreground text-sm">
-          Volume = Área × Espessura | Custo = Concreto + Mão de Obra
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Grid3X3 className="w-5 h-5 text-primary" />
+            Laje
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Volume = Área × Espessura | Custo = Concreto + Mão de Obra
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Switch
+            id="laje_enabled"
+            checked={lajeEnabled}
+            onCheckedChange={handleLajeEnabledChange}
+          />
+          <Label htmlFor="laje_enabled" className="text-sm font-medium cursor-pointer">
+            Incluir no orçamento
+          </Label>
+        </div>
       </div>
 
       {/* Configuration */}

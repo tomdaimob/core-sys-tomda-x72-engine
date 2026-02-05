@@ -5,6 +5,7 @@ export type FckTipo = 'FCK25' | 'FCK30' | 'FCK35';
 
 export interface BaldrameInput {
   fundacao_tipo: FundacaoTipo;
+  fundacao_enabled: boolean; // Toggle para incluir/excluir fundação do orçamento
   incluir_baldrame_interno: boolean;
   baldrame_externo_m: number;
   baldrame_interno_m: number;
@@ -37,6 +38,7 @@ export interface BaldrameResultado {
 
 export const DEFAULT_BALDRAME_INPUT: BaldrameInput = {
   fundacao_tipo: 'RADIER',
+  fundacao_enabled: true,
   incluir_baldrame_interno: false,
   baldrame_externo_m: 0,
   baldrame_interno_m: 0,

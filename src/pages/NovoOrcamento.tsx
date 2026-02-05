@@ -212,23 +212,30 @@ export default function NovoOrcamento() {
     ? resultadoParedesCalc
     : null;
 
-  const resultadoRadier = (baldrame.fundacao_tipo !== 'BALDRAME' && radier.areaM2 > 0) 
+  // Check if fundacao is enabled
+  const fundacaoEnabled = baldrame.fundacao_enabled ?? true;
+
+  const resultadoRadier = (fundacaoEnabled && baldrame.fundacao_tipo !== 'BALDRAME' && radier.areaM2 > 0) 
     ? calcularRadier(radier, precos)
     : null;
 
-  // Calculate baldrame
+  // Calculate baldrame (only when fundacao is enabled)
   const baldramePrecos = getBaldramePrecos(catalogItems, baldrame.baldrame_fck_selected);
   const resultadoBaldrame = (
+    fundacaoEnabled &&
     baldrame.fundacao_tipo !== 'RADIER' && 
     baldramePrecos && 
     baldrame.baldrame_externo_m > 0
   ) ? calcularBaldrame(baldrame, baldramePrecos) : null;
 
-  // Calculate laje using new component function with FCK selection
+  // Check if laje is enabled
+  const lajeEnabled = laje.laje_enabled ?? true;
+
+  // Calculate laje using new component function with FCK selection (only when enabled)
   const resultadoLajeCalc = calcularLajeResultado(laje, concretoOptions, precoMaoObraLajeM2, projeto.areaTotal || radier.areaM2);
   
-  // Map to the expected format for consolidado
-  const resultadoLaje = resultadoLajeCalc.areaTotalM2 > 0 ? {
+  // Map to the expected format for consolidado (only when enabled)
+  const resultadoLaje = (lajeEnabled && resultadoLajeCalc.areaTotalM2 > 0) ? {
     linhas: [{
       descricao: resultadoLajeCalc.tipoNome,
       areaM2: resultadoLajeCalc.areaTotalM2,

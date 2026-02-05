@@ -4,7 +4,9 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Square, Layers, LayersIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Square, Layers, LayersIcon, Power, PowerOff } from 'lucide-react';
 import { BaldrameForm } from './BaldrameForm';
 import { BaldrameInput, BaldrameResultado, FundacaoTipo, DEFAULT_BALDRAME_INPUT } from '@/lib/baldrame-types';
 import { calcularBaldrame, getBaldramePrecos } from '@/lib/baldrame-calculos';
@@ -45,20 +47,77 @@ export function RadierBaldrameForm({
     onBaldrameChange({ ...baldrame, fundacao_tipo: tipo });
   };
 
-  // Calculate totals
-  const custoRadier = fundacaoTipo !== 'BALDRAME' ? (resultadoRadier?.custoTotal || 0) : 0;
-  const custoBaldrame = fundacaoTipo !== 'RADIER' ? (resultadoBaldrame?.custo_total || 0) : 0;
+  const fundacaoEnabled = baldrame.fundacao_enabled ?? true;
+
+  const handleFundacaoEnabledChange = (enabled: boolean) => {
+    onBaldrameChange({ ...baldrame, fundacao_enabled: enabled });
+  };
+
+  // Calculate totals (only when enabled)
+  const custoRadier = fundacaoEnabled && fundacaoTipo !== 'BALDRAME' ? (resultadoRadier?.custoTotal || 0) : 0;
+  const custoBaldrame = fundacaoEnabled && fundacaoTipo !== 'RADIER' ? (resultadoBaldrame?.custo_total || 0) : 0;
   const custoTotal = custoRadier + custoBaldrame;
+
+  // Disabled state render
+  if (!fundacaoEnabled) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Fundação</h2>
+          <div className="flex items-center gap-3">
+            <Switch
+              id="fundacao_enabled"
+              checked={fundacaoEnabled}
+              onCheckedChange={handleFundacaoEnabledChange}
+            />
+            <Label htmlFor="fundacao_enabled" className="text-sm font-medium cursor-pointer">
+              Incluir no orçamento
+            </Label>
+          </div>
+        </div>
+
+        <Card className="border-dashed bg-muted/30">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <PowerOff className="w-12 h-12 text-muted-foreground/50 mb-4" />
+            <h3 className="text-lg font-medium text-muted-foreground mb-2">
+              Fundação desativada neste orçamento
+            </h3>
+            <p className="text-sm text-muted-foreground/70 mb-4">
+              Ative para incluir os custos de fundação no orçamento
+            </p>
+            <Button 
+              variant="outline" 
+              onClick={() => handleFundacaoEnabledChange(true)}
+              className="flex items-center gap-2"
+            >
+              <Power className="w-4 h-4" />
+              Ativar Fundação
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Fundação</h2>
-        {custoTotal > 0 && (
-          <Badge variant="secondary" className="text-base px-3 py-1">
-            Total: {formatCurrency(custoTotal)}
-          </Badge>
-        )}
+        <div className="flex items-center gap-3">
+          {custoTotal > 0 && (
+            <Badge variant="secondary" className="text-base px-3 py-1">
+              Total: {formatCurrency(custoTotal)}
+            </Badge>
+          )}
+          <Switch
+            id="fundacao_enabled"
+            checked={fundacaoEnabled}
+            onCheckedChange={handleFundacaoEnabledChange}
+          />
+          <Label htmlFor="fundacao_enabled" className="text-sm font-medium cursor-pointer">
+            Incluir no orçamento
+          </Label>
+        </div>
       </div>
 
       {/* Foundation type selector */}

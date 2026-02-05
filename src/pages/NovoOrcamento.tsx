@@ -44,7 +44,7 @@ import {
   formatCurrency,
   formatNumber
 } from '@/lib/orcamento-calculos';
-import { PdfUpload } from '@/components/orcamento/PdfUpload';
+import { ProjetoUpload } from '@/components/orcamento/ProjetoUpload';
 import { ReviewExtraction } from '@/components/orcamento/ReviewExtraction';
 import { LajeForm, LajeInput, calcularLajeResultado } from '@/components/orcamento/LajeForm';
 import { RebocoForm, RebocoInput, calcularRebocoResultado } from '@/components/orcamento/RebocoForm';
@@ -511,19 +511,12 @@ export default function NovoOrcamento() {
                 />
               </div>
 
-              {/* PDF Upload Section */}
-              <div className="bg-accent/30 rounded-xl p-6 border border-accent">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <Upload className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-foreground">Upload de Planta (PDF)</h3>
-                    <p className="text-sm text-muted-foreground">Extraia dados automaticamente com IA</p>
-                  </div>
-                </div>
-                <PdfUpload onDataExtracted={handleDataExtracted} />
-              </div>
+              {/* Projeto Upload Section (PDF/Images + Manual Mode) */}
+              <ProjetoUpload 
+                onDataExtracted={handleDataExtracted} 
+                orcamentoId={orcamentoId || undefined}
+                isAdmin={isAdmin}
+              />
 
               {/* Project fields */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

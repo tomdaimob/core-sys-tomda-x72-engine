@@ -140,7 +140,9 @@ export function getAcabamentosPrecos(items: PriceCatalogItem[]): AcabamentosPrec
 // Get revestimento (tiling) prices from catalog
 export interface RevestimentoPrecos {
   ceramicaM2: number;
+  ceramicaPremiumM2: number;
   porcelanatoM2: number;
+  porcelanatoPremiumM2: number;
   argamassaM2: number;
   rejunteM2: number;
   maoObraM2: number;
@@ -159,11 +161,13 @@ export function getRevestimentoPrecos(items: PriceCatalogItem[]): RevestimentoPr
 
   return {
     ceramicaM2: findPrice(['revestimento cerâmica', 'revestimento ceramica'], 65.00),
+    ceramicaPremiumM2: findPrice(['cerâmica premium', 'ceramica premium'], 75.00),
     porcelanatoM2: findPrice(['revestimento porcelanato'], 120.00),
+    porcelanatoPremiumM2: findPrice(['porcelanato premium'], 130.00),
     argamassaM2: findPrice(['argamassa aciii', 'argamassa ac3', 'argamassa ac iii'], 8.50),
     rejunteM2: findPrice(['rejunte'], 4.50),
     maoObraM2: findPrice(['mão de obra revestimento', 'mao de obra revestimento'], 55.00),
-};
+  };
 }
 
 // Get portas e portões prices from catalog

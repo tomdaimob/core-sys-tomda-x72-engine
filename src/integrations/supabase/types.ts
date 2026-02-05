@@ -159,6 +159,51 @@ export type Database = {
           },
         ]
       }
+      baldrame_configuracoes: {
+        Row: {
+          altura_cm: number
+          ativo: boolean
+          coef_aco_kg_por_m: number
+          coef_aco_max: number
+          coef_aco_min: number
+          id: string
+          largura_cm: number
+          perda_aco_percent: number
+          perda_concreto_percent: number
+          perfil_nome: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          altura_cm?: number
+          ativo?: boolean
+          coef_aco_kg_por_m?: number
+          coef_aco_max?: number
+          coef_aco_min?: number
+          id?: string
+          largura_cm?: number
+          perda_aco_percent?: number
+          perda_concreto_percent?: number
+          perfil_nome: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          altura_cm?: number
+          ativo?: boolean
+          coef_aco_kg_por_m?: number
+          coef_aco_max?: number
+          coef_aco_min?: number
+          id?: string
+          largura_cm?: number
+          perda_aco_percent?: number
+          perda_concreto_percent?: number
+          perfil_nome?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       configuracoes_globais: {
         Row: {
           chave: string

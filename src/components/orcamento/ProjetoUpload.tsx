@@ -430,6 +430,12 @@ export function ProjetoUpload({ onDataExtracted, orcamentoId, isAdmin = false }:
           onMedidasChange={setMedidasManuais}
           isAdmin={isAdmin}
           disabled={isLoading}
+          onCalcular={() => {
+            toast({
+              title: 'Medidas calculadas',
+              description: 'As áreas foram calculadas com base nas medidas informadas. Você pode avançar para a próxima etapa.',
+            });
+          }}
         />
       )}
 

@@ -2,16 +2,19 @@ import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { AlertCircle, Ruler, Info } from 'lucide-react';
+import { AlertCircle, Ruler, Info, Calculator, Check } from 'lucide-react';
 import { MedidasManuais } from '@/hooks/useModoMedidas';
 import { cn } from '@/lib/utils';
+import { formatNumber } from '@/lib/orcamento-calculos';
 
 interface MedidasManuaisFormProps {
   medidas: MedidasManuais;
   onMedidasChange: (medidas: Partial<MedidasManuais>) => void;
   isAdmin?: boolean;
   disabled?: boolean;
+  onCalcular?: () => void;
 }
 
 export function MedidasManuaisForm({
@@ -19,22 +22,38 @@ export function MedidasManuaisForm({
   onMedidasChange,
   isAdmin = false,
   disabled = false,
+  onCalcular,
 }: MedidasManuaisFormProps) {
   const [showAreasDirectas, setShowAreasDirectas] = useState(medidas.usar_areas_diretas);
+  const [calculado, setCalculado] = useState(false);
 
   // Validation
   const alturaValida = medidas.altura_paredes_m >= 2.2 && medidas.altura_paredes_m <= 4.0;
   const perimetroExternoValido = medidas.perimetro_externo_m > 0;
   const perimetroInternoAviso = medidas.perimetro_interno_m <= 0;
+  const formularioValido = alturaValida && perimetroExternoValido;
+
+  // Calculate derived values
+  const areaExternaCalc = medidas.perimetro_externo_m * medidas.altura_paredes_m - medidas.aberturas_externas_m2;
+  const areaInternaCalc = medidas.perimetro_interno_m * medidas.altura_paredes_m - medidas.aberturas_internas_m2;
 
   const handleNumberChange = (field: keyof MedidasManuais, value: string) => {
     const num = parseFloat(value) || 0;
     onMedidasChange({ [field]: num });
+    setCalculado(false); // Reset calculated state when values change
   };
 
   const handleAreasDirectasToggle = (checked: boolean) => {
     setShowAreasDirectas(checked);
     onMedidasChange({ usar_areas_diretas: checked });
+    setCalculado(false);
+  };
+
+  const handleCalcular = () => {
+    if (formularioValido) {
+      setCalculado(true);
+      onCalcular?.();
+    }
   };
 
   return (
@@ -285,6 +304,58 @@ export function MedidasManuaisForm({
             </div>
           </div>
         )}
+
+        {/* Calculated preview */}
+        {formularioValido && (
+          <div className={cn(
+            "rounded-lg p-4 border transition-all",
+            calculado ? "bg-primary/5 border-primary/30" : "bg-muted/50 border-muted"
+          )}>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-medium text-sm">Prévia do Cálculo</h4>
+              {calculado && (
+                <div className="flex items-center gap-1 text-sm text-primary">
+                  <Check className="w-4 h-4" />
+                  <span>Calculado</span>
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div className="p-2 bg-background rounded">
+                <p className="text-muted-foreground text-xs">Área Ext. (paredes)</p>
+                <p className="font-medium">{formatNumber(Math.max(0, areaExternaCalc))} m²</p>
+              </div>
+              <div className="p-2 bg-background rounded">
+                <p className="text-muted-foreground text-xs">Área Int. (paredes)</p>
+                <p className="font-medium">{formatNumber(Math.max(0, areaInternaCalc))} m²</p>
+              </div>
+              <div className="p-2 bg-background rounded">
+                <p className="text-muted-foreground text-xs">Total Paredes</p>
+                <p className="font-medium">{formatNumber(Math.max(0, areaExternaCalc + areaInternaCalc))} m²</p>
+              </div>
+              <div className="p-2 bg-background rounded">
+                <p className="text-muted-foreground text-xs">Aberturas Total</p>
+                <p className="font-medium">{formatNumber(medidas.aberturas_externas_m2 + medidas.aberturas_internas_m2)} m²</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Calculate button */}
+        <div className="flex justify-end pt-2">
+          <Button
+            type="button"
+            onClick={handleCalcular}
+            disabled={!formularioValido || disabled}
+            className={cn(
+              "gap-2",
+              calculado && "bg-primary/80"
+            )}
+          >
+            <Calculator className="w-4 h-4" />
+            {calculado ? 'Recalcular' : 'Calcular'}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

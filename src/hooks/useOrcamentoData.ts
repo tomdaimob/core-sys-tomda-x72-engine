@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Json } from '@/integrations/supabase/types';
 import { Margens, DEFAULT_MARGENS, InputParedes } from '@/lib/orcamento-types';
+import { BaldrameInput, DEFAULT_BALDRAME_INPUT } from '@/lib/baldrame-types';
 
 // Re-export types for convenience
 export type ParedesInput = InputParedes;
@@ -72,6 +73,7 @@ export interface OrcamentoInputs {
   projeto: ProjetoData;
   paredes: ParedesInput;
   radier: RadierData;
+  baldrame: BaldrameInput;
   laje: LajeInput;
   reboco: RebocoInput;
   acabamentos: AcabamentosInput;
@@ -84,6 +86,7 @@ export interface OrcamentoInputs {
 export interface ResultadosData {
   paredes: any;
   radier: any;
+  baldrame?: any;
   laje: any;
   reboco: any;
   acabamentos: any;
@@ -218,6 +221,7 @@ export function useOrcamentoData({
   const [projeto, setProjeto] = useState<ProjetoData>(DEFAULT_PROJETO);
   const [paredes, setParedes] = useState<ParedesInput>(DEFAULT_PAREDES);
   const [radier, setRadier] = useState<RadierData>(DEFAULT_RADIER);
+  const [baldrame, setBaldrame] = useState<BaldrameInput>(DEFAULT_BALDRAME_INPUT);
   const [laje, setLaje] = useState<LajeInput>(DEFAULT_LAJE);
   const [reboco, setReboco] = useState<RebocoInput>(DEFAULT_REBOCO);
   const [acabamentos, setAcabamentos] = useState<AcabamentosInput>(DEFAULT_ACABAMENTOS);
@@ -238,6 +242,7 @@ export function useOrcamentoData({
     projeto,
     paredes,
     radier,
+    baldrame,
     laje,
     reboco,
     acabamentos,
@@ -245,7 +250,7 @@ export function useOrcamentoData({
     portasPortoes,
     margens,
     currentStep,
-  }), [projeto, paredes, radier, laje, reboco, acabamentos, revestimento, portasPortoes, margens, currentStep]);
+  }), [projeto, paredes, radier, baldrame, laje, reboco, acabamentos, revestimento, portasPortoes, margens, currentStep]);
 
   // Load orcamento by ID
   const loadOrcamentoById = useCallback(async (id: string) => {
@@ -330,6 +335,12 @@ export function useOrcamentoData({
             ...dados.radier,
           });
         }
+        if (dados.baldrame) {
+          setBaldrame({
+            ...DEFAULT_BALDRAME_INPUT,
+            ...dados.baldrame,
+          });
+        }
         if (dados.laje) {
           setLaje({
             ...DEFAULT_LAJE,
@@ -392,6 +403,7 @@ export function useOrcamentoData({
         setResultados({
           paredes: resultadosData.paredes,
           radier: resultadosData.radier,
+          baldrame: (resultadosData as any).baldrame || null,
           laje: resultadosData.laje,
           reboco: resultadosData.reboco,
           acabamentos: resultadosData.acabamentos,
@@ -714,6 +726,7 @@ export function useOrcamentoData({
       setProjeto({ ...DEFAULT_PROJETO, codigo: `ORC-${Date.now()}` });
       setParedes(DEFAULT_PAREDES);
       setRadier(DEFAULT_RADIER);
+      setBaldrame(DEFAULT_BALDRAME_INPUT);
       setLaje(DEFAULT_LAJE);
       setReboco(DEFAULT_REBOCO);
       setAcabamentos(DEFAULT_ACABAMENTOS);
@@ -752,6 +765,7 @@ export function useOrcamentoData({
     projeto,
     paredes,
     radier,
+    baldrame,
     laje,
     reboco,
     acabamentos,
@@ -765,6 +779,7 @@ export function useOrcamentoData({
     setProjeto,
     setParedes,
     setRadier,
+    setBaldrame,
     setLaje,
     setReboco,
     setAcabamentos,

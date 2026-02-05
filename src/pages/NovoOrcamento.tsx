@@ -52,6 +52,7 @@ import { AcabamentosForm, AcabamentosInput, calcularAcabamentosResultado } from 
 import { ParedesForm, ParedesInput, calcularParedesResultado } from '@/components/orcamento/ParedesForm';
 import { RevestimentoForm, calcularRevestimentoResultado } from '@/components/orcamento/RevestimentoForm';
 import { PortasPortoesForm, calcularPortasPortoesResultado, type PortasPortoesInput } from '@/components/orcamento/PortasPortoesForm';
+import { RadierBaldrameForm } from '@/components/orcamento/RadierBaldrameForm';
 import { ApprovalSection } from '@/components/orcamento/ApprovalSection';
 import { ClienteForm, type ClienteFormData } from '@/components/orcamento/ClienteForm';
 import { MargensForm } from '@/components/orcamento/MargensForm';
@@ -63,6 +64,8 @@ import { exportarPropostaComercialPDF, TipoProposta } from '@/lib/pdf-proposta-c
 import { useOrcamentoData } from '@/hooks/useOrcamentoData';
 import { validateClienteData, formatDocument, onlyDigits } from '@/lib/document-validation';
 import { useDiscountSystem } from '@/hooks/useDiscountSystem';
+import { calcularBaldrame, getBaldramePrecos } from '@/lib/baldrame-calculos';
+import { BaldrameInput } from '@/lib/baldrame-types';
 
 interface ExtractedData {
   area_total_m2: number;
@@ -77,7 +80,7 @@ interface ExtractedData {
 const steps = [
   { id: 'projeto', label: 'Projeto', icon: DollarSign },
   { id: 'paredes', label: 'Paredes', icon: Layers },
-  { id: 'radier', label: 'Radier', icon: Square },
+  { id: 'fundacao', label: 'Fundação', icon: Square },
   { id: 'laje', label: 'Laje', icon: Grid3X3 },
   { id: 'reboco', label: 'Reboco', icon: PaintBucket },
   { id: 'acabamentos', label: 'Acabamentos', icon: Sparkles },
@@ -135,6 +138,7 @@ export default function NovoOrcamento() {
     projeto,
     paredes,
     radier,
+    baldrame,
     laje,
     reboco,
     acabamentos,
@@ -145,6 +149,7 @@ export default function NovoOrcamento() {
     setProjeto,
     setParedes,
     setRadier,
+    setBaldrame,
     setLaje,
     setReboco,
     setAcabamentos,
@@ -207,9 +212,17 @@ export default function NovoOrcamento() {
     ? resultadoParedesCalc
     : null;
 
-  const resultadoRadier = radier.areaM2 > 0 
+  const resultadoRadier = (baldrame.fundacao_tipo !== 'BALDRAME' && radier.areaM2 > 0) 
     ? calcularRadier(radier, precos)
     : null;
+
+  // Calculate baldrame
+  const baldramePrecos = getBaldramePrecos(catalogItems, baldrame.baldrame_fck_selected);
+  const resultadoBaldrame = (
+    baldrame.fundacao_tipo !== 'RADIER' && 
+    baldramePrecos && 
+    baldrame.baldrame_externo_m > 0
+  ) ? calcularBaldrame(baldrame, baldramePrecos) : null;
 
   // Calculate laje using new component function with FCK selection
   const resultadoLajeCalc = calcularLajeResultado(laje, concretoOptions, precoMaoObraLajeM2, projeto.areaTotal || radier.areaM2);
@@ -272,10 +285,11 @@ export default function NovoOrcamento() {
     projeto.areaTotal || radier.areaM2
   );
 
-  // Add revestimento and portas/portoes cost to consolidado - recalculate all derived values
+  // Add revestimento, baldrame and portas/portoes cost to consolidado - recalculate all derived values
   const custoRevest = resultadoRevestimento?.custoTotal || 0;
   const custoPortasPortoes = resultadoPortasPortoes?.custoTotal || 0;
-  const subtotalComExtras = consolidado.subtotal + custoRevest + custoPortasPortoes;
+  const custoBaldrame = resultadoBaldrame?.custo_total || 0;
+  const subtotalComExtras = consolidado.subtotal + custoRevest + custoPortasPortoes + custoBaldrame;
   const lucroComExtras = subtotalComExtras * (margens.lucroPercent / 100);
   const bdiComExtras = subtotalComExtras * (margens.bdiPercent / 100);
   const totalBase = subtotalComExtras + lucroComExtras + bdiComExtras;
@@ -287,6 +301,7 @@ export default function NovoOrcamento() {
     ...consolidado,
     custoRevestimento: custoRevest,
     custoPortasPortoes,
+    custoBaldrame,
     subtotal: subtotalComExtras,
     lucro: lucroComExtras,
     bdi: bdiComExtras,
@@ -301,6 +316,7 @@ export default function NovoOrcamento() {
       saveWithResultados({
         paredes: resultadoParedes,
         radier: resultadoRadier,
+        baldrame: resultadoBaldrame,
         laje: resultadoLaje,
         reboco: resultadoReboco,
         acabamentos: resultadoAcabamentos,
@@ -309,7 +325,7 @@ export default function NovoOrcamento() {
         consolidado: consolidadoComRevestimento,
       });
     }
-  }, [consolidado.subtotal, resultadoRevestimento?.custoTotal, resultadoPortasPortoes?.custoTotal]);
+  }, [consolidado.subtotal, resultadoRevestimento?.custoTotal, resultadoPortasPortoes?.custoTotal, resultadoBaldrame?.custo_total]);
 
   const salvarOrcamento = async () => {
     if (!projeto.cliente) {
@@ -590,35 +606,18 @@ export default function NovoOrcamento() {
           )}
 
           {currentStep === 2 && (
-            <div className="space-y-6">
-              <h2 className="text-lg font-semibold">Radier</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="input-group">
-                  <Label htmlFor="radier_area" className="input-label">Área (m²)</Label>
-                  <Input id="radier_area" name="radier_area" type="number" value={radier.areaM2 || ''} onChange={(e) => setRadier({...radier, areaM2: parseFloat(e.target.value) || 0})} />
-                </div>
-                <div className="input-group">
-                  <Label htmlFor="radier_espessura" className="input-label">Espessura (cm)</Label>
-                  <Input id="radier_espessura" name="radier_espessura" type="number" value={radier.espessuraCm} onChange={(e) => setRadier({...radier, espessuraCm: parseFloat(e.target.value) || 0})} />
-                </div>
-                <div className="input-group">
-                  <Label htmlFor="radier_tipo_fibra" className="input-label">Tipo Fibra</Label>
-                  <select id="radier_tipo_fibra" name="radier_tipo_fibra" value={radier.tipoFibra} onChange={(e) => setRadier({...radier, tipoFibra: e.target.value as 'aco' | 'pp'})} className="input-field">
-                    <option value="aco">Aço (25 kg/m³)</option>
-                    <option value="pp">PP (5 kg/m³)</option>
-                  </select>
-                </div>
-              </div>
-              {resultadoRadier && (
-                <div className="bg-accent/50 rounded-lg p-4 mt-4">
-                  <h3 className="font-medium mb-2">Resultado Radier</h3>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>Volume: {formatNumber(resultadoRadier.volumeM3)} m³</div>
-                    <div>Custo Total: {formatCurrency(resultadoRadier.custoTotal)}</div>
-                  </div>
-                </div>
-              )}
-            </div>
+            <RadierBaldrameForm
+              radier={radier}
+              onRadierChange={setRadier}
+              precos={precos}
+              resultadoRadier={resultadoRadier}
+              baldrame={baldrame}
+              onBaldrameChange={setBaldrame}
+              perimetroExternoM={projeto.perimetroExterno || 0}
+              catalogItems={catalogItems}
+              resultadoBaldrame={resultadoBaldrame}
+              isAdmin={isAdmin}
+            />
           )}
 
           {/* Step 6: Revestimento */}

@@ -5,10 +5,18 @@ import { useToast } from '@/hooks/use-toast';
 const MAX_FILE_SIZE_MB = 25;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
+const ALLOWED_TYPES = {
+  'application/pdf': 'PROJETO_PDF',
+  'image/png': 'PROJETO_IMG',
+  'image/jpeg': 'PROJETO_IMG',
+} as const;
+
+export type ArquivoTipo = 'PROJETO_PDF' | 'PROJETO_IMG';
+
 export interface ArquivoProjeto {
   id: string;
   orcamento_id: string;
-  tipo: string;
+  tipo: ArquivoTipo;
   storage_path: string;
   nome: string;
   mime_type: string | null;
@@ -17,6 +25,7 @@ export interface ArquivoProjeto {
   created_at: string;
   tamanho_bytes: number | null;
   version: number;
+  group_id: string | null;
   uploader_name?: string;
 }
 
@@ -27,10 +36,41 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
   const [loading, setLoading] = useState(false);
 
   /**
-   * Upload PDF to storage and create arquivo record.
+   * Validate file type and size
+   */
+  const validateFile = useCallback((file: File): { valid: boolean; tipo: ArquivoTipo | null; error?: string } => {
+    const mimeType = file.type as keyof typeof ALLOWED_TYPES;
+    
+    if (!ALLOWED_TYPES[mimeType]) {
+      return {
+        valid: false,
+        tipo: null,
+        error: 'Formato inválido. Aceito: PDF, PNG ou JPG.',
+      };
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return {
+        valid: false,
+        tipo: null,
+        error: `O arquivo excede o limite de ${MAX_FILE_SIZE_MB}MB. Tamanho: ${(file.size / (1024 * 1024)).toFixed(1)}MB`,
+      };
+    }
+
+    return {
+      valid: true,
+      tipo: ALLOWED_TYPES[mimeType],
+    };
+  }, []);
+
+  /**
+   * Upload a single file to storage and create arquivo record.
    * Atomic: if DB insert fails, we remove the file from storage.
    */
-  const uploadProjectPdf = useCallback(async (file: File): Promise<string | null> => {
+  const uploadFile = useCallback(async (
+    file: File, 
+    groupId?: string
+  ): Promise<{ id: string; tipo: ArquivoTipo } | null> => {
     if (!orcamentoId) {
       toast({
         title: 'Erro',
@@ -40,32 +80,21 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
       return null;
     }
 
-    // Validate file type
-    if (file.type !== 'application/pdf') {
+    const validation = validateFile(file);
+    if (!validation.valid || !validation.tipo) {
       toast({
-        title: 'Formato inválido',
-        description: 'Por favor, selecione um arquivo PDF.',
+        title: 'Arquivo inválido',
+        description: validation.error,
         variant: 'destructive',
       });
       return null;
     }
 
-    // Validate file size
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      toast({
-        title: 'Arquivo muito grande',
-        description: `O arquivo excede o limite de ${MAX_FILE_SIZE_MB}MB. Tamanho: ${(file.size / (1024 * 1024)).toFixed(1)}MB`,
-        variant: 'destructive',
-      });
-      return null;
-    }
-
-    setUploading(true);
-
-    // Generate unique path: {orcamento_id}/{timestamp}_{random}_projeto.pdf
+    const tipo = validation.tipo;
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(2, 8);
-    const storagePath = `${orcamentoId}/${timestamp}_${randomSuffix}_projeto.pdf`;
+    const extension = file.name.split('.').pop() || 'file';
+    const storagePath = `${orcamentoId}/${timestamp}_${randomSuffix}.${extension}`;
 
     try {
       // Get current user
@@ -78,27 +107,33 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
       const { error: uploadError } = await supabase.storage
         .from('projetos')
         .upload(storagePath, file, {
-          contentType: 'application/pdf',
+          contentType: file.type,
           upsert: false,
         });
 
       if (uploadError) {
         console.error('Storage upload error:', uploadError);
-        throw new Error(`Falha ao enviar PDF: ${uploadError.message}`);
+        throw new Error(`Falha ao enviar arquivo: ${uploadError.message}`);
       }
 
       // Step 2: Insert record in database (trigger handles version + ativo)
+      const insertData: any = {
+        orcamento_id: orcamentoId,
+        tipo,
+        storage_path: storagePath,
+        nome: file.name,
+        mime_type: file.type,
+        uploaded_by: user.id,
+        tamanho_bytes: file.size,
+      };
+
+      if (groupId) {
+        insertData.group_id = groupId;
+      }
+
       const { data: arquivo, error: insertError } = await supabase
         .from('arquivos')
-        .insert({
-          orcamento_id: orcamentoId,
-          tipo: 'PROJETO_PDF',
-          storage_path: storagePath,
-          nome: file.name,
-          mime_type: 'application/pdf',
-          uploaded_by: user.id,
-          tamanho_bytes: file.size,
-        })
+        .insert([insertData])
         .select()
         .single();
 
@@ -106,13 +141,65 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
         // Rollback: remove uploaded file from storage
         console.error('DB insert error, rolling back storage:', insertError);
         await supabase.storage.from('projetos').remove([storagePath]);
-        throw new Error(`Falha ao registrar PDF no sistema: ${insertError.message}`);
+        throw new Error(`Falha ao registrar arquivo no sistema: ${insertError.message}`);
       }
 
-      return arquivo?.id || null;
+      return { id: arquivo?.id || '', tipo };
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao fazer upload do PDF.';
-      console.error('Error uploading PDF:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao fazer upload.';
+      console.error('Error uploading file:', error);
+      toast({
+        title: 'Erro no upload',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+      return null;
+    }
+  }, [orcamentoId, validateFile, toast]);
+
+  /**
+   * Upload PDF to storage (backward compatibility)
+   */
+  const uploadProjectPdf = useCallback(async (file: File): Promise<string | null> => {
+    setUploading(true);
+    try {
+      const result = await uploadFile(file);
+      return result?.id || null;
+    } finally {
+      setUploading(false);
+    }
+  }, [uploadFile]);
+
+  /**
+   * Upload multiple images with a shared group_id
+   */
+  const uploadProjectImages = useCallback(async (files: File[]): Promise<string | null> => {
+    if (files.length === 0) return null;
+
+    setUploading(true);
+    const groupId = crypto.randomUUID();
+    const results: string[] = [];
+
+    try {
+      for (const file of files) {
+        const result = await uploadFile(file, groupId);
+        if (result?.id) {
+          results.push(result.id);
+        }
+      }
+
+      if (results.length === 0) {
+        throw new Error('Nenhuma imagem foi salva.');
+      }
+
+      toast({
+        title: 'Upload concluído',
+        description: `${results.length} imagem(s) enviada(s) com sucesso.`,
+      });
+
+      return groupId;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro no upload das imagens.';
       toast({
         title: 'Erro no upload',
         description: errorMessage,
@@ -122,7 +209,7 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
     } finally {
       setUploading(false);
     }
-  }, [orcamentoId, toast]);
+  }, [uploadFile, toast]);
 
   // Fetch arquivos for admin view (all PROJETO_PDF for this orcamento)
   const fetchArquivos = useCallback(async () => {
@@ -160,6 +247,7 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
         
         arquivosWithNames.push({
           ...arq,
+          tipo: arq.tipo as ArquivoTipo,
           uploader_name: uploaderName,
         });
       }
@@ -233,6 +321,7 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
     loading,
     arquivos,
     uploadProjectPdf,
+    uploadProjectImages,
     fetchArquivos,
     getDownloadUrl,
     downloadArquivo,

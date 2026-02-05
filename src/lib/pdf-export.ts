@@ -113,7 +113,7 @@ interface ResultadoRevestimento {
     nome: string;
     tipo: 'cozinha' | 'banheiro';
     areaComPerdaM2: number;
-    tipoMaterial: 'ceramica' | 'porcelanato';
+    tipoMaterial: 'ceramica' | 'ceramica_premium' | 'porcelanato' | 'porcelanato_premium';
     custoTotal: number;
   }>;
 }

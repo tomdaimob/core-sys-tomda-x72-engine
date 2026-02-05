@@ -11,6 +11,7 @@ export type ParedesInput = InputParedes;
 // Local interface definitions that match the component interfaces
 export interface LajeInput {
   tipo: 'AUTO' | 'PISO_2_ANDAR' | 'FORRO';
+  laje_enabled: boolean;
   areaM2: number;
   espessuraM: number;
   concretoItemId: string;
@@ -177,6 +178,7 @@ export const DEFAULT_RADIER: RadierData = {
 
 export const DEFAULT_LAJE: LajeInput = {
   tipo: 'AUTO',
+  laje_enabled: true,
   areaM2: 0,
   espessuraM: 0,
   concretoItemId: '',

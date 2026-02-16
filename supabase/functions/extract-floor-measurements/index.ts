@@ -135,7 +135,7 @@ Retorne APENAS um JSON válido.`
         orcamento_id: orcamentoId,
         pavimento_id: pavimentoId,
         tipo: 'MEDIDAS_PAVIMENTO',
-        status: 'sucesso',
+        status: 'concluido',
         area_total_m2: extractedData.area_total_m2,
         pe_direito_m: extractedData.pe_direito_m,
         perimetro_externo_m: extractedData.perimetro_externo_m,

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Plus, Copy, Trash2, Upload, Loader2, CheckCircle2, XCircle, Clock, Building2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Copy, Trash2, Upload, Loader2, CheckCircle2, XCircle, Clock, Building2, ChevronDown, ChevronUp, Calculator, ArrowDownToLine, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,38 +21,58 @@ import { Pavimento } from '@/hooks/usePavimentos';
 
 interface PavimentosSectionProps {
   pavimentos: Pavimento[];
-  onAdd: (nome: string) => Promise<any>;
+  autoImport: boolean;
+  onAutoImportChange: (v: boolean) => void;
+  pavimentoTipo: Pavimento | undefined;
+  onAdd: (nome: string, tipo?: 'NORMAL' | 'TIPO') => Promise<any>;
   onUpdate: (id: string, updates: Partial<Pavimento>) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
   onDuplicate: (id: string) => Promise<any>;
   onExtract: (id: string, file: File) => Promise<boolean>;
+  onCopyFromTipo: (id: string) => Promise<boolean>;
+  onCalculateAll: () => { results: any[]; totalGeralPredio: number; pendentes: string[] };
   disabled?: boolean;
 }
 
 const STATUS_CONFIG = {
-  PENDENTE: { label: 'Pendente', icon: Clock, variant: 'secondary' as const },
-  PROCESSANDO: { label: 'Processando...', icon: Loader2, variant: 'default' as const },
-  SUCESSO: { label: 'Sucesso', icon: CheckCircle2, variant: 'default' as const },
-  ERRO: { label: 'Erro', icon: XCircle, variant: 'destructive' as const },
+  PENDENTE: { label: 'Pendente', icon: Clock, variant: 'secondary' as const, color: '' },
+  PROCESSANDO: { label: 'Processando...', icon: Loader2, variant: 'default' as const, color: '' },
+  SUCESSO: { label: 'Sucesso', icon: CheckCircle2, variant: 'default' as const, color: 'bg-green-500/10 text-green-700 border-green-500/20' },
+  ERRO: { label: 'Erro', icon: XCircle, variant: 'destructive' as const, color: '' },
 };
+
+const formatCurrency = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const formatNumber = (v: number, d = 2) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 
 export function PavimentosSection({
   pavimentos,
+  autoImport,
+  onAutoImportChange,
+  pavimentoTipo,
   onAdd,
   onUpdate,
   onRemove,
   onDuplicate,
   onExtract,
+  onCopyFromTipo,
+  onCalculateAll,
   disabled,
 }: PavimentosSectionProps) {
   const [newName, setNewName] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [buildingResults, setBuildingResults] = useState<any[] | null>(null);
+  const [buildingTotal, setBuildingTotal] = useState(0);
+  const [showPendingAlert, setShowPendingAlert] = useState(false);
+  const [pendingNames, setPendingNames] = useState<string[]>([]);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  const handleAdd = async () => {
-    const name = newName.trim() || `Pavimento ${pavimentos.length + 1}`;
-    await onAdd(name);
+  const handleAdd = async (tipo: 'NORMAL' | 'TIPO' = 'NORMAL') => {
+    const defaultName = tipo === 'TIPO' 
+      ? 'Pavimento Tipo' 
+      : `Pavimento ${pavimentos.length + 1}`;
+    const name = newName.trim() || defaultName;
+    await onAdd(name, tipo);
     setNewName('');
   };
 
@@ -69,6 +89,21 @@ export function PavimentosSection({
     await onExtract(pavId, file);
   };
 
+  const handleCalculateAll = () => {
+    const { results, totalGeralPredio, pendentes } = onCalculateAll();
+    if (pendentes.length > 0) {
+      setPendingNames(pendentes);
+      setShowPendingAlert(true);
+    }
+    setBuildingResults(results);
+    setBuildingTotal(totalGeralPredio);
+  };
+
+  const handleConfirmCalculate = () => {
+    setShowPendingAlert(false);
+    // Already calculated, just keep the results
+  };
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -77,13 +112,13 @@ export function PavimentosSection({
           <CardTitle className="text-lg">Pavimentos do Prédio</CardTitle>
         </div>
         <CardDescription>
-          Adicione pavimentos para calcular separadamente. Cada pavimento pode ter sua própria planta e multiplicador.
+          Gerencie pavimentos individuais. Cada um pode ter sua planta e multiplicador.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Add new */}
-        <div className="flex items-end gap-2">
-          <div className="flex-1">
+        {/* Top controls */}
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex-1 min-w-[200px]">
             <Label className="text-sm">Nome do pavimento</Label>
             <Input
               value={newName}
@@ -92,10 +127,28 @@ export function PavimentosSection({
               disabled={disabled}
             />
           </div>
-          <Button onClick={handleAdd} disabled={disabled} size="sm" className="gap-1">
+          <Button onClick={() => handleAdd('NORMAL')} disabled={disabled} size="sm" className="gap-1">
             <Plus className="w-4 h-4" />
             Adicionar
           </Button>
+          <Button onClick={() => handleAdd('TIPO')} disabled={disabled} size="sm" variant="outline" className="gap-1">
+            <Star className="w-4 h-4" />
+            Pavimento Tipo
+          </Button>
+        </div>
+
+        {/* Toggle + Calculate all */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-muted/30 rounded-lg border">
+          <div className="flex items-center gap-2">
+            <Switch checked={autoImport} onCheckedChange={onAutoImportChange} />
+            <span className="text-sm">Auto-importar ao enviar</span>
+          </div>
+          {pavimentos.length > 0 && (
+            <Button onClick={handleCalculateAll} disabled={disabled} size="sm" className="gap-1">
+              <Calculator className="w-4 h-4" />
+              Calcular tudo (Prédio)
+            </Button>
+          )}
         </div>
 
         {/* List */}
@@ -109,25 +162,39 @@ export function PavimentosSection({
           const statusCfg = STATUS_CONFIG[pav.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.PENDENTE;
           const StatusIcon = statusCfg.icon;
           const isExpanded = expandedIds.has(pav.id);
+          const isTipo = (pav as any).tipo === 'TIPO';
+          const canCopyFromTipo = !isTipo && pavimentoTipo && (pav.status === 'ERRO' || pav.status === 'PENDENTE');
+          const medidas = pav.medidas_json;
+          const resultado = pav.resultado_paredes;
 
           return (
             <Collapsible key={pav.id} open={isExpanded} onOpenChange={() => toggleExpand(pav.id)}>
-              <div className="border rounded-lg overflow-hidden">
+              <div className={`border rounded-lg overflow-hidden ${isTipo ? 'border-primary/40 bg-primary/5' : ''}`}>
                 {/* Header */}
                 <CollapsibleTrigger asChild>
                   <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Building2 className="w-4 h-4 text-muted-foreground" />
                       <span className="font-medium">{pav.nome}</span>
-                      {pav.multiplicador > 1 && (
-                        <Badge variant="outline" className="text-xs">
-                          ×{pav.multiplicador}
+                      {isTipo && (
+                        <Badge className="text-xs bg-primary/20 text-primary border-primary/30">
+                          <Star className="w-3 h-3 mr-1" />
+                          TIPO
                         </Badge>
                       )}
-                      <Badge variant={statusCfg.variant} className="text-xs gap-1">
+                      {pav.multiplicador > 1 && (
+                        <Badge variant="outline" className="text-xs">×{pav.multiplicador}</Badge>
+                      )}
+                      <Badge variant={statusCfg.variant} className={`text-xs gap-1 ${statusCfg.color}`}>
                         <StatusIcon className={`w-3 h-3 ${pav.status === 'PROCESSANDO' ? 'animate-spin' : ''}`} />
                         {statusCfg.label}
                       </Badge>
+                      {resultado && (
+                        <span className="text-xs text-muted-foreground">
+                          {formatCurrency(resultado.custo_paredes)}
+                          {pav.multiplicador > 1 && ` × ${pav.multiplicador}`}
+                        </span>
+                      )}
                     </div>
                     {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </div>
@@ -164,7 +231,7 @@ export function PavimentosSection({
                       </div>
                     </div>
 
-                    {/* Flags de inclusão */}
+                    {/* Flags */}
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {[
                         { key: 'includes_fundacao', label: 'Fundação' },
@@ -186,7 +253,7 @@ export function PavimentosSection({
                     </div>
 
                     {/* Upload */}
-                    <div>
+                    <div className="flex flex-wrap items-center gap-2">
                       <input
                         type="file"
                         accept=".pdf"
@@ -208,24 +275,74 @@ export function PavimentosSection({
                         <Upload className="w-4 h-4" />
                         {pav.pdf_arquivo_id ? 'Reimportar PDF' : 'Enviar PDF'}
                       </Button>
-                      {pav.medidas_json && (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          Área: {pav.medidas_json.area_total_m2}m² | Confiança: {pav.medidas_json.confianca}%
-                        </span>
+
+                      {canCopyFromTipo && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 border-primary/40 text-primary hover:bg-primary/10"
+                          onClick={() => onCopyFromTipo(pav.id)}
+                          disabled={disabled}
+                        >
+                          <ArrowDownToLine className="w-4 h-4" />
+                          Usar medidas do Tipo
+                        </Button>
                       )}
                     </div>
 
+                    {/* Measurement summary */}
+                    {medidas && pav.status === 'SUCESSO' && (
+                      <div className="bg-muted/40 rounded-lg p-3 space-y-2">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Medidas Extraídas</h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Perímetro ext.:</span>{' '}
+                            <span className="font-medium">{formatNumber(medidas.perimetro_externo_m || 0)} m</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Paredes int.:</span>{' '}
+                            <span className="font-medium">{formatNumber(medidas.paredes_internas_m || 0)} m</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Pé-direito:</span>{' '}
+                            <span className="font-medium">{formatNumber(medidas.pe_direito_m || medidas.altura_paredes_m || 2.7)} m</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Aberturas:</span>{' '}
+                            <span className="font-medium">{formatNumber(medidas.aberturas_m2 || 0)} m²</span>
+                          </div>
+                        </div>
+                        {medidas.confianca != null && (
+                          <div className="text-xs text-muted-foreground">
+                            Confiança: {medidas.confianca}%
+                            {medidas.observacoes && ` — ${medidas.observacoes}`}
+                          </div>
+                        )}
+                        {resultado && (
+                          <div className="pt-2 border-t border-muted-foreground/10">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">Área líquida paredes:</span>
+                              <span className="font-medium">{formatNumber(resultado.area_liquida_m2)} m²</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-muted-foreground">Custo paredes (unitário):</span>
+                              <span className="font-medium">{formatCurrency(resultado.custo_paredes)}</span>
+                            </div>
+                            {pav.multiplicador > 1 && (
+                              <div className="flex justify-between text-sm font-semibold text-primary">
+                                <span>Total (×{pav.multiplicador}):</span>
+                                <span>{formatCurrency(resultado.custo_paredes * pav.multiplicador)}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Actions */}
                     <div className="flex items-center gap-2 pt-2 border-t">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1"
-                        onClick={() => onDuplicate(pav.id)}
-                        disabled={disabled}
-                      >
-                        <Copy className="w-4 h-4" />
-                        Duplicar
+                      <Button variant="ghost" size="sm" className="gap-1" onClick={() => onDuplicate(pav.id)} disabled={disabled}>
+                        <Copy className="w-4 h-4" />Duplicar
                       </Button>
                       <Button
                         variant="ghost"
@@ -234,8 +351,7 @@ export function PavimentosSection({
                         onClick={() => setDeleteId(pav.id)}
                         disabled={disabled}
                       >
-                        <Trash2 className="w-4 h-4" />
-                        Remover
+                        <Trash2 className="w-4 h-4" />Remover
                       </Button>
                     </div>
                   </div>
@@ -244,6 +360,58 @@ export function PavimentosSection({
             </Collapsible>
           );
         })}
+
+        {/* Building total table */}
+        {buildingResults && buildingResults.length > 0 && (
+          <div className="bg-primary/5 rounded-lg p-4 border border-primary/20 space-y-3">
+            <h4 className="font-semibold text-sm flex items-center gap-2">
+              <Calculator className="w-4 h-4 text-primary" />
+              Resumo do Prédio
+            </h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted-foreground border-b">
+                    <th className="pb-2">Pavimento</th>
+                    <th className="pb-2">Tipo</th>
+                    <th className="pb-2 text-center">Mult</th>
+                    <th className="pb-2 text-right">Total Unit.</th>
+                    <th className="pb-2 text-right">Total Final</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {buildingResults.map(r => (
+                    <tr key={r.pavimento_id} className="border-b border-muted/30">
+                      <td className="py-2">{r.nome}</td>
+                      <td className="py-2">
+                        {r.tipo === 'TIPO' ? (
+                          <Badge className="text-xs bg-primary/20 text-primary border-primary/30">TIPO</Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">Normal</span>
+                        )}
+                      </td>
+                      <td className="py-2 text-center">{r.multiplicador}×</td>
+                      <td className="py-2 text-right">
+                        {r.status === 'OK' ? formatCurrency(r.total_unitario) : (
+                          <span className="text-destructive text-xs">{r.status}</span>
+                        )}
+                      </td>
+                      <td className="py-2 text-right font-medium">
+                        {r.status === 'OK' ? formatCurrency(r.total_final) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="font-bold text-primary">
+                    <td colSpan={4} className="pt-3 text-right">TOTAL PRÉDIO:</td>
+                    <td className="pt-3 text-right">{formatCurrency(buildingTotal)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Delete confirmation */}
         <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
@@ -259,6 +427,24 @@ export function PavimentosSection({
               <AlertDialogAction onClick={() => { if (deleteId) { onRemove(deleteId); setDeleteId(null); } }}>
                 Remover
               </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Pending floors alert */}
+        <AlertDialog open={showPendingAlert} onOpenChange={setShowPendingAlert}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Pavimentos sem medidas</AlertDialogTitle>
+              <AlertDialogDescription>
+                Os seguintes pavimentos não têm medidas e serão ignorados no cálculo:{' '}
+                <strong>{pendingNames.join(', ')}</strong>.
+                Deseja calcular apenas os válidos?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmCalculate}>Calcular válidos</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

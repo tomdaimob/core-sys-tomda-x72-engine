@@ -362,6 +362,7 @@ export type Database = {
           overrides_json: Json | null
           pdf_arquivo_id: string | null
           status: string
+          tipo: string
           updated_at: string
         }
         Insert: {
@@ -383,6 +384,7 @@ export type Database = {
           overrides_json?: Json | null
           pdf_arquivo_id?: string | null
           status?: string
+          tipo?: string
           updated_at?: string
         }
         Update: {
@@ -404,6 +406,7 @@ export type Database = {
           overrides_json?: Json | null
           pdf_arquivo_id?: string | null
           status?: string
+          tipo?: string
           updated_at?: string
         }
         Relationships: [
@@ -434,7 +437,9 @@ export type Database = {
           paredes: Json | null
           radier: Json | null
           reboco: Json | null
+          resultados_pavimentos_json: Json | null
           revestimento: Json | null
+          total_geral_predio: number | null
           updated_at: string
         }
         Insert: {
@@ -447,7 +452,9 @@ export type Database = {
           paredes?: Json | null
           radier?: Json | null
           reboco?: Json | null
+          resultados_pavimentos_json?: Json | null
           revestimento?: Json | null
+          total_geral_predio?: number | null
           updated_at?: string
         }
         Update: {
@@ -460,7 +467,9 @@ export type Database = {
           paredes?: Json | null
           radier?: Json | null
           reboco?: Json | null
+          resultados_pavimentos_json?: Json | null
           revestimento?: Json | null
+          total_geral_predio?: number | null
           updated_at?: string
         }
         Relationships: [

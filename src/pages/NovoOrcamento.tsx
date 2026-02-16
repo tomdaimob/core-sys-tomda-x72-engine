@@ -67,6 +67,8 @@ import { validateClienteData, formatDocument, onlyDigits } from '@/lib/document-
 import { useDiscountSystem } from '@/hooks/useDiscountSystem';
 import { calcularBaldrame, getBaldramePrecos } from '@/lib/baldrame-calculos';
 import { BaldrameInput } from '@/lib/baldrame-types';
+import { SapataInput, DEFAULT_SAPATA_INPUT } from '@/lib/sapata-types';
+import { calcularSapata, getSapataPrecos } from '@/lib/sapata-calculos';
 import { usePavimentos } from '@/hooks/usePavimentos';
 
 interface ExtractedData {
@@ -141,6 +143,7 @@ export default function NovoOrcamento() {
     paredes,
     radier,
     baldrame,
+    sapata,
     laje,
     reboco,
     acabamentos,
@@ -152,6 +155,7 @@ export default function NovoOrcamento() {
     setParedes,
     setRadier,
     setBaldrame,
+    setSapata,
     setLaje,
     setReboco,
     setAcabamentos,
@@ -229,7 +233,7 @@ export default function NovoOrcamento() {
   // Check if fundacao is enabled
   const fundacaoEnabled = baldrame.fundacao_enabled ?? true;
 
-  const resultadoRadier = (fundacaoEnabled && baldrame.fundacao_tipo !== 'BALDRAME' && radier.areaM2 > 0) 
+  const resultadoRadier = (fundacaoEnabled && (baldrame.fundacao_tipo === 'RADIER' || baldrame.fundacao_tipo === 'RADIER_BALDRAME') && radier.areaM2 > 0) 
     ? calcularRadier(radier, precos)
     : null;
 
@@ -237,10 +241,19 @@ export default function NovoOrcamento() {
   const baldramePrecos = getBaldramePrecos(catalogItems, baldrame.baldrame_fck_selected);
   const resultadoBaldrame = (
     fundacaoEnabled &&
-    baldrame.fundacao_tipo !== 'RADIER' && 
+    (baldrame.fundacao_tipo === 'BALDRAME' || baldrame.fundacao_tipo === 'RADIER_BALDRAME') && 
     baldramePrecos && 
     baldrame.baldrame_externo_m > 0
   ) ? calcularBaldrame(baldrame, baldramePrecos) : null;
+
+  // Calculate sapata (only when fundacao is enabled and type is SAPATA)
+  const sapataPrecos = getSapataPrecos(catalogItems, sapata.fck_selected);
+  const resultadoSapata = (
+    fundacaoEnabled &&
+    baldrame.fundacao_tipo === 'SAPATA' &&
+    sapataPrecos &&
+    sapata.tipos.some(t => t.quantidade > 0)
+  ) ? calcularSapata(sapata, sapataPrecos) : null;
 
   // Check if laje is enabled
   const lajeEnabled = laje.laje_enabled ?? true;
@@ -315,9 +328,10 @@ export default function NovoOrcamento() {
   const custoRevest = resultadoRevestimento?.custoTotal || 0;
   const custoPortasPortoes = resultadoPortasPortoes?.custoTotal || 0;
   const custoBaldrame = resultadoBaldrame?.custo_total || 0;
+  const custoSapata = resultadoSapata?.custo_total || 0;
   
   // When multi-pavimento, multiply base costs by total floor count
-  const subtotalBase = consolidado.subtotal + custoRevest + custoPortasPortoes + custoBaldrame;
+  const subtotalBase = consolidado.subtotal + custoRevest + custoPortasPortoes + custoBaldrame + custoSapata;
   const subtotalComExtras = isMultiPavimento ? subtotalBase * pavimentoMultiplier : subtotalBase;
   const lucroComExtras = subtotalComExtras * (margens.lucroPercent / 100);
   const bdiComExtras = subtotalComExtras * (margens.bdiPercent / 100);
@@ -331,6 +345,7 @@ export default function NovoOrcamento() {
     custoRevestimento: custoRevest,
     custoPortasPortoes,
     custoBaldrame,
+    custoSapata,
     subtotal: subtotalComExtras,
     lucro: lucroComExtras,
     bdi: bdiComExtras,
@@ -347,6 +362,7 @@ export default function NovoOrcamento() {
         paredes: resultadoParedes,
         radier: resultadoRadier,
         baldrame: resultadoBaldrame,
+        sapata: resultadoSapata,
         laje: resultadoLaje,
         reboco: resultadoReboco,
         acabamentos: resultadoAcabamentos,
@@ -355,7 +371,7 @@ export default function NovoOrcamento() {
         consolidado: consolidadoComRevestimento,
       });
     }
-  }, [consolidado.subtotal, resultadoRevestimento?.custoTotal, resultadoPortasPortoes?.custoTotal, resultadoBaldrame?.custo_total]);
+  }, [consolidado.subtotal, resultadoRevestimento?.custoTotal, resultadoPortasPortoes?.custoTotal, resultadoBaldrame?.custo_total, resultadoSapata?.custo_total]);
 
   const salvarOrcamento = async () => {
     if (!projeto.cliente) {
@@ -659,6 +675,9 @@ export default function NovoOrcamento() {
               perimetroExternoM={projeto.perimetroExterno || 0}
               catalogItems={catalogItems}
               resultadoBaldrame={resultadoBaldrame}
+              sapata={sapata}
+              onSapataChange={setSapata}
+              resultadoSapata={resultadoSapata}
               isAdmin={isAdmin}
             />
           )}

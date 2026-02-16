@@ -617,6 +617,45 @@ export type Database = {
         }
         Relationships: []
       }
+      sapata_configuracoes: {
+        Row: {
+          ativo: boolean
+          coef_aco_kg_por_m3: number
+          coef_aco_max: number
+          coef_aco_min: number
+          id: string
+          perda_aco_percent: number
+          perda_concreto_percent: number
+          perfil_nome: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          coef_aco_kg_por_m3?: number
+          coef_aco_max?: number
+          coef_aco_min?: number
+          id?: string
+          perda_aco_percent?: number
+          perda_concreto_percent?: number
+          perfil_nome: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          coef_aco_kg_por_m3?: number
+          coef_aco_max?: number
+          coef_aco_min?: number
+          id?: string
+          perda_aco_percent?: number
+          perda_concreto_percent?: number
+          perfil_nome?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

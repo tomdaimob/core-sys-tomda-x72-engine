@@ -6,9 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Square, Layers, LayersIcon, Power, PowerOff } from 'lucide-react';
+import { Square, Layers, LayersIcon, Power, PowerOff, Anchor } from 'lucide-react';
 import { BaldrameForm } from './BaldrameForm';
+import { SapataForm } from './SapataForm';
 import { BaldrameInput, BaldrameResultado, FundacaoTipo, DEFAULT_BALDRAME_INPUT } from '@/lib/baldrame-types';
+import { SapataInput, SapataResultado } from '@/lib/sapata-types';
 import { calcularBaldrame, getBaldramePrecos } from '@/lib/baldrame-calculos';
 import { calcularRadier, formatCurrency, formatNumber } from '@/lib/orcamento-calculos';
 import { InputRadier, ResultadoRadier, Precos } from '@/lib/orcamento-types';
@@ -26,6 +28,10 @@ interface RadierBaldrameFormProps {
   perimetroExternoM: number;
   catalogItems: Array<{ nome: string; preco: number; categoria: string }>;
   resultadoBaldrame: BaldrameResultado | null;
+  // Sapata props
+  sapata: SapataInput;
+  onSapataChange: (sapata: SapataInput) => void;
+  resultadoSapata: SapataResultado | null;
   isAdmin?: boolean;
 }
 
@@ -39,6 +45,9 @@ export function RadierBaldrameForm({
   perimetroExternoM,
   catalogItems,
   resultadoBaldrame,
+  sapata,
+  onSapataChange,
+  resultadoSapata,
   isAdmin = false,
 }: RadierBaldrameFormProps) {
   const fundacaoTipo = baldrame.fundacao_tipo;
@@ -54,9 +63,10 @@ export function RadierBaldrameForm({
   };
 
   // Calculate totals (only when enabled)
-  const custoRadier = fundacaoEnabled && fundacaoTipo !== 'BALDRAME' ? (resultadoRadier?.custoTotal || 0) : 0;
-  const custoBaldrame = fundacaoEnabled && fundacaoTipo !== 'RADIER' ? (resultadoBaldrame?.custo_total || 0) : 0;
-  const custoTotal = custoRadier + custoBaldrame;
+  const custoRadier = fundacaoEnabled && (fundacaoTipo === 'RADIER' || fundacaoTipo === 'RADIER_BALDRAME') ? (resultadoRadier?.custoTotal || 0) : 0;
+  const custoBaldrame = fundacaoEnabled && (fundacaoTipo === 'BALDRAME' || fundacaoTipo === 'RADIER_BALDRAME') ? (resultadoBaldrame?.custo_total || 0) : 0;
+  const custoSapata = fundacaoEnabled && fundacaoTipo === 'SAPATA' ? (resultadoSapata?.custo_total || 0) : 0;
+  const custoTotal = custoRadier + custoBaldrame + custoSapata;
 
   // Disabled state render
   if (!fundacaoEnabled) {
@@ -129,7 +139,7 @@ export function RadierBaldrameForm({
           <RadioGroup
             value={fundacaoTipo}
             onValueChange={(v) => handleFundacaoChange(v as FundacaoTipo)}
-            className="grid grid-cols-1 md:grid-cols-3 gap-3"
+            className="grid grid-cols-2 md:grid-cols-4 gap-3"
           >
             <div className="relative">
               <RadioGroupItem value="RADIER" id="tipo-radier" className="peer sr-only" />
@@ -167,6 +177,26 @@ export function RadierBaldrameForm({
                 <span className="font-medium">Viga Baldrame</span>
                 <span className="text-xs text-muted-foreground text-center">
                   Fundação em vigas
+                </span>
+              </Label>
+            </div>
+
+            <div className="relative">
+              <RadioGroupItem value="SAPATA" id="tipo-sapata" className="peer sr-only" />
+              <Label
+                htmlFor="tipo-sapata"
+                className={cn(
+                  'flex flex-col items-center gap-2 p-4 rounded-lg border-2 cursor-pointer transition-all',
+                  'hover:bg-accent/50',
+                  fundacaoTipo === 'SAPATA'
+                    ? 'border-purple-500 bg-purple-50'
+                    : 'border-muted'
+                )}
+              >
+                <Anchor className="w-8 h-8 text-purple-600" />
+                <span className="font-medium">Sapata</span>
+                <span className="text-xs text-muted-foreground text-center">
+                  Sapatas isoladas
                 </span>
               </Label>
             </div>
@@ -268,6 +298,17 @@ export function RadierBaldrameForm({
           catalogItems={catalogItems}
           isAdmin={isAdmin}
           resultado={resultadoBaldrame}
+        />
+      )}
+
+      {/* Sapata form */}
+      {fundacaoTipo === 'SAPATA' && (
+        <SapataForm
+          input={sapata}
+          onInputChange={onSapataChange}
+          catalogItems={catalogItems}
+          isAdmin={isAdmin}
+          resultado={resultadoSapata}
         />
       )}
     </div>

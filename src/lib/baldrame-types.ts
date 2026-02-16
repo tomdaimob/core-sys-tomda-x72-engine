@@ -1,6 +1,6 @@
 // Types for Viga Baldrame foundation calculations
 
-export type FundacaoTipo = 'RADIER' | 'BALDRAME' | 'RADIER_BALDRAME';
+export type FundacaoTipo = 'RADIER' | 'BALDRAME' | 'RADIER_BALDRAME' | 'SAPATA';
 export type FckTipo = 'FCK25' | 'FCK30' | 'FCK35';
 
 export interface BaldrameInput {

@@ -240,6 +240,7 @@ export type Database = {
           observacoes: string | null
           orcamento_id: string
           paredes_internas_m: number | null
+          pavimento_id: string | null
           payload_json: Json | null
           pe_direito_m: number | null
           perimetro_externo_m: number | null
@@ -257,6 +258,7 @@ export type Database = {
           observacoes?: string | null
           orcamento_id: string
           paredes_internas_m?: number | null
+          pavimento_id?: string | null
           payload_json?: Json | null
           pe_direito_m?: number | null
           perimetro_externo_m?: number | null
@@ -274,6 +276,7 @@ export type Database = {
           observacoes?: string | null
           orcamento_id?: string
           paredes_internas_m?: number | null
+          pavimento_id?: string | null
           payload_json?: Json | null
           pe_direito_m?: number | null
           perimetro_externo_m?: number | null
@@ -293,6 +296,13 @@ export type Database = {
             columns: ["orcamento_id"]
             isOneToOne: false
             referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ia_extracoes_pavimento_id_fkey"
+            columns: ["pavimento_id"]
+            isOneToOne: false
+            referencedRelation: "orcamento_pavimentos"
             referencedColumns: ["id"]
           },
         ]
@@ -328,6 +338,87 @@ export type Database = {
             columns: ["orcamento_id"]
             isOneToOne: false
             referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orcamento_pavimentos: {
+        Row: {
+          created_at: string
+          id: string
+          imagens_group_id: string | null
+          includes_fundacao: boolean
+          includes_laje: boolean
+          includes_portas: boolean
+          includes_portoes: boolean
+          includes_reboco: boolean
+          includes_revestimento: boolean
+          last_extracao_id: string | null
+          medidas_json: Json | null
+          multiplicador: number
+          nome: string
+          orcamento_id: string
+          ordem: number
+          overrides_json: Json | null
+          pdf_arquivo_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          imagens_group_id?: string | null
+          includes_fundacao?: boolean
+          includes_laje?: boolean
+          includes_portas?: boolean
+          includes_portoes?: boolean
+          includes_reboco?: boolean
+          includes_revestimento?: boolean
+          last_extracao_id?: string | null
+          medidas_json?: Json | null
+          multiplicador?: number
+          nome: string
+          orcamento_id: string
+          ordem?: number
+          overrides_json?: Json | null
+          pdf_arquivo_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          imagens_group_id?: string | null
+          includes_fundacao?: boolean
+          includes_laje?: boolean
+          includes_portas?: boolean
+          includes_portoes?: boolean
+          includes_reboco?: boolean
+          includes_revestimento?: boolean
+          last_extracao_id?: string | null
+          medidas_json?: Json | null
+          multiplicador?: number
+          nome?: string
+          orcamento_id?: string
+          ordem?: number
+          overrides_json?: Json | null
+          pdf_arquivo_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orcamento_pavimentos_orcamento_id_fkey"
+            columns: ["orcamento_id"]
+            isOneToOne: false
+            referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orcamento_pavimentos_pdf_arquivo_id_fkey"
+            columns: ["pdf_arquivo_id"]
+            isOneToOne: false
+            referencedRelation: "arquivos"
             referencedColumns: ["id"]
           },
         ]

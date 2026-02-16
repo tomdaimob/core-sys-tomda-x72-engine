@@ -58,6 +58,7 @@ import { ClienteForm, type ClienteFormData } from '@/components/orcamento/Client
 import { MargensForm } from '@/components/orcamento/MargensForm';
 import { TipoPropostaSelector } from '@/components/orcamento/TipoPropostaSelector';
 import { AdminPdfAttachments } from '@/components/orcamento/AdminPdfAttachments';
+import { PavimentosSection } from '@/components/orcamento/PavimentosSection';
 import { Link } from 'react-router-dom';
 import { exportarOrcamentoPDF } from '@/lib/pdf-export';
 import { exportarPropostaComercialPDF, TipoProposta } from '@/lib/pdf-proposta-comercial';
@@ -66,6 +67,7 @@ import { validateClienteData, formatDocument, onlyDigits } from '@/lib/document-
 import { useDiscountSystem } from '@/hooks/useDiscountSystem';
 import { calcularBaldrame, getBaldramePrecos } from '@/lib/baldrame-calculos';
 import { BaldrameInput } from '@/lib/baldrame-types';
+import { usePavimentos } from '@/hooks/usePavimentos';
 
 interface ExtractedData {
   area_total_m2: number;
@@ -166,6 +168,18 @@ export default function NovoOrcamento() {
     orcamentoIdFromUrl: orcamentoIdFromUrl || null,
     debounceMs: 1500,
   });
+
+  // Pavimentos (multi-floor) management
+  const {
+    pavimentos,
+    loading: loadingPavimentos,
+    isMultiPavimento,
+    addPavimento,
+    updatePavimento,
+    removePavimento,
+    duplicatePavimento,
+    extractMedidasForPavimento,
+  } = usePavimentos(orcamentoId);
 
   const handleDataExtracted = (data: ExtractedData) => {
     setExtractedData(data);
@@ -292,11 +306,19 @@ export default function NovoOrcamento() {
     projeto.areaTotal || radier.areaM2
   );
 
+  // Calculate multi-pavimento multiplier for total
+  const pavimentoMultiplier = isMultiPavimento
+    ? pavimentos.reduce((sum, p) => sum + p.multiplicador, 0)
+    : 1;
+
   // Add revestimento, baldrame and portas/portoes cost to consolidado - recalculate all derived values
   const custoRevest = resultadoRevestimento?.custoTotal || 0;
   const custoPortasPortoes = resultadoPortasPortoes?.custoTotal || 0;
   const custoBaldrame = resultadoBaldrame?.custo_total || 0;
-  const subtotalComExtras = consolidado.subtotal + custoRevest + custoPortasPortoes + custoBaldrame;
+  
+  // When multi-pavimento, multiply base costs by total floor count
+  const subtotalBase = consolidado.subtotal + custoRevest + custoPortasPortoes + custoBaldrame;
+  const subtotalComExtras = isMultiPavimento ? subtotalBase * pavimentoMultiplier : subtotalBase;
   const lucroComExtras = subtotalComExtras * (margens.lucroPercent / 100);
   const bdiComExtras = subtotalComExtras * (margens.bdiPercent / 100);
   const totalBase = subtotalComExtras + lucroComExtras + bdiComExtras;
@@ -315,6 +337,7 @@ export default function NovoOrcamento() {
     desconto: descontoComExtras,
     totalVenda: totalVendaComExtras,
     precoPorM2Global: totalVendaComExtras / areaTotal,
+    pavimentoMultiplier: isMultiPavimento ? pavimentoMultiplier : undefined,
   };
 
   // Save resultados whenever calculations change (debounced via the hook)
@@ -540,6 +563,19 @@ export default function NovoOrcamento() {
                 orcamentoId={orcamentoId || undefined}
                 isAdmin={isAdmin}
               />
+
+              {/* Pavimentos (Multi-floor) Section */}
+              {orcamentoId && (
+                <PavimentosSection
+                  pavimentos={pavimentos}
+                  onAdd={async (nome) => addPavimento({ nome })}
+                  onUpdate={updatePavimento}
+                  onRemove={removePavimento}
+                  onDuplicate={duplicatePavimento}
+                  onExtract={extractMedidasForPavimento}
+                  disabled={loadingPavimentos}
+                />
+              )}
 
               {/* Project fields */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

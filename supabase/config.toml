@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.extract-openings-doors-gates]
 verify_jwt = false
+
+[functions.extract-floor-measurements]
+verify_jwt = false

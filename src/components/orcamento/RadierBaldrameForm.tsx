@@ -33,6 +33,7 @@ interface RadierBaldrameFormProps {
   onSapataChange: (sapata: SapataInput) => void;
   resultadoSapata: SapataResultado | null;
   isAdmin?: boolean;
+  orcamentoId?: string;
 }
 
 export function RadierBaldrameForm({
@@ -49,6 +50,7 @@ export function RadierBaldrameForm({
   onSapataChange,
   resultadoSapata,
   isAdmin = false,
+  orcamentoId,
 }: RadierBaldrameFormProps) {
   const fundacaoTipo = baldrame.fundacao_tipo;
 
@@ -309,6 +311,7 @@ export function RadierBaldrameForm({
           catalogItems={catalogItems}
           isAdmin={isAdmin}
           resultado={resultadoSapata}
+          orcamentoId={orcamentoId}
         />
       )}
     </div>

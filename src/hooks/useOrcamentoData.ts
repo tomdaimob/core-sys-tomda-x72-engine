@@ -17,6 +17,7 @@ export interface LajeInput {
   espessuraM: number;
   concretoItemId: string;
   temSegundoAndar: boolean;
+  contadorLajes: number;
 }
 
 export interface RebocoInput {
@@ -186,6 +187,7 @@ export const DEFAULT_LAJE: LajeInput = {
   espessuraM: 0,
   concretoItemId: '',
   temSegundoAndar: false,
+  contadorLajes: 1,
 };
 
 export const DEFAULT_REBOCO: RebocoInput = {

@@ -181,11 +181,15 @@ export default function NovoOrcamento() {
     autoImport,
     setAutoImport,
     pavimentoTipo,
+    pendingConfirmation,
+    setPendingConfirmation,
     addPavimento,
     updatePavimento,
     removePavimento,
     duplicatePavimento,
     extractMedidasForPavimento,
+    confirmMedidas,
+    openManualEntry,
     copyFromTipo,
     calculateAllFloors,
   } = usePavimentos(orcamentoId);
@@ -592,14 +596,22 @@ export default function NovoOrcamento() {
                   autoImport={autoImport}
                   onAutoImportChange={setAutoImport}
                   pavimentoTipo={pavimentoTipo}
+                  pendingConfirmation={pendingConfirmation}
+                  onSetPendingConfirmation={setPendingConfirmation}
                   onAdd={async (nome, tipo) => addPavimento({ nome, tipo })}
                   onUpdate={updatePavimento}
                   onRemove={removePavimento}
                   onDuplicate={duplicatePavimento}
                   onExtract={extractMedidasForPavimento}
+                  onConfirmMedidas={async (id, medidas) => {
+                    const custoParedeM2 = resultadoParedesCalc.areaLiquidaTotal > 0
+                      ? resultadoParedesCalc.custoTotal / resultadoParedesCalc.areaLiquidaTotal
+                      : (precos.formaIcf18 / 0.5 + precos.concretoM3 * 0.18 + precos.maoObraParede);
+                    return confirmMedidas(id, medidas, custoParedeM2);
+                  }}
+                  onOpenManualEntry={openManualEntry}
                   onCopyFromTipo={copyFromTipo}
-                  onCalculateAll={() => {
-                    // Estimate wall cost per m² from current paredes calculation
+                  onCalculateAll={async () => {
                     const custoParedeM2 = resultadoParedesCalc.areaLiquidaTotal > 0
                       ? resultadoParedesCalc.custoTotal / resultadoParedesCalc.areaLiquidaTotal
                       : (precos.formaIcf18 / 0.5 + precos.concretoM3 * 0.18 + precos.maoObraParede);
@@ -695,6 +707,7 @@ export default function NovoOrcamento() {
               onSapataChange={setSapata}
               resultadoSapata={resultadoSapata}
               isAdmin={isAdmin}
+              orcamentoId={orcamentoId || undefined}
             />
           )}
 

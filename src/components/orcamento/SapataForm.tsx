@@ -1,16 +1,18 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { AlertTriangle, Info, Plus, Trash2, Copy, Anchor } from 'lucide-react';
+import { AlertTriangle, Info, Plus, Trash2, Copy, Anchor, Upload, Loader2, Sparkles } from 'lucide-react';
 import { useSapataConfiguracoes } from '@/hooks/useSapataConfiguracoes';
 import { SapataInput, SapataTipo, SapataResultado, DEFAULT_SAPATA_TIPO } from '@/lib/sapata-types';
 import { calcularSapata, getSapataPrecos } from '@/lib/sapata-calculos';
 import { formatCurrency, formatNumber } from '@/lib/orcamento-calculos';
 import { FckTipo } from '@/lib/baldrame-types';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface SapataFormProps {
   input: SapataInput;
@@ -18,6 +20,7 @@ interface SapataFormProps {
   catalogItems: Array<{ nome: string; preco: number; categoria: string }>;
   isAdmin?: boolean;
   resultado: SapataResultado | null;
+  orcamentoId?: string;
 }
 
 export function SapataForm({
@@ -26,8 +29,12 @@ export function SapataForm({
   catalogItems,
   isAdmin = false,
   resultado,
+  orcamentoId,
 }: SapataFormProps) {
+  const { toast } = useToast();
   const { configs, getDefaultConfig } = useSapataConfiguracoes();
+  const [extracting, setExtracting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Auto-apply default config on first load
   useEffect(() => {
@@ -91,6 +98,43 @@ export function SapataForm({
 
   const totalSapatas = input.tipos.reduce((sum, t) => sum + t.quantidade, 0);
 
+  const handleStructuralUpload = async (file: File) => {
+    if (!orcamentoId) { toast({ title: 'Salve o orçamento primeiro', variant: 'destructive' }); return; }
+    setExtracting(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Não autenticado');
+      const ts = Date.now();
+      const rnd = Math.random().toString(36).substring(2, 8);
+      const storagePath = `${orcamentoId}/${ts}_${rnd}_fundacao.pdf`;
+      const { error: upErr } = await supabase.storage.from('projetos').upload(storagePath, file, { contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: arq, error: arqErr } = await supabase.from('arquivos').insert({
+        orcamento_id: orcamentoId, tipo: 'FUNDACAO_PDF', storage_path: storagePath,
+        nome: file.name, mime_type: file.type, uploaded_by: user.id, tamanho_bytes: file.size,
+      }).select().single();
+      if (arqErr) { await supabase.storage.from('projetos').remove([storagePath]); throw arqErr; }
+      const buffer = await file.arrayBuffer();
+      const base64 = btoa(new Uint8Array(buffer).reduce((d, b) => d + String.fromCharCode(b), ''));
+      const { data, error } = await supabase.functions.invoke('extract-sapata-structural', {
+        body: { pdfBase64: base64, fileName: file.name, orcamentoId, arquivoId: arq.id },
+      });
+      if (error) throw error;
+      if (data?.success && data?.data?.tipos?.length > 0) {
+        const newTipos = data.data.tipos.map((t: any) => ({
+          id: crypto.randomUUID(), nome: t.nome, quantidade: t.quantidade,
+          larguraM: t.largura_m, comprimentoM: t.comprimento_m, alturaM: t.altura_m,
+        }));
+        onInputChange({ ...input, tipos: newTipos, data_source: 'ARQ_NOVO' as any, arquivo_id: arq.id, last_extracao_id: data.extracaoId });
+        toast({ title: 'Sapatas extraídas!', description: `${newTipos.length} tipo(s) encontrado(s). Confiança: ${data.data.confianca}%` });
+      } else {
+        toast({ title: 'Extração com baixa confiança', description: data?.data?.observacoes || 'Preencha manualmente.', variant: 'destructive' });
+      }
+    } catch (e: any) {
+      toast({ title: 'Erro na extração', description: e.message, variant: 'destructive' });
+    } finally { setExtracting(false); }
+  };
+
   return (
     <Card className="border-purple-200 bg-purple-50/30">
       <CardHeader className="pb-3">
@@ -110,7 +154,15 @@ export function SapataForm({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Resistência do concreto */}
+        {/* Structural upload */}
+        <div className="flex flex-wrap items-center gap-2 p-3 bg-muted/40 rounded-lg border">
+          <input type="file" accept=".pdf" className="hidden" ref={fileInputRef}
+            onChange={e => { const f = e.target.files?.[0]; if (f) handleStructuralUpload(f); e.target.value = ''; }} />
+          <Button variant="outline" size="sm" className="gap-1" onClick={() => fileInputRef.current?.click()} disabled={extracting}>
+            {extracting ? <><Loader2 className="w-4 h-4 animate-spin" />Extraindo...</> : <><Upload className="w-4 h-4" />Importar Projeto Estrutural</>}
+          </Button>
+          <span className="text-xs text-muted-foreground">PDF com detalhamento de sapatas/pilares</span>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="sapata-fck">Resistência do Concreto</Label>

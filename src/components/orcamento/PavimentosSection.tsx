@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Plus, Copy, Trash2, Upload, Loader2, CheckCircle2, XCircle, Clock, Building2, ChevronDown, ChevronUp, Calculator, ArrowDownToLine, Star } from 'lucide-react';
+import { Plus, Copy, Trash2, Upload, Loader2, CheckCircle2, XCircle, Clock, Building2, ChevronDown, ChevronUp, Calculator, ArrowDownToLine, Star, Pencil, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,26 +18,32 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Pavimento } from '@/hooks/usePavimentos';
+import { ConfirmarMedidasModal, MedidasConfirmadas } from './ConfirmarMedidasModal';
 
 interface PavimentosSectionProps {
   pavimentos: Pavimento[];
   autoImport: boolean;
   onAutoImportChange: (v: boolean) => void;
   pavimentoTipo: Pavimento | undefined;
+  pendingConfirmation: string | null;
+  onSetPendingConfirmation: (id: string | null) => void;
   onAdd: (nome: string, tipo?: 'NORMAL' | 'TIPO') => Promise<any>;
   onUpdate: (id: string, updates: Partial<Pavimento>) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
   onDuplicate: (id: string) => Promise<any>;
   onExtract: (id: string, file: File) => Promise<boolean>;
+  onConfirmMedidas: (id: string, medidas: MedidasConfirmadas) => Promise<any>;
+  onOpenManualEntry: (id: string) => void;
   onCopyFromTipo: (id: string) => Promise<boolean>;
-  onCalculateAll: () => { results: any[]; totalGeralPredio: number; pendentes: string[] };
+  onCalculateAll: () => Promise<{ results: any[]; totalGeralPredio: number; pendentes: string[] }>;
   disabled?: boolean;
 }
 
 const STATUS_CONFIG = {
   PENDENTE: { label: 'Pendente', icon: Clock, variant: 'secondary' as const, color: '' },
   PROCESSANDO: { label: 'Processando...', icon: Loader2, variant: 'default' as const, color: '' },
-  SUCESSO: { label: 'Sucesso', icon: CheckCircle2, variant: 'default' as const, color: 'bg-green-500/10 text-green-700 border-green-500/20' },
+  AGUARDANDO_CONFIRMACAO: { label: 'Aguardando confirmação', icon: Eye, variant: 'default' as const, color: 'bg-amber-500/10 text-amber-700 border-amber-500/20' },
+  SUCESSO: { label: 'Confirmado', icon: CheckCircle2, variant: 'default' as const, color: 'bg-green-500/10 text-green-700 border-green-500/20' },
   ERRO: { label: 'Erro', icon: XCircle, variant: 'destructive' as const, color: '' },
 };
 
@@ -49,11 +55,15 @@ export function PavimentosSection({
   autoImport,
   onAutoImportChange,
   pavimentoTipo,
+  pendingConfirmation,
+  onSetPendingConfirmation,
   onAdd,
   onUpdate,
   onRemove,
   onDuplicate,
   onExtract,
+  onConfirmMedidas,
+  onOpenManualEntry,
   onCopyFromTipo,
   onCalculateAll,
   disabled,
@@ -65,7 +75,10 @@ export function PavimentosSection({
   const [buildingTotal, setBuildingTotal] = useState(0);
   const [showPendingAlert, setShowPendingAlert] = useState(false);
   const [pendingNames, setPendingNames] = useState<string[]>([]);
+  const [calculatingAll, setCalculatingAll] = useState(false);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  const pendingPav = pendingConfirmation ? pavimentos.find(p => p.id === pendingConfirmation) : null;
 
   const handleAdd = async (tipo: 'NORMAL' | 'TIPO' = 'NORMAL') => {
     const defaultName = tipo === 'TIPO' 
@@ -89,19 +102,19 @@ export function PavimentosSection({
     await onExtract(pavId, file);
   };
 
-  const handleCalculateAll = () => {
-    const { results, totalGeralPredio, pendentes } = onCalculateAll();
-    if (pendentes.length > 0) {
-      setPendingNames(pendentes);
-      setShowPendingAlert(true);
+  const handleCalculateAll = async () => {
+    setCalculatingAll(true);
+    try {
+      const { results, totalGeralPredio, pendentes } = await onCalculateAll();
+      if (pendentes.length > 0) {
+        setPendingNames(pendentes);
+        setShowPendingAlert(true);
+      }
+      setBuildingResults(results);
+      setBuildingTotal(totalGeralPredio);
+    } finally {
+      setCalculatingAll(false);
     }
-    setBuildingResults(results);
-    setBuildingTotal(totalGeralPredio);
-  };
-
-  const handleConfirmCalculate = () => {
-    setShowPendingAlert(false);
-    // Already calculated, just keep the results
   };
 
   return (
@@ -144,8 +157,8 @@ export function PavimentosSection({
             <span className="text-sm">Auto-importar ao enviar</span>
           </div>
           {pavimentos.length > 0 && (
-            <Button onClick={handleCalculateAll} disabled={disabled} size="sm" className="gap-1">
-              <Calculator className="w-4 h-4" />
+            <Button onClick={handleCalculateAll} disabled={disabled || calculatingAll} size="sm" className="gap-1">
+              {calculatingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calculator className="w-4 h-4" />}
               Calcular tudo (Prédio)
             </Button>
           )}
@@ -162,9 +175,9 @@ export function PavimentosSection({
           const statusCfg = STATUS_CONFIG[pav.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.PENDENTE;
           const StatusIcon = statusCfg.icon;
           const isExpanded = expandedIds.has(pav.id);
-          const isTipo = (pav as any).tipo === 'TIPO';
+          const isTipo = pav.tipo === 'TIPO';
           const canCopyFromTipo = !isTipo && pavimentoTipo && (pav.status === 'ERRO' || pav.status === 'PENDENTE');
-          const medidas = pav.medidas_json;
+          const medidas = pav.medidas_confirmadas || pav.medidas_json;
           const resultado = pav.resultado_paredes;
 
           return (
@@ -178,13 +191,10 @@ export function PavimentosSection({
                       <span className="font-medium">{pav.nome}</span>
                       {isTipo && (
                         <Badge className="text-xs bg-primary/20 text-primary border-primary/30">
-                          <Star className="w-3 h-3 mr-1" />
-                          TIPO
+                          <Star className="w-3 h-3 mr-1" />TIPO
                         </Badge>
                       )}
-                      {pav.multiplicador > 1 && (
-                        <Badge variant="outline" className="text-xs">×{pav.multiplicador}</Badge>
-                      )}
+                      {pav.multiplicador > 1 && <Badge variant="outline" className="text-xs">×{pav.multiplicador}</Badge>}
                       <Badge variant={statusCfg.variant} className={`text-xs gap-1 ${statusCfg.color}`}>
                         <StatusIcon className={`w-3 h-3 ${pav.status === 'PROCESSANDO' ? 'animate-spin' : ''}`} />
                         {statusCfg.label}
@@ -207,19 +217,12 @@ export function PavimentosSection({
                     <div className="grid grid-cols-2 gap-3 mt-3">
                       <div>
                         <Label className="text-xs">Nome</Label>
-                        <Input
-                          value={pav.nome}
-                          onChange={e => onUpdate(pav.id, { nome: e.target.value })}
-                          disabled={disabled}
-                        />
+                        <Input value={pav.nome} onChange={e => onUpdate(pav.id, { nome: e.target.value })} disabled={disabled} />
                       </div>
                       <div>
                         <Label className="text-xs">Multiplicador (repetições)</Label>
                         <Input
-                          type="number"
-                          min={1}
-                          max={50}
-                          value={pav.multiplicador}
+                          type="number" min={1} max={50} value={pav.multiplicador}
                           onChange={e => onUpdate(pav.id, { multiplicador: Math.max(1, Math.min(50, parseInt(e.target.value) || 1)) })}
                           disabled={disabled}
                         />
@@ -256,7 +259,7 @@ export function PavimentosSection({
                     <div className="flex flex-wrap items-center gap-2">
                       <input
                         type="file"
-                        accept=".pdf"
+                        accept=".pdf,.png,.jpg,.jpeg"
                         className="hidden"
                         ref={el => { fileInputRefs.current[pav.id] = el; }}
                         onChange={e => {
@@ -266,20 +269,37 @@ export function PavimentosSection({
                         }}
                       />
                       <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1"
+                        variant="outline" size="sm" className="gap-1"
                         onClick={() => fileInputRefs.current[pav.id]?.click()}
                         disabled={disabled || pav.status === 'PROCESSANDO'}
                       >
                         <Upload className="w-4 h-4" />
-                        {pav.pdf_arquivo_id ? 'Reimportar PDF' : 'Enviar PDF'}
+                        {pav.pdf_arquivo_id ? 'Reimportar PDF' : 'Enviar PDF/Imagem'}
                       </Button>
+
+                      {pav.status === 'AGUARDANDO_CONFIRMACAO' && (
+                        <Button
+                          variant="outline" size="sm" className="gap-1 border-amber-500/40 text-amber-700 hover:bg-amber-50"
+                          onClick={() => onSetPendingConfirmation(pav.id)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                          Confirmar Medidas
+                        </Button>
+                      )}
+
+                      {(pav.status === 'ERRO' || pav.status === 'PENDENTE') && (
+                        <Button
+                          variant="outline" size="sm" className="gap-1"
+                          onClick={() => onOpenManualEntry(pav.id)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                          Preencher manual
+                        </Button>
+                      )}
 
                       {canCopyFromTipo && (
                         <Button
-                          variant="outline"
-                          size="sm"
+                          variant="outline" size="sm"
                           className="gap-1 border-primary/40 text-primary hover:bg-primary/10"
                           onClick={() => onCopyFromTipo(pav.id)}
                           disabled={disabled}
@@ -293,7 +313,7 @@ export function PavimentosSection({
                     {/* Measurement summary */}
                     {medidas && pav.status === 'SUCESSO' && (
                       <div className="bg-muted/40 rounded-lg p-3 space-y-2">
-                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Medidas Extraídas</h4>
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Medidas Confirmadas</h4>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
                           <div>
                             <span className="text-muted-foreground">Perímetro ext.:</span>{' '}
@@ -304,20 +324,14 @@ export function PavimentosSection({
                             <span className="font-medium">{formatNumber(medidas.paredes_internas_m || 0)} m</span>
                           </div>
                           <div>
-                            <span className="text-muted-foreground">Pé-direito:</span>{' '}
-                            <span className="font-medium">{formatNumber(medidas.pe_direito_m || medidas.altura_paredes_m || 2.7)} m</span>
+                            <span className="text-muted-foreground">Altura:</span>{' '}
+                            <span className="font-medium">{formatNumber(medidas.altura_paredes_m || medidas.pe_direito_m || 2.7)} m</span>
                           </div>
                           <div>
                             <span className="text-muted-foreground">Aberturas:</span>{' '}
                             <span className="font-medium">{formatNumber(medidas.aberturas_m2 || 0)} m²</span>
                           </div>
                         </div>
-                        {medidas.confianca != null && (
-                          <div className="text-xs text-muted-foreground">
-                            Confiança: {medidas.confianca}%
-                            {medidas.observacoes && ` — ${medidas.observacoes}`}
-                          </div>
-                        )}
                         {resultado && (
                           <div className="pt-2 border-t border-muted-foreground/10">
                             <div className="flex justify-between text-sm">
@@ -345,11 +359,9 @@ export function PavimentosSection({
                         <Copy className="w-4 h-4" />Duplicar
                       </Button>
                       <Button
-                        variant="ghost"
-                        size="sm"
+                        variant="ghost" size="sm"
                         className="gap-1 text-destructive hover:text-destructive"
-                        onClick={() => setDeleteId(pav.id)}
-                        disabled={disabled}
+                        onClick={() => setDeleteId(pav.id)} disabled={disabled}
                       >
                         <Trash2 className="w-4 h-4" />Remover
                       </Button>
@@ -375,6 +387,7 @@ export function PavimentosSection({
                     <th className="pb-2">Pavimento</th>
                     <th className="pb-2">Tipo</th>
                     <th className="pb-2 text-center">Mult</th>
+                    <th className="pb-2 text-right">Área Paredes</th>
                     <th className="pb-2 text-right">Total Unit.</th>
                     <th className="pb-2 text-right">Total Final</th>
                   </tr>
@@ -386,11 +399,12 @@ export function PavimentosSection({
                       <td className="py-2">
                         {r.tipo === 'TIPO' ? (
                           <Badge className="text-xs bg-primary/20 text-primary border-primary/30">TIPO</Badge>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">Normal</span>
-                        )}
+                        ) : <span className="text-muted-foreground text-xs">Normal</span>}
                       </td>
                       <td className="py-2 text-center">{r.multiplicador}×</td>
+                      <td className="py-2 text-right">
+                        {r.paredes ? `${formatNumber(r.paredes.area_liquida_m2)} m²` : '—'}
+                      </td>
                       <td className="py-2 text-right">
                         {r.status === 'OK' ? formatCurrency(r.total_unitario) : (
                           <span className="text-destructive text-xs">{r.status}</span>
@@ -404,13 +418,27 @@ export function PavimentosSection({
                 </tbody>
                 <tfoot>
                   <tr className="font-bold text-primary">
-                    <td colSpan={4} className="pt-3 text-right">TOTAL PRÉDIO:</td>
+                    <td colSpan={5} className="pt-3 text-right">TOTAL PRÉDIO:</td>
                     <td className="pt-3 text-right">{formatCurrency(buildingTotal)}</td>
                   </tr>
                 </tfoot>
               </table>
             </div>
           </div>
+        )}
+
+        {/* Confirmation Modal */}
+        {pendingPav && (
+          <ConfirmarMedidasModal
+            open={!!pendingConfirmation}
+            onOpenChange={(open) => { if (!open) onSetPendingConfirmation(null); }}
+            pavimentoNome={pendingPav.nome}
+            medidasExtraidas={pendingPav.medidas_extraidas || pendingPav.medidas_json}
+            confianca={pendingPav.medidas_extraidas?.confianca || pendingPav.medidas_json?.confianca}
+            observacoes={pendingPav.medidas_extraidas?.observacoes || pendingPav.medidas_json?.observacoes}
+            onConfirm={(medidas) => onConfirmMedidas(pendingPav.id, medidas)}
+            onCancel={() => onSetPendingConfirmation(null)}
+          />
         )}
 
         {/* Delete confirmation */}
@@ -437,14 +465,13 @@ export function PavimentosSection({
             <AlertDialogHeader>
               <AlertDialogTitle>Pavimentos sem medidas</AlertDialogTitle>
               <AlertDialogDescription>
-                Os seguintes pavimentos não têm medidas e serão ignorados no cálculo:{' '}
+                Os seguintes pavimentos não têm medidas confirmadas e serão ignorados:{' '}
                 <strong>{pendingNames.join(', ')}</strong>.
-                Deseja calcular apenas os válidos?
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleConfirmCalculate}>Calcular válidos</AlertDialogAction>
+              <AlertDialogAction onClick={() => setShowPendingAlert(false)}>Calcular válidos</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

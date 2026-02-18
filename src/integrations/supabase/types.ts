@@ -354,6 +354,8 @@ export type Database = {
           includes_reboco: boolean
           includes_revestimento: boolean
           last_extracao_id: string | null
+          medidas_confirmadas: Json | null
+          medidas_extraidas: Json | null
           medidas_json: Json | null
           multiplicador: number
           nome: string
@@ -376,6 +378,8 @@ export type Database = {
           includes_reboco?: boolean
           includes_revestimento?: boolean
           last_extracao_id?: string | null
+          medidas_confirmadas?: Json | null
+          medidas_extraidas?: Json | null
           medidas_json?: Json | null
           multiplicador?: number
           nome: string
@@ -398,6 +402,8 @@ export type Database = {
           includes_reboco?: boolean
           includes_revestimento?: boolean
           last_extracao_id?: string | null
+          medidas_confirmadas?: Json | null
+          medidas_extraidas?: Json | null
           medidas_json?: Json | null
           multiplicador?: number
           nome?: string
@@ -431,14 +437,21 @@ export type Database = {
           acabamentos: Json | null
           consolidado: Json | null
           created_at: string
+          fundacao_total: number | null
           id: string
           laje: Json | null
+          laje_total_area_m2: number | null
+          laje_total_volume_m3: number | null
           orcamento_id: string
           paredes: Json | null
+          paredes_total_area_m2: number | null
           radier: Json | null
           reboco: Json | null
+          reboco_total_area_externo_m2: number | null
+          reboco_total_area_interno_m2: number | null
           resultados_pavimentos_json: Json | null
           revestimento: Json | null
+          revestimento_total_area_m2: number | null
           total_geral_predio: number | null
           updated_at: string
         }
@@ -446,14 +459,21 @@ export type Database = {
           acabamentos?: Json | null
           consolidado?: Json | null
           created_at?: string
+          fundacao_total?: number | null
           id?: string
           laje?: Json | null
+          laje_total_area_m2?: number | null
+          laje_total_volume_m3?: number | null
           orcamento_id: string
           paredes?: Json | null
+          paredes_total_area_m2?: number | null
           radier?: Json | null
           reboco?: Json | null
+          reboco_total_area_externo_m2?: number | null
+          reboco_total_area_interno_m2?: number | null
           resultados_pavimentos_json?: Json | null
           revestimento?: Json | null
+          revestimento_total_area_m2?: number | null
           total_geral_predio?: number | null
           updated_at?: string
         }
@@ -461,14 +481,21 @@ export type Database = {
           acabamentos?: Json | null
           consolidado?: Json | null
           created_at?: string
+          fundacao_total?: number | null
           id?: string
           laje?: Json | null
+          laje_total_area_m2?: number | null
+          laje_total_volume_m3?: number | null
           orcamento_id?: string
           paredes?: Json | null
+          paredes_total_area_m2?: number | null
           radier?: Json | null
           reboco?: Json | null
+          reboco_total_area_externo_m2?: number | null
+          reboco_total_area_interno_m2?: number | null
           resultados_pavimentos_json?: Json | null
           revestimento?: Json | null
+          revestimento_total_area_m2?: number | null
           total_geral_predio?: number | null
           updated_at?: string
         }

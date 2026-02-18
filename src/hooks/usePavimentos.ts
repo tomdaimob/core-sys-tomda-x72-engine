@@ -1,6 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { MedidasConfirmadas } from '@/components/orcamento/ConfirmarMedidasModal';
+
+export type PavimentoStatus = 'PENDENTE' | 'PROCESSANDO' | 'AGUARDANDO_CONFIRMACAO' | 'SUCESSO' | 'ERRO';
 
 export interface Pavimento {
   id: string;
@@ -12,8 +15,10 @@ export interface Pavimento {
   pdf_arquivo_id: string | null;
   imagens_group_id: string | null;
   last_extracao_id: string | null;
-  status: 'PENDENTE' | 'PROCESSANDO' | 'SUCESSO' | 'ERRO';
+  status: PavimentoStatus;
   medidas_json: any | null;
+  medidas_extraidas: any | null;
+  medidas_confirmadas: MedidasConfirmadas | null;
   overrides_json: any | null;
   includes_fundacao: boolean;
   includes_laje: boolean;
@@ -25,7 +30,10 @@ export interface Pavimento {
   updated_at: string;
   // Client-side calculated results
   resultado_paredes?: {
+    area_ext_m2: number;
+    area_int_m2: number;
     area_liquida_m2: number;
+    area_liquida_final_m2: number;
     custo_paredes: number;
   } | null;
 }
@@ -42,6 +50,8 @@ export function usePavimentos(orcamentoId: string | null | undefined) {
   const [pavimentos, setPavimentos] = useState<Pavimento[]>([]);
   const [loading, setLoading] = useState(false);
   const [autoImport, setAutoImport] = useState(true);
+  // Track which pavimento needs confirmation
+  const [pendingConfirmation, setPendingConfirmation] = useState<string | null>(null);
 
   const fetchPavimentos = useCallback(async () => {
     if (!orcamentoId) return;
@@ -162,13 +172,14 @@ export function usePavimentos(orcamentoId: string | null | undefined) {
     }
   }, [orcamentoId, pavimentos, toast]);
 
+  // Upload + extract: returns extracted data and sets status to AGUARDANDO_CONFIRMACAO
   const extractMedidasForPavimento = useCallback(async (
     pavimentoId: string, 
     pdfFile: File
   ) => {
     if (!orcamentoId) return false;
 
-    await updatePavimento(pavimentoId, { status: 'PROCESSANDO' } as any);
+    await updatePavimento(pavimentoId, { status: 'PROCESSANDO', medidas_extraidas: null, medidas_confirmadas: null } as any);
 
     try {
       const timestamp = Date.now();
@@ -180,17 +191,17 @@ export function usePavimentos(orcamentoId: string | null | undefined) {
 
       const { error: uploadError } = await supabase.storage
         .from('projetos')
-        .upload(storagePath, pdfFile, { contentType: 'application/pdf', upsert: false });
+        .upload(storagePath, pdfFile, { contentType: pdfFile.type, upsert: false });
       if (uploadError) throw uploadError;
 
       const { data: arquivo, error: arqError } = await supabase
         .from('arquivos')
         .insert({
           orcamento_id: orcamentoId,
-          tipo: 'PROJETO_PDF',
+          tipo: 'PAVIMENTO_PDF',
           storage_path: storagePath,
           nome: pdfFile.name,
-          mime_type: 'application/pdf',
+          mime_type: pdfFile.type,
           uploaded_by: user.id,
           tamanho_bytes: pdfFile.size,
         })
@@ -220,12 +231,17 @@ export function usePavimentos(orcamentoId: string | null | undefined) {
       if (error) throw error;
 
       if (data?.success && data?.data) {
+        // Store extracted data and set to AGUARDANDO_CONFIRMACAO
         await updatePavimento(pavimentoId, {
-          status: 'SUCESSO',
+          status: 'AGUARDANDO_CONFIRMACAO',
+          medidas_extraidas: data.data,
           medidas_json: data.data,
           last_extracao_id: data.extracaoId || null,
         } as any);
-        toast({ title: 'Medidas extraídas', description: `Confiança: ${data.data.confianca}%` });
+        
+        // Trigger confirmation modal
+        setPendingConfirmation(pavimentoId);
+        toast({ title: 'Medidas extraídas!', description: `Confirme os valores do pavimento.` });
         return true;
       } else {
         throw new Error(data?.error || 'Falha na extração');
@@ -238,9 +254,70 @@ export function usePavimentos(orcamentoId: string | null | undefined) {
     }
   }, [orcamentoId, updatePavimento, toast]);
 
+  // Confirm measurements for a pavimento — saves to DB and calculates walls
+  const confirmMedidas = useCallback(async (
+    pavimentoId: string, 
+    medidas: MedidasConfirmadas,
+    custoParedeM2: number
+  ) => {
+    try {
+      // Save confirmed measurements to DB
+      const { error } = await supabase
+        .from('orcamento_pavimentos')
+        .update({
+          medidas_confirmadas: medidas as any,
+          medidas_json: medidas as any,
+          status: 'SUCESSO',
+        } as any)
+        .eq('id', pavimentoId);
+
+      if (error) throw error;
+
+      // Calculate walls for this pavimento
+      const pav = pavimentos.find(p => p.id === pavimentoId);
+      const mult = pav?.multiplicador || 1;
+      const altura = medidas.altura_paredes_m || 2.70;
+      const areaExt = medidas.perimetro_externo_m * altura;
+      const areaInt = medidas.paredes_internas_m * altura;
+      const areaLiquida = Math.max(areaExt + areaInt - medidas.aberturas_m2, 0);
+      const areaLiquidaFinal = areaLiquida * mult;
+
+      const resultado = {
+        area_ext_m2: areaExt,
+        area_int_m2: areaInt,
+        area_liquida_m2: areaLiquida,
+        area_liquida_final_m2: areaLiquidaFinal,
+        custo_paredes: areaLiquida * custoParedeM2,
+      };
+
+      // Update local state
+      setPavimentos(prev => prev.map(p => 
+        p.id === pavimentoId ? { 
+          ...p, 
+          medidas_confirmadas: medidas,
+          medidas_json: medidas,
+          status: 'SUCESSO' as const, 
+          resultado_paredes: resultado,
+        } : p
+      ));
+
+      setPendingConfirmation(null);
+      toast({ title: 'Medidas confirmadas!', description: 'Paredes calculadas com sucesso.' });
+      return resultado;
+    } catch (error: any) {
+      toast({ title: 'Erro ao confirmar medidas', description: error.message, variant: 'destructive' });
+      return null;
+    }
+  }, [pavimentos, toast]);
+
+  // Open manual entry modal (for ERRO or PENDENTE pavimentos)
+  const openManualEntry = useCallback((pavimentoId: string) => {
+    setPendingConfirmation(pavimentoId);
+  }, []);
+
   // Copy measurements from "Pavimento Tipo" to a target pavimento
   const copyFromTipo = useCallback(async (targetId: string) => {
-    const tipoPav = pavimentos.find(p => p.tipo === 'TIPO' && p.status === 'SUCESSO' && p.medidas_json);
+    const tipoPav = pavimentos.find(p => p.tipo === 'TIPO' && p.status === 'SUCESSO' && p.medidas_confirmadas);
     if (!tipoPav) {
       toast({ title: 'Nenhum Pavimento Tipo com medidas disponível', variant: 'destructive' });
       return false;
@@ -250,7 +327,9 @@ export function usePavimentos(orcamentoId: string | null | undefined) {
       const { error } = await supabase
         .from('orcamento_pavimentos')
         .update({
-          medidas_json: tipoPav.medidas_json,
+          medidas_json: tipoPav.medidas_confirmadas,
+          medidas_confirmadas: tipoPav.medidas_confirmadas,
+          medidas_extraidas: tipoPav.medidas_extraidas,
           status: 'SUCESSO',
           last_extracao_id: tipoPav.last_extracao_id,
         } as any)
@@ -261,7 +340,9 @@ export function usePavimentos(orcamentoId: string | null | undefined) {
       setPavimentos(prev => prev.map(p => 
         p.id === targetId ? { 
           ...p, 
-          medidas_json: tipoPav.medidas_json, 
+          medidas_json: tipoPav.medidas_confirmadas, 
+          medidas_confirmadas: tipoPav.medidas_confirmadas,
+          medidas_extraidas: tipoPav.medidas_extraidas,
           status: 'SUCESSO' as const, 
           last_extracao_id: tipoPav.last_extracao_id 
         } : p
@@ -277,46 +358,65 @@ export function usePavimentos(orcamentoId: string | null | undefined) {
 
   // Calculate wall cost for a single floor
   const calculateWallsForFloor = useCallback((pavimento: Pavimento, custoParedeM2: number) => {
-    if (!pavimento.medidas_json) return null;
-    const m = pavimento.medidas_json;
-    const altura = m.pe_direito_m || m.altura_paredes_m || 2.70;
+    const m = pavimento.medidas_confirmadas || pavimento.medidas_json;
+    if (!m) return null;
+    const altura = m.altura_paredes_m || m.pe_direito_m || 2.70;
     const areaExt = (m.perimetro_externo_m || 0) * altura;
     const areaInt = (m.paredes_internas_m || 0) * altura;
     const areaLiquida = Math.max(areaExt + areaInt - (m.aberturas_m2 || 0), 0);
+    const areaLiquidaFinal = areaLiquida * pavimento.multiplicador;
     const custoParedes = areaLiquida * custoParedeM2;
-    return { area_liquida_m2: areaLiquida, custo_paredes: custoParedes };
+    return { 
+      area_ext_m2: areaExt,
+      area_int_m2: areaInt,
+      area_liquida_m2: areaLiquida, 
+      area_liquida_final_m2: areaLiquidaFinal,
+      custo_paredes: custoParedes,
+    };
   }, []);
 
-  // Calculate all floors and return building total
-  const calculateAllFloors = useCallback((custoParedeM2: number) => {
+  // Calculate all floors and return building total + propagation data
+  const calculateAllFloors = useCallback(async (custoParedeM2: number) => {
+    // Refetch from DB first
+    let currentPavimentos = pavimentos;
+    if (orcamentoId) {
+      const { data } = await supabase
+        .from('orcamento_pavimentos')
+        .select('*')
+        .eq('orcamento_id', orcamentoId)
+        .order('ordem', { ascending: true });
+      if (data) {
+        currentPavimentos = data as unknown as Pavimento[];
+        setPavimentos(currentPavimentos);
+      }
+    }
+
     const results: Array<{
       pavimento_id: string;
       nome: string;
       tipo: string;
       multiplicador: number;
       medidas: any;
-      paredes: { area_liquida_m2: number; custo_paredes: number } | null;
+      paredes: { area_ext_m2: number; area_int_m2: number; area_liquida_m2: number; area_liquida_final_m2: number; custo_paredes: number } | null;
       total_unitario: number;
       total_final: number;
       status: string;
     }> = [];
 
     let totalGeralPredio = 0;
+    let paredes_total_area = 0;
+    let reboco_total_int = 0;
+    let reboco_total_ext = 0;
     const pendentes: string[] = [];
 
-    for (const pav of pavimentos) {
-      if (pav.status !== 'SUCESSO' || !pav.medidas_json) {
+    for (const pav of currentPavimentos) {
+      const m = pav.medidas_confirmadas || pav.medidas_json;
+      if (pav.status !== 'SUCESSO' || !m) {
         pendentes.push(pav.nome);
         results.push({
-          pavimento_id: pav.id,
-          nome: pav.nome,
-          tipo: pav.tipo || 'NORMAL',
-          multiplicador: pav.multiplicador,
-          medidas: null,
-          paredes: null,
-          total_unitario: 0,
-          total_final: 0,
-          status: pav.status,
+          pavimento_id: pav.id, nome: pav.nome, tipo: pav.tipo || 'NORMAL',
+          multiplicador: pav.multiplicador, medidas: null, paredes: null,
+          total_unitario: 0, total_final: 0, status: pav.status,
         });
         continue;
       }
@@ -326,35 +426,50 @@ export function usePavimentos(orcamentoId: string | null | undefined) {
       const totalFinal = totalUnit * pav.multiplicador;
       totalGeralPredio += totalFinal;
 
+      if (paredesResult) {
+        paredes_total_area += paredesResult.area_liquida_final_m2;
+        reboco_total_int += paredesResult.area_int_m2 * pav.multiplicador;
+        reboco_total_ext += paredesResult.area_ext_m2 * pav.multiplicador;
+      }
+
       results.push({
-        pavimento_id: pav.id,
-        nome: pav.nome,
-        tipo: pav.tipo || 'NORMAL',
-        multiplicador: pav.multiplicador,
-        medidas: pav.medidas_json,
-        paredes: paredesResult,
-        total_unitario: totalUnit,
-        total_final: totalFinal,
-        status: 'OK',
+        pavimento_id: pav.id, nome: pav.nome, tipo: pav.tipo || 'NORMAL',
+        multiplicador: pav.multiplicador, medidas: m, paredes: paredesResult,
+        total_unitario: totalUnit, total_final: totalFinal, status: 'OK',
       });
     }
 
     // Update local state with results
     setPavimentos(prev => prev.map(p => {
       const r = results.find(x => x.pavimento_id === p.id);
-      if (r?.paredes) {
-        return { ...p, resultado_paredes: r.paredes };
-      }
+      if (r?.paredes) return { ...p, resultado_paredes: r.paredes };
       return p;
     }));
 
-    return { results, totalGeralPredio, pendentes };
-  }, [pavimentos, calculateWallsForFloor]);
+    // Save propagation data to orcamento_resultados
+    if (orcamentoId) {
+      await supabase
+        .from('orcamento_resultados')
+        .upsert({
+          orcamento_id: orcamentoId,
+          resultados_pavimentos_json: results as any,
+          total_geral_predio: totalGeralPredio,
+          paredes_total_area_m2: paredes_total_area,
+          reboco_total_area_interno_m2: reboco_total_int,
+          reboco_total_area_externo_m2: reboco_total_ext,
+        } as any, { onConflict: 'orcamento_id' });
+    }
+
+    return { results, totalGeralPredio, pendentes, paredes_total_area, reboco_total_int, reboco_total_ext };
+  }, [orcamentoId, pavimentos, calculateWallsForFloor]);
 
   const isMultiPavimento = pavimentos.length >= 2;
-
-  // Get the Tipo pavimento (if exists and has success)
   const pavimentoTipo = pavimentos.find(p => p.tipo === 'TIPO' && p.status === 'SUCESSO');
+
+  // Get pavimento waiting for confirmation
+  const pavimentoPendingConfirmation = pendingConfirmation 
+    ? pavimentos.find(p => p.id === pendingConfirmation) 
+    : null;
 
   return {
     pavimentos,
@@ -363,11 +478,16 @@ export function usePavimentos(orcamentoId: string | null | undefined) {
     autoImport,
     setAutoImport,
     pavimentoTipo,
+    pendingConfirmation,
+    pavimentoPendingConfirmation,
+    setPendingConfirmation,
     addPavimento,
     updatePavimento,
     removePavimento,
     duplicatePavimento,
     extractMedidasForPavimento,
+    confirmMedidas,
+    openManualEntry,
     copyFromTipo,
     calculateWallsForFloor,
     calculateAllFloors,

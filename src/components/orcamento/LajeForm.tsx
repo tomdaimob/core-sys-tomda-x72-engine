@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
-import { Calculator, Grid3X3, AlertCircle, Building, Home, Power, PowerOff } from 'lucide-react';
+import { Calculator, Grid3X3, AlertCircle, Building, Home, Power, PowerOff, Plus, Minus } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -20,11 +20,12 @@ export type TipoLaje = 'AUTO' | 'PISO_2_ANDAR' | 'FORRO';
 
 export interface LajeInput {
   tipo: TipoLaje;
-  laje_enabled: boolean; // Toggle para incluir/excluir laje do orçamento
+  laje_enabled: boolean;
   areaM2: number;
   espessuraM: number;
   concretoItemId: string;
   temSegundoAndar: boolean;
+  contadorLajes: number; // NEW: number of equal slabs
 }
 
 export interface ConcretoOption {
@@ -273,6 +274,32 @@ export function LajeForm({
           </div>
         </div>
 
+        {/* Laje counter - "Adicionar laje igual" */}
+        <div className="flex items-center justify-between p-3 bg-background rounded-lg border">
+          <div>
+            <Label className="text-sm font-medium">Quantidade de lajes iguais</Label>
+            <p className="text-xs text-muted-foreground">
+              Repete a laje base {laje.contadorLajes || 1}× (útil para prédios com lajes iguais)
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline" size="icon" className="h-8 w-8"
+              onClick={() => onLajeChange({ ...laje, contadorLajes: Math.max(1, (laje.contadorLajes || 1) - 1) })}
+              disabled={(laje.contadorLajes || 1) <= 1}
+            >
+              <Minus className="w-4 h-4" />
+            </Button>
+            <span className="w-8 text-center font-semibold">{laje.contadorLajes || 1}</span>
+            <Button
+              variant="outline" size="icon" className="h-8 w-8"
+              onClick={() => onLajeChange({ ...laje, contadorLajes: (laje.contadorLajes || 1) + 1 })}
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
         {/* Prices Reference */}
         <div className="flex gap-4 text-sm text-muted-foreground bg-background/50 rounded-lg p-3">
           <div>
@@ -359,8 +386,10 @@ export function calcularLajeResultado(
   precoMaoObraLajeM2: number,
   areaProjetoM2: number
 ): ResultadoLajeCalculado {
-  // Determine effective area (use project area if laje area is 0)
-  const areaEfetiva = laje.areaM2 > 0 ? laje.areaM2 : areaProjetoM2;
+  // Determine effective area (use project area if laje area is 0), multiply by counter
+  const contadorLajes = laje.contadorLajes || 1;
+  const areaBase = laje.areaM2 > 0 ? laje.areaM2 : areaProjetoM2;
+  const areaEfetiva = areaBase * contadorLajes;
   
   // Determine effective tipo
   let tipoEfetivo: TipoLaje = laje.tipo || 'AUTO';

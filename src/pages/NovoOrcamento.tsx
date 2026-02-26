@@ -62,6 +62,7 @@ import { PavimentosSection } from '@/components/orcamento/PavimentosSection';
 import { Link } from 'react-router-dom';
 import { exportarOrcamentoPDF } from '@/lib/pdf-export';
 import { exportarPropostaComercialPDF, TipoProposta } from '@/lib/pdf-proposta-comercial';
+import { exportarPropostaPagamentoPDF } from '@/lib/pdf-proposta-pagamento';
 import { useOrcamentoData } from '@/hooks/useOrcamentoData';
 import { validateClienteData, formatDocument, onlyDigits } from '@/lib/document-validation';
 import { useDiscountSystem } from '@/hooks/useDiscountSystem';
@@ -796,6 +797,70 @@ export default function NovoOrcamento() {
                       Relatório Detalhado (Admin)
                     </Button>
                   )}
+                  
+                  {/* Proposta de Pagamento (PDF Cliente com Pizza) */}
+                  <Button 
+                    variant="outline" 
+                    onClick={async () => {
+                      // Load CUB-PA
+                      let cubPA = null;
+                      try {
+                        const { data: cubData } = await supabase
+                          .from('indicadores_custo')
+                          .select('*')
+                          .eq('uf', 'PA')
+                          .order('updated_at', { ascending: false })
+                          .limit(1)
+                          .maybeSingle();
+                        if (cubData && cubData.cub_valor_m2) {
+                          cubPA = {
+                            refMesAno: cubData.cub_ref_mes_ano || '',
+                            valorM2: cubData.cub_valor_m2 || 0,
+                          };
+                        }
+                      } catch (e) { console.error('CUB load error', e); }
+                      
+                      let nomeVendedor = '-';
+                      if (user?.id) {
+                        const { data: profile } = await supabase
+                          .from('profiles')
+                          .select('full_name')
+                          .eq('user_id', user.id)
+                          .single();
+                        nomeVendedor = profile?.full_name || user?.email || '-';
+                      }
+                      
+                      await exportarPropostaPagamentoPDF({
+                        cliente: projeto.cliente,
+                        codigo: projeto.codigo,
+                        projeto: projeto.projeto,
+                        areaTotal: projeto.areaTotal || radier.areaM2,
+                        valorTotal: consolidadoComRevestimento.totalVenda,
+                        valorPorM2: consolidadoComRevestimento.precoPorM2Global,
+                        nomeVendedor,
+                        dataGeracao: new Date(),
+                        clienteTipo: projeto.clienteTipo,
+                        clienteDocumento: projeto.clienteDocumento,
+                        clienteResponsavel: projeto.clienteResponsavel,
+                        resultados: {
+                          paredes: resultadoParedes,
+                          radier: resultadoRadier,
+                          baldrame: resultadoBaldrame,
+                          sapata: resultadoSapata,
+                          laje: resultadoLaje,
+                          reboco: resultadoReboco,
+                          acabamentos: resultadoAcabamentos,
+                          revestimento: resultadoRevestimento,
+                          portasPortoes: resultadoPortasPortoes,
+                        },
+                        cubPA,
+                      });
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Proposta de Pagamento (Custos)
+                  </Button>
                 </div>
               </div>
               

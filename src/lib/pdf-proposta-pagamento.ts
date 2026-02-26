@@ -45,6 +45,8 @@ export interface PropostaPagamentoData {
   cubPA?: {
     refMesAno: string;
     valorM2: number;
+    padrao?: string;
+    fonteUrl?: string;
   } | null;
 }
 
@@ -342,10 +344,12 @@ export async function exportarPropostaPagamentoPDF(data: PropostaPagamentoData):
   yPos += 5;
 
   if (data.cubPA && data.cubPA.valorM2 > 0) {
-    doc.text(`CUB-PA (Sinduscon-PA) — ${data.cubPA.refMesAno} — ${formatCurrency(data.cubPA.valorM2)}/m²`, margin, yPos);
+    const padraoStr = data.cubPA.padrao ? ` — ${data.cubPA.padrao}` : '';
+    const fonteStr = data.cubPA.fonteUrl ? ' (fonte: Sinduscon-PA/cub.org.br)' : '';
+    doc.text(`CUB-PA (Sinduscon-PA) — ${data.cubPA.refMesAno}${padraoStr} — ${formatCurrency(data.cubPA.valorM2)}/m²${fonteStr}`, margin, yPos);
   } else {
     doc.setTextColor(180, 80, 80);
-    doc.text('CUB-PA: não informado (Gestor deve atualizar)', margin, yPos);
+    doc.text('CUB-PA: indisponível no momento (tente atualizar novamente)', margin, yPos);
   }
   yPos += 12;
 

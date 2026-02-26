@@ -433,54 +433,86 @@ export default function Configuracoes() {
                 </div>
               )}
               {isAdmin && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    setUpdatingCub(true);
-                    try {
-                      // Upsert CUB-PA
-                      const { data: existing } = await supabase
-                        .from('indicadores_custo')
-                        .select('id')
-                        .eq('uf', 'PA')
-                        .maybeSingle();
-                      
-                      if (existing) {
-                        await supabase
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      setUpdatingCub(true);
+                      try {
+                        // Save manual values
+                        const { data: existing } = await supabase
                           .from('indicadores_custo')
-                          .update({
-                            cub_ref_mes_ano: cubRefMesAno,
-                            cub_valor_m2: cubValorM2,
-                            cub_padrao: cubPadrao,
-                            updated_by: user?.id,
-                            updated_at: new Date().toISOString(),
-                          })
-                          .eq('id', existing.id);
-                      } else {
-                        await supabase
-                          .from('indicadores_custo')
-                          .insert({
-                            uf: 'PA',
-                            cub_ref_mes_ano: cubRefMesAno,
-                            cub_valor_m2: cubValorM2,
-                            cub_padrao: cubPadrao,
-                            updated_by: user?.id,
-                          });
+                          .select('id')
+                          .eq('uf', 'PA')
+                          .maybeSingle();
+                        
+                        if (existing) {
+                          await supabase
+                            .from('indicadores_custo')
+                            .update({
+                              cub_ref_mes_ano: cubRefMesAno,
+                              cub_valor_m2: cubValorM2,
+                              cub_padrao: cubPadrao,
+                              updated_by: user?.id,
+                              updated_at: new Date().toISOString(),
+                            })
+                            .eq('id', existing.id);
+                        } else {
+                          await supabase
+                            .from('indicadores_custo')
+                            .insert({
+                              uf: 'PA',
+                              cub_ref_mes_ano: cubRefMesAno,
+                              cub_valor_m2: cubValorM2,
+                              cub_padrao: cubPadrao,
+                              updated_by: user?.id,
+                            });
+                        }
+                        toast({ title: 'CUB-PA salvo manualmente!' });
+                      } catch (error) {
+                        console.error('Error updating CUB:', error);
+                        toast({ title: 'Erro ao salvar CUB-PA', variant: 'destructive' });
+                      } finally {
+                        setUpdatingCub(false);
                       }
-                      toast({ title: 'CUB-PA atualizado!' });
-                    } catch (error) {
-                      console.error('Error updating CUB:', error);
-                      toast({ title: 'Erro ao atualizar CUB-PA', variant: 'destructive' });
-                    } finally {
-                      setUpdatingCub(false);
-                    }
-                  }}
-                  disabled={updatingCub}
-                >
-                  <RefreshCw className={`w-4 h-4 mr-2 ${updatingCub ? 'animate-spin' : ''}`} />
-                  {updatingCub ? 'Atualizando...' : 'Atualizar CUB-PA'}
-                </Button>
+                    }}
+                    disabled={updatingCub}
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Salvar Manual
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={async () => {
+                      setUpdatingCub(true);
+                      try {
+                        const { data, error } = await supabase.functions.invoke('update-cub-pa', {
+                          body: { padrao: cubPadrao || 'R8-N' },
+                        });
+                        if (error) throw error;
+                        if (data?.ok) {
+                          setCubRefMesAno(data.cub_ref_mes_ano || '');
+                          setCubValorM2(data.cub_valor_m2 || 0);
+                          setCubPadrao(data.cub_padrao || 'R8-N');
+                          toast({ title: 'CUB-PA atualizado automaticamente!', description: `Fonte: ${data.cub_fonte_url || 'Sinduscon-PA'}` });
+                        } else {
+                          toast({ title: 'Erro', description: data?.error || 'Falha ao buscar CUB-PA', variant: 'destructive' });
+                        }
+                      } catch (error: any) {
+                        console.error('Error auto-updating CUB:', error);
+                        toast({ title: 'Erro ao buscar CUB-PA automaticamente', description: error?.message || 'Verifique manualmente o site do Sinduscon-PA', variant: 'destructive' });
+                      } finally {
+                        setUpdatingCub(false);
+                      }
+                    }}
+                    disabled={updatingCub}
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${updatingCub ? 'animate-spin' : ''}`} />
+                    {updatingCub ? 'Buscando...' : 'Atualizar CUB-PA (automático)'}
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>

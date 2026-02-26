@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.extract-floor-measurements]
 verify_jwt = false
+
+[functions.update-cub-pa]
+verify_jwt = false
+
+[functions.extract-sapata-structural]
+verify_jwt = false

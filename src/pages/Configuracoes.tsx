@@ -5,10 +5,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { Settings as SettingsIcon, Save, DoorOpen, Warehouse, Loader2 } from 'lucide-react';
+import { Settings as SettingsIcon, Save, DoorOpen, Warehouse, Loader2, RefreshCw, Building } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Json } from '@/integrations/supabase/types';
+import { formatCurrency } from '@/lib/orcamento-calculos';
 
 interface PortasPortoesPadroes {
   porta_interna_largura: number;
@@ -46,6 +47,12 @@ export default function Configuracoes() {
   // Portas/Portões defaults
   const [padroes, setPadroes] = useState<PortasPortoesPadroes>(DEFAULT_PADROES);
 
+  // CUB-PA
+  const [cubRefMesAno, setCubRefMesAno] = useState('');
+  const [cubValorM2, setCubValorM2] = useState<number>(0);
+  const [cubPadrao, setCubPadrao] = useState('R8-N');
+  const [updatingCub, setUpdatingCub] = useState(false);
+
   // Load settings on mount
   useEffect(() => {
     const loadSettings = async () => {
@@ -76,6 +83,21 @@ export default function Configuracoes() {
             ...DEFAULT_PADROES,
             ...(padroesData.valor as unknown as PortasPortoesPadroes),
           });
+        }
+
+        // Load CUB-PA
+        const { data: cubData } = await supabase
+          .from('indicadores_custo')
+          .select('*')
+          .eq('uf', 'PA')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (cubData) {
+          setCubRefMesAno(cubData.cub_ref_mes_ano || '');
+          setCubValorM2(cubData.cub_valor_m2 || 0);
+          setCubPadrao(cubData.cub_padrao || 'R8-N');
         }
       } catch (error) {
         console.error('Error loading settings:', error);
@@ -357,6 +379,109 @@ export default function Configuracoes() {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* CUB-PA Section */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Building className="w-5 h-5 text-primary" />
+                <div>
+                  <CardTitle>CUB-PA (Sinduscon-PA)</CardTitle>
+                  <CardDescription>
+                    Custo Unitário Básico — usado como referência nos PDFs do cliente
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="input-group">
+                  <Label className="text-xs text-muted-foreground">Mês/Ano de Referência</Label>
+                  <Input
+                    placeholder="02/2026"
+                    value={cubRefMesAno}
+                    onChange={(e) => setCubRefMesAno(e.target.value)}
+                    disabled={!isAdmin}
+                  />
+                </div>
+                <div className="input-group">
+                  <Label className="text-xs text-muted-foreground">Valor CUB (R$/m²)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={cubValorM2 || ''}
+                    onChange={(e) => setCubValorM2(parseFloat(e.target.value) || 0)}
+                    disabled={!isAdmin}
+                  />
+                </div>
+                <div className="input-group">
+                  <Label className="text-xs text-muted-foreground">Padrão</Label>
+                  <Input
+                    value={cubPadrao}
+                    onChange={(e) => setCubPadrao(e.target.value)}
+                    disabled={!isAdmin}
+                    placeholder="R8-N"
+                  />
+                </div>
+              </div>
+              {cubValorM2 > 0 && (
+                <div className="p-3 bg-primary/10 rounded-lg text-sm">
+                  <span className="font-medium">CUB-PA atual:</span>{' '}
+                  {formatCurrency(cubValorM2)}/m² — Ref: {cubRefMesAno || 'N/A'} — Padrão: {cubPadrao}
+                </div>
+              )}
+              {isAdmin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    setUpdatingCub(true);
+                    try {
+                      // Upsert CUB-PA
+                      const { data: existing } = await supabase
+                        .from('indicadores_custo')
+                        .select('id')
+                        .eq('uf', 'PA')
+                        .maybeSingle();
+                      
+                      if (existing) {
+                        await supabase
+                          .from('indicadores_custo')
+                          .update({
+                            cub_ref_mes_ano: cubRefMesAno,
+                            cub_valor_m2: cubValorM2,
+                            cub_padrao: cubPadrao,
+                            updated_by: user?.id,
+                            updated_at: new Date().toISOString(),
+                          })
+                          .eq('id', existing.id);
+                      } else {
+                        await supabase
+                          .from('indicadores_custo')
+                          .insert({
+                            uf: 'PA',
+                            cub_ref_mes_ano: cubRefMesAno,
+                            cub_valor_m2: cubValorM2,
+                            cub_padrao: cubPadrao,
+                            updated_by: user?.id,
+                          });
+                      }
+                      toast({ title: 'CUB-PA atualizado!' });
+                    } catch (error) {
+                      console.error('Error updating CUB:', error);
+                      toast({ title: 'Erro ao atualizar CUB-PA', variant: 'destructive' });
+                    } finally {
+                      setUpdatingCub(false);
+                    }
+                  }}
+                  disabled={updatingCub}
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${updatingCub ? 'animate-spin' : ''}`} />
+                  {updatingCub ? 'Atualizando...' : 'Atualizar CUB-PA'}
+                </Button>
+              )}
             </CardContent>
           </Card>
 

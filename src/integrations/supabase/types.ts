@@ -307,6 +307,36 @@ export type Database = {
           },
         ]
       }
+      indicadores_custo: {
+        Row: {
+          cub_padrao: string | null
+          cub_ref_mes_ano: string | null
+          cub_valor_m2: number | null
+          id: string
+          uf: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cub_padrao?: string | null
+          cub_ref_mes_ano?: string | null
+          cub_valor_m2?: number | null
+          id?: string
+          uf?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cub_padrao?: string | null
+          cub_ref_mes_ano?: string | null
+          cub_valor_m2?: number | null
+          id?: string
+          uf?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       orcamento_inputs: {
         Row: {
           created_at: string

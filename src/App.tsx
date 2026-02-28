@@ -52,8 +52,8 @@ function AppRoutes() {
       <Route path="/" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/orcamentos" element={<ProtectedRoute><Orcamentos /></ProtectedRoute>} />
-      <Route path="/orcamentos/novo" element={<ProtectedRoute><NovoOrcamento /></ProtectedRoute>} />
-      <Route path="/orcamentos/:id" element={<ProtectedRoute><NovoOrcamento /></ProtectedRoute>} />
+      <Route path="/orcamentos/novo" element={<ProtectedRoute><NovoOrcamento key="novo" /></ProtectedRoute>} />
+      <Route path="/orcamentos/:id" element={<ProtectedRoute><NovoOrcamento key="edit" /></ProtectedRoute>} />
       <Route path="/aprovacoes" element={<AdminRoute><Aprovacoes /></AdminRoute>} />
       <Route path="/precos" element={<AdminRoute><Precos /></AdminRoute>} />
       <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />

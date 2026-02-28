@@ -494,17 +494,10 @@ export function useOrcamentoData({
           });
         }
       } else {
-        // New orcamento - check for existing draft
-        const hasDraft = await loadDraft();
-        if (hasDraft) {
-          toast({
-            title: 'Rascunho restaurado',
-            description: 'Continuando de onde você parou.',
-          });
-        } else {
-          setIsNewOrcamento(true);
-          setIsLoading(false);
-        }
+        // New orcamento - start fresh, never load previous drafts
+        console.log('[OrcamentoData] Starting fresh new orcamento');
+        setIsNewOrcamento(true);
+        setIsLoading(false);
       }
     };
     

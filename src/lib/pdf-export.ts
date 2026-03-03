@@ -136,11 +136,21 @@ interface Margens {
   descontoPercent: number;
 }
 
+interface ResultadoTelaSoldada {
+  area_radier_m2?: number;
+  area_tela_total_m2?: number;
+  area_painel_m2?: number;
+  qtd_paineis?: number;
+  custo_total?: number;
+  preco_painel?: number;
+}
+
 interface PDFExportData {
   projeto: ProjetoData;
   consolidado: ConsolidadoData;
   resultadoParedes?: ResultadoParedes | null;
   resultadoRadier?: ResultadoRadier | null;
+  resultadoTelaSoldada?: ResultadoTelaSoldada | null;
   resultadoLaje?: ResultadoLaje | null;
   resultadoReboco?: ResultadoReboco | null;
   resultadoAcabamentos?: ResultadoAcabamentos | null;
@@ -152,7 +162,7 @@ interface PDFExportData {
 // Proposta comercial is now exported from pdf-proposta-comercial.ts directly
 
 export async function exportarOrcamentoPDF(data: PDFExportData): Promise<void> {
-  const { projeto, consolidado, resultadoParedes, resultadoRadier, resultadoLaje, resultadoReboco, resultadoAcabamentos, resultadoRevestimento, resultadoPortasPortoes, margens } = data;
+  const { projeto, consolidado, resultadoParedes, resultadoRadier, resultadoTelaSoldada, resultadoLaje, resultadoReboco, resultadoAcabamentos, resultadoRevestimento, resultadoPortasPortoes, margens } = data;
   
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -294,6 +304,18 @@ export async function exportarOrcamentoPDF(data: PDFExportData): Promise<void> {
       ['  Custo Fibra', '', formatCurrency(resultadoRadier.custoFibra || 0), ''],
       ['  Custo Mão de Obra', '', formatCurrency(resultadoRadier.custoMaoObra || 0), ''],
       ['  Subtotal Radier', '', '', formatCurrency(resultadoRadier.custoTotal || 0)],
+    );
+  }
+
+  // Tela Soldada
+  if (resultadoTelaSoldada && (resultadoTelaSoldada.qtd_paineis || 0) > 0) {
+    const largura = resultadoTelaSoldada.area_painel_m2 ? Math.sqrt(resultadoTelaSoldada.area_painel_m2 * 2/3) : 2;
+    detalhesBody.push(
+      ['TELA SOLDADA (RADIER)', '', '', ''],
+      ['  Área Total Tela', `${formatNumber(resultadoTelaSoldada.area_tela_total_m2 || 0)} m²`, '', ''],
+      ['  Área do Painel', `${formatNumber(resultadoTelaSoldada.area_painel_m2 || 0)} m²`, '', ''],
+      ['  Qtd. Painéis', `${resultadoTelaSoldada.qtd_paineis} unid`, resultadoTelaSoldada.preco_painel ? formatCurrency(resultadoTelaSoldada.preco_painel) : '-', ''],
+      ['  Subtotal Tela', '', '', resultadoTelaSoldada.custo_total ? formatCurrency(resultadoTelaSoldada.custo_total) : '-'],
     );
   }
 

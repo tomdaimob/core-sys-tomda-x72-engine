@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Square, Layers, LayersIcon, Power, PowerOff, Anchor } from 'lucide-react';
 import { BaldrameForm } from './BaldrameForm';
 import { SapataForm } from './SapataForm';
+import { TelaSoldadaForm, TelaSoldadaInput, calcularTelaSoldada, getTelaSoldadaPreco } from './TelaSoldadaForm';
 import { BaldrameInput, BaldrameResultado, FundacaoTipo, DEFAULT_BALDRAME_INPUT } from '@/lib/baldrame-types';
 import { SapataInput, SapataResultado } from '@/lib/sapata-types';
 import { calcularBaldrame, getBaldramePrecos } from '@/lib/baldrame-calculos';
@@ -22,6 +23,9 @@ interface RadierBaldrameFormProps {
   onRadierChange: (radier: InputRadier) => void;
   precos: Precos;
   resultadoRadier: ResultadoRadier | null;
+  // Tela Soldada props
+  telaSoldada: TelaSoldadaInput;
+  onTelaSoldadaChange: (tela: TelaSoldadaInput) => void;
   // Baldrame props
   baldrame: BaldrameInput;
   onBaldrameChange: (baldrame: BaldrameInput) => void;
@@ -41,6 +45,8 @@ export function RadierBaldrameForm({
   onRadierChange,
   precos,
   resultadoRadier,
+  telaSoldada,
+  onTelaSoldadaChange,
   baldrame,
   onBaldrameChange,
   perimetroExternoM,
@@ -65,10 +71,13 @@ export function RadierBaldrameForm({
   };
 
   // Calculate totals (only when enabled)
+  const precoPainelTela = getTelaSoldadaPreco(catalogItems);
+  const custoTela = fundacaoEnabled && (fundacaoTipo === 'RADIER' || fundacaoTipo === 'RADIER_BALDRAME') && telaSoldada.tela_enabled
+    ? calcularTelaSoldada(telaSoldada, radier.areaM2, precoPainelTela).custo_total : 0;
   const custoRadier = fundacaoEnabled && (fundacaoTipo === 'RADIER' || fundacaoTipo === 'RADIER_BALDRAME') ? (resultadoRadier?.custoTotal || 0) : 0;
   const custoBaldrame = fundacaoEnabled && (fundacaoTipo === 'BALDRAME' || fundacaoTipo === 'RADIER_BALDRAME') ? (resultadoBaldrame?.custo_total || 0) : 0;
   const custoSapata = fundacaoEnabled && fundacaoTipo === 'SAPATA' ? (resultadoSapata?.custo_total || 0) : 0;
-  const custoTotal = custoRadier + custoBaldrame + custoSapata;
+  const custoTotal = custoRadier + custoBaldrame + custoSapata + custoTela;
 
   // Disabled state render
   if (!fundacaoEnabled) {
@@ -228,67 +237,77 @@ export function RadierBaldrameForm({
 
       {/* Radier form */}
       {(fundacaoTipo === 'RADIER' || fundacaoTipo === 'RADIER_BALDRAME') && (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Radier</CardTitle>
-              {resultadoRadier && (
-                <Badge variant="outline">{formatCurrency(resultadoRadier.custoTotal)}</Badge>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="radier_area">Área (m²)</Label>
-                <Input
-                  id="radier_area"
-                  name="radier_area"
-                  type="number"
-                  value={radier.areaM2 || ''}
-                  onChange={(e) =>
-                    onRadierChange({ ...radier, areaM2: parseFloat(e.target.value) || 0 })
-                  }
-                />
+        <>
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Radier</CardTitle>
+                {resultadoRadier && (
+                  <Badge variant="outline">{formatCurrency(resultadoRadier.custoTotal)}</Badge>
+                )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="radier_espessura">Espessura (cm)</Label>
-                <Input
-                  id="radier_espessura"
-                  name="radier_espessura"
-                  type="number"
-                  value={radier.espessuraCm}
-                  onChange={(e) =>
-                    onRadierChange({ ...radier, espessuraCm: parseFloat(e.target.value) || 0 })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="radier_tipo_fibra">Tipo Fibra</Label>
-                <select
-                  id="radier_tipo_fibra"
-                  name="radier_tipo_fibra"
-                  value={radier.tipoFibra}
-                  onChange={(e) =>
-                    onRadierChange({ ...radier, tipoFibra: e.target.value as 'aco' | 'pp' })
-                  }
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  <option value="aco">Aço (25 kg/m³)</option>
-                  <option value="pp">PP (5 kg/m³)</option>
-                </select>
-              </div>
-            </div>
-            {resultadoRadier && (
-              <div className="bg-accent/50 rounded-lg p-4 mt-4">
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div>Volume: {formatNumber(resultadoRadier.volumeM3)} m³</div>
-                  <div>Custo Total: {formatCurrency(resultadoRadier.custoTotal)}</div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="radier_area">Área (m²)</Label>
+                  <Input
+                    id="radier_area"
+                    name="radier_area"
+                    type="number"
+                    value={radier.areaM2 || ''}
+                    onChange={(e) =>
+                      onRadierChange({ ...radier, areaM2: parseFloat(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="radier_espessura">Espessura (cm)</Label>
+                  <Input
+                    id="radier_espessura"
+                    name="radier_espessura"
+                    type="number"
+                    value={radier.espessuraCm}
+                    onChange={(e) =>
+                      onRadierChange({ ...radier, espessuraCm: parseFloat(e.target.value) || 0 })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="radier_tipo_fibra">Tipo Fibra</Label>
+                  <select
+                    id="radier_tipo_fibra"
+                    name="radier_tipo_fibra"
+                    value={radier.tipoFibra}
+                    onChange={(e) =>
+                      onRadierChange({ ...radier, tipoFibra: e.target.value as 'aco' | 'pp' })
+                    }
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value="aco">Aço (25 kg/m³)</option>
+                    <option value="pp">PP (5 kg/m³)</option>
+                  </select>
                 </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              {resultadoRadier && (
+                <div className="bg-accent/50 rounded-lg p-4 mt-4">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>Volume: {formatNumber(resultadoRadier.volumeM3)} m³</div>
+                    <div>Custo Total: {formatCurrency(resultadoRadier.custoTotal)}</div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <TelaSoldadaForm
+            input={telaSoldada}
+            onInputChange={onTelaSoldadaChange}
+            areaRadierM2={radier.areaM2}
+            catalogItems={catalogItems}
+            isAdmin={isAdmin}
+          />
+        </>
       )}
 
       {/* Baldrame form */}

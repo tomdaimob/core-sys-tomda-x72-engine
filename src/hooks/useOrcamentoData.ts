@@ -5,6 +5,7 @@ import { Json } from '@/integrations/supabase/types';
 import { Margens, DEFAULT_MARGENS, InputParedes } from '@/lib/orcamento-types';
 import { BaldrameInput, DEFAULT_BALDRAME_INPUT } from '@/lib/baldrame-types';
 import { SapataInput, DEFAULT_SAPATA_INPUT } from '@/lib/sapata-types';
+import { TelaSoldadaInput, DEFAULT_TELA_SOLDADA } from '@/components/orcamento/TelaSoldadaForm';
 
 // Re-export types for convenience
 export type ParedesInput = InputParedes;
@@ -78,6 +79,7 @@ export interface OrcamentoInputs {
   radier: RadierData;
   baldrame: BaldrameInput;
   sapata: SapataInput;
+  telaSoldada: TelaSoldadaInput;
   laje: LajeInput;
   reboco: RebocoInput;
   acabamentos: AcabamentosInput;
@@ -92,6 +94,7 @@ export interface ResultadosData {
   radier: any;
   baldrame?: any;
   sapata?: any;
+  telaSoldada?: any;
   laje: any;
   reboco: any;
   acabamentos: any;
@@ -230,6 +233,7 @@ export function useOrcamentoData({
   const [radier, setRadier] = useState<RadierData>(DEFAULT_RADIER);
   const [baldrame, setBaldrame] = useState<BaldrameInput>(DEFAULT_BALDRAME_INPUT);
   const [sapata, setSapata] = useState<SapataInput>(DEFAULT_SAPATA_INPUT);
+  const [telaSoldada, setTelaSoldada] = useState<TelaSoldadaInput>(DEFAULT_TELA_SOLDADA);
   const [laje, setLaje] = useState<LajeInput>(DEFAULT_LAJE);
   const [reboco, setReboco] = useState<RebocoInput>(DEFAULT_REBOCO);
   const [acabamentos, setAcabamentos] = useState<AcabamentosInput>(DEFAULT_ACABAMENTOS);
@@ -252,6 +256,7 @@ export function useOrcamentoData({
     radier,
     baldrame,
     sapata,
+    telaSoldada,
     laje,
     reboco,
     acabamentos,
@@ -259,7 +264,7 @@ export function useOrcamentoData({
     portasPortoes,
     margens,
     currentStep,
-  }), [projeto, paredes, radier, baldrame, sapata, laje, reboco, acabamentos, revestimento, portasPortoes, margens, currentStep]);
+  }), [projeto, paredes, radier, baldrame, sapata, telaSoldada, laje, reboco, acabamentos, revestimento, portasPortoes, margens, currentStep]);
 
   // Load orcamento by ID
   const loadOrcamentoById = useCallback(async (id: string) => {
@@ -354,6 +359,12 @@ export function useOrcamentoData({
           setSapata({
             ...DEFAULT_SAPATA_INPUT,
             ...(dados as any).sapata,
+          });
+        }
+        if ((dados as any).telaSoldada) {
+          setTelaSoldada({
+            ...DEFAULT_TELA_SOLDADA,
+            ...(dados as any).telaSoldada,
           });
         }
         if (dados.laje) {
@@ -776,6 +787,7 @@ export function useOrcamentoData({
     radier,
     baldrame,
     sapata,
+    telaSoldada,
     laje,
     reboco,
     acabamentos,
@@ -791,6 +803,7 @@ export function useOrcamentoData({
     setRadier,
     setBaldrame,
     setSapata,
+    setTelaSoldada,
     setLaje,
     setReboco,
     setAcabamentos,

@@ -53,6 +53,7 @@ import { ParedesForm, ParedesInput, calcularParedesResultado } from '@/component
 import { RevestimentoForm, calcularRevestimentoResultado } from '@/components/orcamento/RevestimentoForm';
 import { PortasPortoesForm, calcularPortasPortoesResultado, type PortasPortoesInput } from '@/components/orcamento/PortasPortoesForm';
 import { RadierBaldrameForm } from '@/components/orcamento/RadierBaldrameForm';
+import { calcularTelaSoldada, getTelaSoldadaPreco } from '@/components/orcamento/TelaSoldadaForm';
 import { ApprovalSection } from '@/components/orcamento/ApprovalSection';
 import { ClienteForm, type ClienteFormData } from '@/components/orcamento/ClienteForm';
 import { MargensForm } from '@/components/orcamento/MargensForm';
@@ -145,6 +146,7 @@ export default function NovoOrcamento() {
     radier,
     baldrame,
     sapata,
+    telaSoldada,
     laje,
     reboco,
     acabamentos,
@@ -157,6 +159,7 @@ export default function NovoOrcamento() {
     setRadier,
     setBaldrame,
     setSapata,
+    setTelaSoldada,
     setLaje,
     setReboco,
     setAcabamentos,
@@ -339,9 +342,16 @@ export default function NovoOrcamento() {
   const custoPortasPortoes = resultadoPortasPortoes?.custoTotal || 0;
   const custoBaldrame = resultadoBaldrame?.custo_total || 0;
   const custoSapata = resultadoSapata?.custo_total || 0;
+
+  // Tela Soldada cost
+  const precoPainelTela = getTelaSoldadaPreco(catalogItems);
+  const resultadoTelaSoldada = fundacaoEnabled && (baldrame.fundacao_tipo === 'RADIER' || baldrame.fundacao_tipo === 'RADIER_BALDRAME')
+    ? calcularTelaSoldada(telaSoldada, radier.areaM2, precoPainelTela)
+    : null;
+  const custoTela = resultadoTelaSoldada?.custo_total || 0;
   
   // When multi-pavimento, multiply base costs by total floor count
-  const subtotalBase = consolidado.subtotal + custoRevest + custoPortasPortoes + custoBaldrame + custoSapata;
+  const subtotalBase = consolidado.subtotal + custoRevest + custoPortasPortoes + custoBaldrame + custoSapata + custoTela;
   const subtotalComExtras = isMultiPavimento ? subtotalBase * pavimentoMultiplier : subtotalBase;
   const lucroComExtras = subtotalComExtras * (margens.lucroPercent / 100);
   const bdiComExtras = subtotalComExtras * (margens.bdiPercent / 100);
@@ -356,6 +366,7 @@ export default function NovoOrcamento() {
     custoPortasPortoes,
     custoBaldrame,
     custoSapata,
+    custoTelaSoldada: custoTela,
     subtotal: subtotalComExtras,
     lucro: lucroComExtras,
     bdi: bdiComExtras,
@@ -373,6 +384,7 @@ export default function NovoOrcamento() {
         radier: resultadoRadier,
         baldrame: resultadoBaldrame,
         sapata: resultadoSapata,
+        telaSoldada: resultadoTelaSoldada,
         laje: resultadoLaje,
         reboco: resultadoReboco,
         acabamentos: resultadoAcabamentos,
@@ -381,7 +393,7 @@ export default function NovoOrcamento() {
         consolidado: consolidadoComRevestimento,
       });
     }
-  }, [consolidado.subtotal, resultadoRevestimento?.custoTotal, resultadoPortasPortoes?.custoTotal, resultadoBaldrame?.custo_total, resultadoSapata?.custo_total]);
+  }, [consolidado.subtotal, resultadoRevestimento?.custoTotal, resultadoPortasPortoes?.custoTotal, resultadoBaldrame?.custo_total, resultadoSapata?.custo_total, custoTela]);
 
   const salvarOrcamento = async () => {
     if (!projeto.cliente) {
@@ -699,6 +711,8 @@ export default function NovoOrcamento() {
               onRadierChange={setRadier}
               precos={precos}
               resultadoRadier={resultadoRadier}
+              telaSoldada={telaSoldada}
+              onTelaSoldadaChange={setTelaSoldada}
               baldrame={baldrame}
               onBaldrameChange={setBaldrame}
               perimetroExternoM={projeto.perimetroExterno || 0}
@@ -784,6 +798,7 @@ export default function NovoOrcamento() {
                         consolidado: consolidadoComRevestimento,
                         resultadoParedes,
                         resultadoRadier,
+                        resultadoTelaSoldada,
                         resultadoLaje: resultadoLajeCalc,
                         resultadoReboco: resultadoRebocoCalc,
                         resultadoAcabamentos: resultadoAcabamentosCalc,
@@ -1139,6 +1154,7 @@ export default function NovoOrcamento() {
                           consolidado: consolidadoComRevestimento,
                           resultadoParedes,
                           resultadoRadier,
+                          resultadoTelaSoldada,
                           resultadoLaje: resultadoLajeCalc,
                           resultadoReboco: resultadoRebocoCalc,
                           resultadoAcabamentos: resultadoAcabamentosCalc,

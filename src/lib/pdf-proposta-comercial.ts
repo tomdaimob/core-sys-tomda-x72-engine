@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import { formatCurrency, formatNumber } from './orcamento-calculos';
+// NOTE: formatCurrency is used ONLY for VALOR TOTAL and R$/m² — never in the chart section
 import { formatDocument } from './document-validation';
 import { extrairCustoDireto, gerarFatiasPizza, PieSlice } from './custo-direto-utils';
 import icfLogoNew from '@/assets/icf-logo-new.png';
@@ -38,10 +39,11 @@ function drawPieChart(doc: jsPDF, fatias: PieSlice[], cx: number, cy: number, ra
   if (fatias.length === 0) return;
 
   let startAngle = -Math.PI / 2;
-  const total = fatias.reduce((s, f) => s + f.valor, 0);
+  // Use percent values only — never monetary values
+  const total = fatias.reduce((s, f) => s + f.percent, 0);
 
   for (const fatia of fatias) {
-    const sliceAngle = (fatia.valor / total) * 2 * Math.PI;
+    const sliceAngle = (fatia.percent / total) * 2 * Math.PI;
     const endAngle = startAngle + sliceAngle;
 
     // Draw filled arc using small triangles

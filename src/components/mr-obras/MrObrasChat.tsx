@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { type ChatMessage, type ChatAction } from '@/lib/mr-obras-chat';
-import { processarMensagemAsync } from '@/lib/mr-obras-pipeline';
+import { processarMensagemAsync, type ChatHistoryMessage } from '@/lib/mr-obras-pipeline';
 import { useAuth } from '@/contexts/AuthContext';
 import ReactMarkdown from 'react-markdown';
 
@@ -26,7 +26,7 @@ function makeWelcome(orcamento: any): EnhancedMessage {
     id: 'welcome',
     role: 'assistant',
     content: orcamento
-      ? `Olá! Estou analisando o orçamento **${orcamento.codigo}** (${orcamento.cliente}). Me pergunte qualquer coisa — eu consulto o sistema antes de responder 👷`
+      ? `Olá! Estou conectado ao orçamento **${orcamento.codigo}** (${orcamento.cliente}). Pode me perguntar qualquer coisa — eu consulto o banco de dados antes de responder 👷`
       : 'Olá! Abra um orçamento para que eu possa consultar os dados e te ajudar.',
     timestamp: new Date(),
     sources: [],
@@ -41,7 +41,7 @@ export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onActi
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevOrcIdRef = useRef<string | null>(null);
 
-  // Reset chat when orcamentoId changes (anti-mistura)
+  // Reset chat when orcamentoId changes
   useEffect(() => {
     if (prevOrcIdRef.current !== orcamentoId) {
       prevOrcIdRef.current = orcamentoId;
@@ -55,10 +55,19 @@ export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onActi
     }
   }, [messages, isTyping]);
 
+  // Build history for AI context
+  const buildHistory = useCallback((): ChatHistoryMessage[] => {
+    return messages
+      .filter(m => m.id !== 'welcome')
+      .slice(-10)
+      .map(m => ({ role: m.role, content: m.content }));
+  }, [messages]);
+
   const sendToAgent = useCallback(async (text: string) => {
     setIsTyping(true);
     try {
-      const result = await processarMensagemAsync(text, isAdmin, orcamentoId);
+      const history = buildHistory();
+      const result = await processarMensagemAsync(text, isAdmin, orcamentoId, history);
       const assistantMsg: EnhancedMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -79,7 +88,7 @@ export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onActi
     } finally {
       setIsTyping(false);
     }
-  }, [isAdmin, orcamentoId]);
+  }, [isAdmin, orcamentoId, buildHistory]);
 
   const handleSend = async () => {
     const text = input.trim();
@@ -97,7 +106,6 @@ export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onActi
   };
 
   const handleActionClick = async (actionId: string, params?: Record<string, any>) => {
-    // Actions that should trigger a new pipeline query
     if (actionId === 'explicar_etapa' && params?.etapa) {
       const text = `explicar ${params.etapa}`;
       setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user', content: text, timestamp: new Date() }]);
@@ -170,7 +178,7 @@ export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onActi
             <div className="flex justify-start">
               <div className="bg-muted text-foreground rounded-lg px-3 py-2 text-sm flex items-center gap-2">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                <span className="text-muted-foreground text-xs">Analisando no sistema…</span>
+                <span className="text-muted-foreground text-xs">Consultando o sistema…</span>
               </div>
             </div>
           )}

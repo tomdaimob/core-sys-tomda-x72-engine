@@ -619,6 +619,8 @@ export function useOrcamentoData({
             reboco: sanitizedResultados.reboco as unknown as Json,
             acabamentos: sanitizedResultados.acabamentos as unknown as Json,
             consolidado: sanitizedResultados.consolidado as unknown as Json,
+            fundacao_total: sanitizedResultados.consolidado?.fundacaoTotal || 0,
+            total_geral_predio: sanitizedResultados.consolidado?.totalVenda || 0,
             updated_at: new Date().toISOString(),
           }, {
             onConflict: 'orcamento_id',

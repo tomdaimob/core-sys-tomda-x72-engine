@@ -349,6 +349,12 @@ export default function NovoOrcamento() {
     ? calcularTelaSoldada(telaSoldada, radier.areaM2, precoPainelTela)
     : null;
   const custoTela = resultadoTelaSoldada?.custo_total || 0;
+
+  // Combined Radier total (concreto + fibra + mão de obra + tela soldada)
+  const custoRadierCompleto = (resultadoRadier?.custoTotal || 0) + custoTela;
+
+  // Fundação total (radier completo + baldrame + sapata, depending on type)
+  const fundacaoTotal = fundacaoEnabled ? (custoRadierCompleto + custoBaldrame + custoSapata) : 0;
   
   // When multi-pavimento, multiply base costs by total floor count
   const subtotalBase = consolidado.subtotal + custoRevest + custoPortasPortoes + custoBaldrame + custoSapata + custoTela;
@@ -367,6 +373,8 @@ export default function NovoOrcamento() {
     custoBaldrame,
     custoSapata,
     custoTelaSoldada: custoTela,
+    custoRadierCompleto,
+    fundacaoTotal,
     subtotal: subtotalComExtras,
     lucro: lucroComExtras,
     bdi: bdiComExtras,
@@ -1001,7 +1009,7 @@ export default function NovoOrcamento() {
               {isAdmin && (
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoParedes)}</div><div className="kpi-label">Paredes</div></div>
-                <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoRadier)}</div><div className="kpi-label">Radier</div></div>
+                <div className="kpi-card"><div className="kpi-value">{formatCurrency(fundacaoTotal)}</div><div className="kpi-label">Fundação</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoLaje)}</div><div className="kpi-label">Laje</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoReboco)}</div><div className="kpi-label">Reboco</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(resultadoRevestimento?.custoTotal || 0)}</div><div className="kpi-label">Revestimento</div></div>

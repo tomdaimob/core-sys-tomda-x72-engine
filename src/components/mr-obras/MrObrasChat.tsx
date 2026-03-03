@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send } from 'lucide-react';
+import { Send, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { type ChatMessage, processarMensagem } from '@/lib/mr-obras-chat';
+import { Badge } from '@/components/ui/badge';
+import { type ChatMessage, type ChatAction } from '@/lib/mr-obras-chat';
+import { processarMensagemAsync } from '@/lib/mr-obras-pipeline';
 import { useAuth } from '@/contexts/AuthContext';
 import ReactMarkdown from 'react-markdown';
 
@@ -15,48 +17,88 @@ interface MrObrasChatProps {
   onAction?: (actionId: string, params?: Record<string, any>) => void;
 }
 
+interface EnhancedMessage extends ChatMessage {
+  sources?: string[];
+}
+
 export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onAction }: MrObrasChatProps) {
   const { isAdmin } = useAuth();
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const [messages, setMessages] = useState<EnhancedMessage[]>([
     {
       id: 'welcome',
       role: 'assistant',
-      content: `Olá! Sou o **Mr. Obras Assistente** 🏗️\n\n${orcamento ? `Orçamento: **${orcamento.codigo}** — ${orcamento.cliente}` : 'Nenhum orçamento aberto.'}\n\nComo posso ajudar?`,
+      content: orcamento
+        ? `Olá! Estou aqui para ajudar com o orçamento **${orcamento.codigo}** (${orcamento.cliente}). Pode me perguntar qualquer coisa — eu consulto o sistema antes de responder 👷`
+        : 'Olá! Abra um orçamento para que eu possa consultar os dados e te ajudar.',
       timestamp: new Date(),
+      sources: [],
     },
   ]);
   const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, isTyping]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const text = input.trim();
-    if (!text) return;
+    if (!text || isTyping) return;
 
-    const userMsg: ChatMessage = {
+    const userMsg: EnhancedMessage = {
       id: crypto.randomUUID(),
       role: 'user',
       content: text,
       timestamp: new Date(),
     };
 
-    const assistantMsg = processarMensagem(text, isAdmin, inputs, resultados, orcamento);
-
-    setMessages(prev => [...prev, userMsg, assistantMsg]);
+    setMessages(prev => [...prev, userMsg]);
     setInput('');
+    setIsTyping(true);
+
+    try {
+      const result = await processarMensagemAsync(text, isAdmin, orcamentoId);
+      const assistantMsg: EnhancedMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: result.content,
+        actions: result.actions.length > 0 ? result.actions : undefined,
+        timestamp: new Date(),
+        sources: result.sources,
+      };
+      setMessages(prev => [...prev, assistantMsg]);
+    } catch (err: any) {
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: `Ops, tive um problema ao consultar o sistema: ${err.message || 'erro desconhecido'}. Tente novamente.`,
+        timestamp: new Date(),
+        sources: ['Erro'],
+      }]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
-  const handleActionClick = (actionId: string, params?: Record<string, any>) => {
+  const handleActionClick = async (actionId: string, params?: Record<string, any>) => {
     if (actionId === 'explicar_etapa' && params?.etapa) {
       const text = `explicar ${params.etapa}`;
-      const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text, timestamp: new Date() };
-      const assistantMsg = processarMensagem(text, isAdmin, inputs, resultados, orcamento);
-      setMessages(prev => [...prev, userMsg, assistantMsg]);
+      const userMsg: EnhancedMessage = { id: crypto.randomUUID(), role: 'user', content: text, timestamp: new Date() };
+      setMessages(prev => [...prev, userMsg]);
+      setIsTyping(true);
+      try {
+        const result = await processarMensagemAsync(text, isAdmin, orcamentoId);
+        setMessages(prev => [...prev, {
+          id: crypto.randomUUID(), role: 'assistant', content: result.content,
+          actions: result.actions.length > 0 ? result.actions : undefined,
+          timestamp: new Date(), sources: result.sources,
+        }]);
+      } finally {
+        setIsTyping(false);
+      }
     } else {
       onAction?.(actionId, params);
     }
@@ -91,8 +133,8 @@ export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onActi
                 {msg.actions && msg.actions.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
                     {msg.actions
-                      .filter(a => !a.adminOnly || isAdmin)
-                      .map((action) => (
+                      .filter((a: ChatAction) => !a.adminOnly || isAdmin)
+                      .map((action: ChatAction) => (
                         <Button
                           key={action.actionId}
                           size="sm"
@@ -105,9 +147,28 @@ export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onActi
                       ))}
                   </div>
                 )}
+                {/* Source tags */}
+                {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
+                  <div className="flex gap-1 mt-1.5">
+                    {msg.sources.map((src, i) => (
+                      <Badge key={i} variant="outline" className="text-[10px] h-4 px-1.5 text-muted-foreground">
+                        {src}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}
+          {/* Typing indicator */}
+          {isTyping && (
+            <div className="flex justify-start">
+              <div className="bg-muted text-foreground rounded-lg px-3 py-2 text-sm flex items-center gap-2">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span className="text-muted-foreground text-xs">Pesquisando no sistema…</span>
+              </div>
+            </div>
+          )}
         </div>
       </ScrollArea>
 
@@ -118,9 +179,10 @@ export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onActi
           onKeyDown={handleKeyDown}
           placeholder="Pergunte ao Mr. Obras..."
           className="text-sm"
+          disabled={isTyping}
         />
-        <Button size="icon" onClick={handleSend} disabled={!input.trim()}>
-          <Send className="h-4 w-4" />
+        <Button size="icon" onClick={handleSend} disabled={!input.trim() || isTyping}>
+          {isTyping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
     </div>

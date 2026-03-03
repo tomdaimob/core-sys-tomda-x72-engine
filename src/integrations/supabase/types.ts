@@ -159,6 +159,53 @@ export type Database = {
           },
         ]
       }
+      audit_log: {
+        Row: {
+          action: string
+          after_json: Json | null
+          before_json: Json | null
+          created_at: string
+          entity: string | null
+          id: string
+          message: string | null
+          orcamento_id: string | null
+          user_id: string
+          user_role: string
+        }
+        Insert: {
+          action: string
+          after_json?: Json | null
+          before_json?: Json | null
+          created_at?: string
+          entity?: string | null
+          id?: string
+          message?: string | null
+          orcamento_id?: string | null
+          user_id: string
+          user_role?: string
+        }
+        Update: {
+          action?: string
+          after_json?: Json | null
+          before_json?: Json | null
+          created_at?: string
+          entity?: string | null
+          id?: string
+          message?: string | null
+          orcamento_id?: string | null
+          user_id?: string
+          user_role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_orcamento_id_fkey"
+            columns: ["orcamento_id"]
+            isOneToOne: false
+            referencedRelation: "orcamentos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       baldrame_configuracoes: {
         Row: {
           altura_cm: number

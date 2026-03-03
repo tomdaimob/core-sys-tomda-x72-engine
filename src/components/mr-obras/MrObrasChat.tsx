@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,22 +21,33 @@ interface EnhancedMessage extends ChatMessage {
   sources?: string[];
 }
 
+function makeWelcome(orcamento: any): EnhancedMessage {
+  return {
+    id: 'welcome',
+    role: 'assistant',
+    content: orcamento
+      ? `Olá! Estou analisando o orçamento **${orcamento.codigo}** (${orcamento.cliente}). Me pergunte qualquer coisa — eu consulto o sistema antes de responder 👷`
+      : 'Olá! Abra um orçamento para que eu possa consultar os dados e te ajudar.',
+    timestamp: new Date(),
+    sources: [],
+  };
+}
+
 export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onAction }: MrObrasChatProps) {
   const { isAdmin } = useAuth();
-  const [messages, setMessages] = useState<EnhancedMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: orcamento
-        ? `Olá! Estou aqui para ajudar com o orçamento **${orcamento.codigo}** (${orcamento.cliente}). Pode me perguntar qualquer coisa — eu consulto o sistema antes de responder 👷`
-        : 'Olá! Abra um orçamento para que eu possa consultar os dados e te ajudar.',
-      timestamp: new Date(),
-      sources: [],
-    },
-  ]);
+  const [messages, setMessages] = useState<EnhancedMessage[]>([makeWelcome(orcamento)]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const prevOrcIdRef = useRef<string | null>(null);
+
+  // Reset chat when orcamentoId changes (anti-mistura)
+  useEffect(() => {
+    if (prevOrcIdRef.current !== orcamentoId) {
+      prevOrcIdRef.current = orcamentoId;
+      setMessages([makeWelcome(orcamento)]);
+    }
+  }, [orcamentoId, orcamento]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -44,21 +55,8 @@ export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onActi
     }
   }, [messages, isTyping]);
 
-  const handleSend = async () => {
-    const text = input.trim();
-    if (!text || isTyping) return;
-
-    const userMsg: EnhancedMessage = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: text,
-      timestamp: new Date(),
-    };
-
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
+  const sendToAgent = useCallback(async (text: string) => {
     setIsTyping(true);
-
     try {
       const result = await processarMensagemAsync(text, isAdmin, orcamentoId);
       const assistantMsg: EnhancedMessage = {
@@ -81,24 +79,33 @@ export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onActi
     } finally {
       setIsTyping(false);
     }
+  }, [isAdmin, orcamentoId]);
+
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text || isTyping) return;
+
+    const userMsg: EnhancedMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: text,
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    await sendToAgent(text);
   };
 
   const handleActionClick = async (actionId: string, params?: Record<string, any>) => {
+    // Actions that should trigger a new pipeline query
     if (actionId === 'explicar_etapa' && params?.etapa) {
       const text = `explicar ${params.etapa}`;
-      const userMsg: EnhancedMessage = { id: crypto.randomUUID(), role: 'user', content: text, timestamp: new Date() };
-      setMessages(prev => [...prev, userMsg]);
-      setIsTyping(true);
-      try {
-        const result = await processarMensagemAsync(text, isAdmin, orcamentoId);
-        setMessages(prev => [...prev, {
-          id: crypto.randomUUID(), role: 'assistant', content: result.content,
-          actions: result.actions.length > 0 ? result.actions : undefined,
-          timestamp: new Date(), sources: result.sources,
-        }]);
-      } finally {
-        setIsTyping(false);
-      }
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user', content: text, timestamp: new Date() }]);
+      await sendToAgent(text);
+    } else if (actionId === 'diagnosticar_geral') {
+      const text = 'o que está com problema no orçamento?';
+      setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user', content: text, timestamp: new Date() }]);
+      await sendToAgent(text);
     } else {
       onAction?.(actionId, params);
     }
@@ -134,9 +141,9 @@ export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onActi
                   <div className="flex flex-wrap gap-1 mt-2">
                     {msg.actions
                       .filter((a: ChatAction) => !a.adminOnly || isAdmin)
-                      .map((action: ChatAction) => (
+                      .map((action: ChatAction, idx: number) => (
                         <Button
-                          key={action.actionId}
+                          key={`${action.actionId}-${idx}`}
                           size="sm"
                           variant="secondary"
                           className="text-xs h-7"
@@ -147,12 +154,11 @@ export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onActi
                       ))}
                   </div>
                 )}
-                {/* Source tags */}
                 {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
                   <div className="flex gap-1 mt-1.5">
-                    {msg.sources.map((src, i) => (
+                    {msg.sources.map((s, i) => (
                       <Badge key={i} variant="outline" className="text-[10px] h-4 px-1.5 text-muted-foreground">
-                        {src}
+                        {s}
                       </Badge>
                     ))}
                   </div>
@@ -160,12 +166,11 @@ export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onActi
               </div>
             </div>
           ))}
-          {/* Typing indicator */}
           {isTyping && (
             <div className="flex justify-start">
               <div className="bg-muted text-foreground rounded-lg px-3 py-2 text-sm flex items-center gap-2">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                <span className="text-muted-foreground text-xs">Pesquisando no sistema…</span>
+                <span className="text-muted-foreground text-xs">Analisando no sistema…</span>
               </div>
             </div>
           )}

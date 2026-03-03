@@ -1,6 +1,6 @@
 // Mr. Obras — Pipeline conversacional: classify → gather → analyze → respond
 import { supabase } from '@/integrations/supabase/client';
-import { ETAPAS_CONHECIMENTO, MENSAGENS_SIGILO, type EtapaConhecimento } from './mr-obras-knowledge';
+import { ETAPAS_CONHECIMENTO, MENSAGENS_SIGILO } from './mr-obras-knowledge';
 import type { ChatAction } from './mr-obras-chat';
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -30,7 +30,7 @@ export interface Intent {
 export interface PipelineResult {
   content: string;
   actions: ChatAction[];
-  sources: string[];  // e.g. ['DB', 'Manual', 'IA']
+  sources: string[];
 }
 
 // ── Etapa aliases ──────────────────────────────────────────────────
@@ -69,8 +69,7 @@ export function classifyIntent(text: string): Intent {
   if (/^(ajuda|help|comandos|o que você faz|o que voce faz|menu)\b/.test(lower))
     return { type: 'ajuda', raw: text };
 
-  // "quanto deu" / "qual o valor" / "qual o total"
-  if (/quanto (deu|custou|ficou)|qual o (valor|total|custo)|valor do|total do|custo do/.test(lower))
+  if (/quanto (deu|custou|ficou)|qual o (valor|total|custo)|valor do|total do|custo do|quanto está|quanto esta/.test(lower))
     return { type: 'quanto_deu', etapa, raw: text };
 
   if (/explicar|explica|por que|porque|como calcula|como funciona|o que é|qual a fórmula|formula|detalha|de onde (saiu|veio)/.test(lower))
@@ -124,9 +123,7 @@ export function classifyIntent(text: string): Intent {
 
 // ── 2. Gather Context (fresh from DB) ──────────────────────────────
 
-export async function gatherContext(orcamentoId: string | null): Promise<PipelineContext> {
-  if (!orcamentoId) return { orcamento: null, inputs: {}, resultados: null, pavimentos: [], arquivos: [], extracoes: [] };
-
+export async function gatherContext(orcamentoId: string): Promise<PipelineContext> {
   const [orcRes, inputsRes, resultRes, pavRes, arqRes, extRes] = await Promise.all([
     supabase.from('orcamentos').select('*').eq('id', orcamentoId).single(),
     supabase.from('orcamento_inputs').select('*').eq('orcamento_id', orcamentoId),
@@ -191,373 +188,450 @@ function inspectStage(etapa: string, ctx: PipelineContext): StageInspection {
   };
 }
 
-function formatCurrency(v: number | null | undefined): string {
+/** Detect global issues across all stages */
+function detectGlobalIssues(ctx: PipelineContext): string[] {
+  const issues: string[] = [];
+  const res = ctx.resultados;
+
+  if (!res) {
+    issues.push('Nenhum resultado calculado ainda — o orçamento precisa ser calculado.');
+    return issues;
+  }
+
+  if ((res.paredes_total_area_m2 ?? 0) === 0) issues.push('**Paredes**: área total 0 m²');
+  if ((res.fundacao_total ?? 0) === 0) issues.push('**Fundação**: custo total R$ 0');
+  if ((res.laje_total_area_m2 ?? 0) === 0) issues.push('**Laje**: área 0 m²');
+  if ((res.reboco_total_area_externo_m2 ?? 0) === 0 && (res.reboco_total_area_interno_m2 ?? 0) === 0)
+    issues.push('**Reboco**: áreas externo e interno ambos 0 m²');
+
+  if (ctx.arquivos.length === 0) issues.push('**Sem arquivo ativo** — nenhum PDF ou imagem enviado');
+
+  const pendingPavs = ctx.pavimentos.filter(p => p.status === 'PENDENTE' || p.status === 'AGUARDANDO_CONFIRMACAO');
+  if (pendingPavs.length > 0)
+    issues.push(`**${pendingPavs.length} pavimento(s)** pendente(s) de confirmação`);
+
+  return issues;
+}
+
+function fmt$(v: number | null | undefined): string {
   if (v == null || isNaN(v)) return 'R$ 0,00';
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-function formatNum(v: number | null | undefined, decimals = 2): string {
+function fmtN(v: number | null | undefined, d = 2): string {
   if (v == null || isNaN(v)) return '0';
-  return v.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  return v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
-// ── 4. Generate natural response ───────────────────────────────────
+// ── 4. Main pipeline ───────────────────────────────────────────────
 
 export async function processarMensagemAsync(
   text: string,
   isAdmin: boolean,
   orcamentoId: string | null,
-  /** Pass cached context to avoid re-fetching when not needed */
-  cachedCtx?: PipelineContext,
 ): Promise<PipelineResult> {
   const intent = classifyIntent(text);
-  const sources: string[] = [];
 
-  // Intents that don't need DB
+  // ── Intents that DON'T need DB ──
   if (intent.type === 'saudacao') {
-    if (orcamentoId && !cachedCtx) {
-      const ctx = await gatherContext(orcamentoId);
-      sources.push('DB');
-      return {
-        content: ctx.orcamento
-          ? `Olá! Estou aqui para ajudar com o orçamento **${ctx.orcamento.codigo}** (${ctx.orcamento.cliente}). O que você precisa?`
-          : `Olá! Não encontrei um orçamento aberto. Abra um orçamento para eu poder ajudar.`,
-        actions: [],
-        sources,
-      };
+    if (!orcamentoId) return ok('Olá! Abra um orçamento para que eu possa consultar os dados e te ajudar.');
+    const ctx = await gatherContext(orcamentoId);
+    if (!ctx.orcamento) return ok('Olá! Não encontrei o orçamento aberto. Selecione um na lista.');
+    const issues = detectGlobalIssues(ctx);
+    let msg = `Olá! Estou olhando o orçamento **${ctx.orcamento.codigo}** (${ctx.orcamento.cliente}).`;
+    if (issues.length > 0) {
+      msg += ` Já vi que tem ${issues.length} ponto(s) que precisam de atenção — me pergunte sobre qualquer um.`;
+    } else {
+      msg += ' Tudo parece em ordem. Pode perguntar o que quiser!';
     }
-    return { content: 'Olá! Abra um orçamento e me pergunte qualquer coisa sobre os cálculos.', actions: [], sources };
+    return { content: msg, actions: [], sources: ['DB'] };
   }
 
   if (intent.type === 'ajuda') {
-    return {
-      content: `Pode me perguntar naturalmente! Alguns exemplos:\n\n- "Quanto deu o radier?"\n- "Por que o reboco está zerado?"\n- "Explicar como calcula a laje"\n- "Recalcular tudo"\n- "Reimportar PDF"\n- "Adicionar pavimento"\n- "Gerar proposta"\n\nSó perguntar que eu pesquiso no sistema e respondo 👷`,
-      actions: [],
-      sources: [],
-    };
+    return ok(`Pode me perguntar naturalmente! Exemplos:\n\n- "Quanto deu o radier?"\n- "Por que o reboco está zerado?"\n- "Explicar como calcula a laje"\n- "Recalcular tudo"\n- "Reimportar PDF"\n- "Adicionar pavimento"\n- "Gerar proposta"\n\nEu consulto o sistema e respondo com os dados reais 👷`);
   }
 
-  // All other intents require an orcamento
-  if (!orcamentoId) {
-    return { content: 'Preciso que você abra um orçamento para eu poder consultar os dados e responder. Selecione um orçamento na lista ou crie um novo.', actions: [], sources: [] };
-  }
+  // ── All other intents require orcamento + DB query ──
+  if (!orcamentoId) return ok('Preciso que você abra um orçamento primeiro. Selecione um na lista ou crie um novo.');
 
-  // Gather fresh context from DB
-  const ctx = cachedCtx || await gatherContext(orcamentoId);
-  sources.push('DB');
+  const ctx = await gatherContext(orcamentoId);
+  if (!ctx.orcamento) return ok('Não encontrei esse orçamento. Verifique se ele ainda existe.');
 
   const orc = ctx.orcamento;
-  if (!orc) {
-    return { content: 'Não encontrei esse orçamento no sistema. Verifique se ele ainda existe.', actions: [], sources };
-  }
-
-  // ── Handle each intent ───────────────────────────────────────────
+  const src: string[] = ['DB'];
 
   switch (intent.type) {
-    case 'quanto_deu':
-      return handleQuantoDeu(intent, ctx, isAdmin, sources);
-
-    case 'explicar':
-      return handleExplicar(intent, ctx, isAdmin, sources);
-
-    case 'diagnosticar':
-      return handleDiagnosticar(intent, ctx, isAdmin, sources);
-
-    case 'recalcular':
-      return handleRecalcular(ctx, sources);
-
-    case 'importar':
-      return { content: 'Entendi. Para reimportar, use o botão abaixo — ele vai reprocessar o PDF ativo e atualizar as medidas.', actions: [{ label: '📥 Reimportar PDF', actionId: 'reimportar_pdf' }, { label: '✏️ Modo Manual', actionId: 'modo_manual' }], sources };
-
-    case 'adicionar':
-      return handleAdicionar(intent, sources);
-
-    case 'toggle':
-      return { content: `Certo — para ${intent.actionId?.startsWith('ativar') ? 'ativar' : 'desativar'} **${intent.target}**, use o toggle na aba correspondente do orçamento.`, actions: [{ label: `⚡ ${intent.actionId?.startsWith('ativar') ? 'Ativar' : 'Desativar'} ${intent.target}`, actionId: intent.actionId || '' }], sources };
-
-    case 'listar':
-      return { content: `O simulador tem ${Object.keys(ETAPAS_CONHECIMENTO).length} etapas:\n\n${Object.values(ETAPAS_CONHECIMENTO).map(e => `• **${e.nome}**`).join('\n')}\n\nSobre qual quer saber?`, actions: [], sources };
-
-    case 'acao':
-      return handleAcao(intent, ctx, isAdmin, sources);
-
-    default:
-      // If we detected an etapa, give something useful
-      if (intent.etapa && ETAPAS_CONHECIMENTO[intent.etapa]) {
-        const insp = inspectStage(intent.etapa, ctx);
-        if (!insp.hasData) {
-          return { content: `Sobre **${insp.nome}**: ainda não encontrei dados preenchidos para essa etapa. Quer que eu importe do PDF ou prefere preencher manualmente?`, actions: [{ label: '📥 Reimportar PDF', actionId: 'reimportar_pdf' }, { label: '✏️ Manual', actionId: 'modo_manual' }], sources };
-        }
-        return { content: `Entendi que está perguntando sobre **${insp.nome}**. Pode ser mais específico? Por exemplo:\n- "Quanto deu ${intent.etapa}?"\n- "Por que ${intent.etapa} está zerado?"\n- "Explicar ${intent.etapa}"`, actions: [{ label: `📖 Explicar ${insp.nome}`, actionId: 'explicar_etapa', params: { etapa: intent.etapa } }], sources };
-      }
-      return { content: 'Não entendi completamente. Pode reformular? Exemplos: "quanto deu o radier?", "por que o reboco está zerado?", "explicar laje".', actions: [], sources };
+    case 'quanto_deu': return handleQuantoDeu(intent, ctx, isAdmin, src);
+    case 'explicar': return handleExplicar(intent, ctx, isAdmin, src);
+    case 'diagnosticar': return handleDiagnosticar(intent, ctx, isAdmin, src);
+    case 'recalcular': return handleRecalcular(ctx, src);
+    case 'importar': return handleImportar(ctx, src);
+    case 'adicionar': return handleAdicionar(intent, ctx, src);
+    case 'toggle': return handleToggle(intent, ctx, src);
+    case 'listar': return handleListar(ctx, src);
+    case 'acao': return handleAcao(intent, ctx, isAdmin, src);
+    default: return handleDesconhecido(intent, ctx, src);
   }
 }
 
-// ── Intent handlers ────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────
 
-function handleQuantoDeu(intent: Intent, ctx: PipelineContext, isAdmin: boolean, sources: string[]): PipelineResult {
+function ok(content: string, actions: ChatAction[] = [], sources: string[] = []): PipelineResult {
+  return { content, actions, sources };
+}
+
+// ── QUANTO DEU ─────────────────────────────────────────────────────
+
+function handleQuantoDeu(intent: Intent, ctx: PipelineContext, isAdmin: boolean, src: string[]): PipelineResult {
   const etapa = intent.etapa;
   const res = ctx.resultados;
   const orc = ctx.orcamento;
-  const actions: ChatAction[] = [];
 
-  // Sigilo
-  if (etapa === 'margens' && !isAdmin) {
-    return { content: MENSAGENS_SIGILO.sigiloLucroBdi, actions: [], sources };
-  }
+  if (etapa === 'margens' && !isAdmin) return ok(MENSAGENS_SIGILO.sigiloLucroBdi, [], src);
 
   // Total geral
   if (!etapa || /total|geral|orçamento|orcamento/.test(intent.raw.toLowerCase())) {
-    const totalPredio = res?.total_geral_predio ?? 0;
-    const fundacao = res?.fundacao_total ?? 0;
-    const consolidado = res?.consolidado || {};
-    let resp = `No orçamento **${orc.codigo}** (${orc.cliente}), o total geral está em **${formatCurrency(totalPredio)}**.`;
-    if (fundacao > 0) resp += ` A fundação contribui com ${formatCurrency(fundacao)}.`;
-    if (consolidado.custo_direto_total) resp += ` O custo direto total é ${formatCurrency(consolidado.custo_direto_total)}.`;
-    actions.push({ label: '🔄 Recalcular', actionId: 'recalcular_tudo' });
-    return { content: resp, actions, sources };
+    if (!res) return ok(`O orçamento **${orc.codigo}** ainda não foi calculado. Quer que eu recalcule?`, [{ label: '🔄 Recalcular tudo', actionId: 'recalcular_tudo' }], src);
+
+    const total = res.total_geral_predio ?? 0;
+    const consolidado = res.consolidado || {};
+    const fundacao = res.fundacao_total ?? 0;
+
+    let msg = `No orçamento **${orc.codigo}**, o total geral está em **${fmt$(total)}**.`;
+    if (consolidado.custo_direto_total) msg += ` Custo direto: ${fmt$(consolidado.custo_direto_total)}.`;
+    if (fundacao > 0) msg += ` Fundação: ${fmt$(fundacao)}.`;
+
+    const issues = detectGlobalIssues(ctx);
+    if (issues.length > 0) msg += `\n\n⚠️ Atenção: ${issues[0]}.`;
+
+    return { content: msg, actions: [{ label: '🔄 Recalcular', actionId: 'recalcular_tudo' }], sources: src };
   }
 
   // Etapa específica
-  if (etapa && res) {
-    const etapaData = res[etapa];
-    if (etapa === 'radier') {
-      const radier = res.radier || {};
-      const custoTotal = radier.radier_custo_total ?? radier.custo_total ?? 0;
-      const fundacao = res.fundacao_total ?? 0;
-      let resp = `O **Radier** está com custo total de **${formatCurrency(custoTotal)}**.`;
-      if (radier.radier_custo_concreto) resp += ` Concreto: ${formatCurrency(radier.radier_custo_concreto)}.`;
-      if (radier.radier_custo_tela || radier.custo_tela) resp += ` Tela soldada: ${formatCurrency(radier.radier_custo_tela || radier.custo_tela)}.`;
-      if (radier.radier_custo_mao_obra || radier.custo_mao_obra) resp += ` Mão de obra: ${formatCurrency(radier.radier_custo_mao_obra || radier.custo_mao_obra)}.`;
-      resp += ` O total da fundação (incluindo baldrame/sapata se houver) é ${formatCurrency(fundacao)}.`;
-      return { content: resp, actions: [{ label: '🔄 Recalcular', actionId: 'recalcular_tudo' }], sources };
-    }
+  if (!res) return ok(`Ainda não há resultados calculados. Preciso que calcule primeiro.`, [{ label: '🔄 Recalcular', actionId: 'recalcular_tudo' }], src);
 
-    if (etapa === 'paredes') {
-      const area = res.paredes_total_area_m2 ?? 0;
-      const paredesData = res.paredes || {};
-      let resp = `As **Paredes** totalizam **${formatNum(area)} m²** de área.`;
-      if (paredesData.custo_paredes) resp += ` Custo: ${formatCurrency(paredesData.custo_paredes)}.`;
-      return { content: resp, actions: [], sources };
-    }
+  const info = ETAPAS_CONHECIMENTO[etapa!];
+  const nome = info?.nome || etapa;
 
-    if (etapa === 'reboco') {
-      const ext = res.reboco_total_area_externo_m2 ?? 0;
-      const int = res.reboco_total_area_interno_m2 ?? 0;
-      const rebocoData = res.reboco || {};
-      let resp = `O **Reboco** tem ${formatNum(ext)} m² externo e ${formatNum(int)} m² interno.`;
-      if (rebocoData.custo_reboco) resp += ` Custo total: ${formatCurrency(rebocoData.custo_reboco)}.`;
-      return { content: resp, actions: [], sources };
-    }
-
-    if (etapa === 'laje') {
-      const area = res.laje_total_area_m2 ?? 0;
-      const vol = res.laje_total_volume_m3 ?? 0;
-      const lajeData = res.laje || {};
-      let resp = `A **Laje** tem ${formatNum(area)} m² de área e ${formatNum(vol)} m³ de volume.`;
-      if (lajeData.custo_laje) resp += ` Custo: ${formatCurrency(lajeData.custo_laje)}.`;
-      return { content: resp, actions: [], sources };
-    }
-
-    // Generic fallback for other etapas
-    if (etapaData && typeof etapaData === 'object') {
-      const custoKeys = Object.keys(etapaData).filter(k => k.includes('custo') || k.includes('total'));
-      if (custoKeys.length > 0) {
-        let resp = `Sobre **${ETAPAS_CONHECIMENTO[etapa]?.nome || etapa}**:\n`;
-        custoKeys.slice(0, 5).forEach(k => {
-          resp += `• ${k}: ${typeof etapaData[k] === 'number' ? formatCurrency(etapaData[k]) : etapaData[k]}\n`;
-        });
-        return { content: resp, actions: [], sources };
-      }
-    }
-
-    return { content: `Não encontrei resultados calculados para **${ETAPAS_CONHECIMENTO[etapa]?.nome || etapa}** neste orçamento. Pode ser que falte preencher os dados de entrada ou recalcular.`, actions: [{ label: '🔄 Recalcular', actionId: 'recalcular_tudo' }], sources };
+  if (etapa === 'radier') {
+    const r = res.radier || {};
+    const total = r.radier_custo_total ?? r.custo_total ?? 0;
+    let msg = `O **Radier** está em **${fmt$(total)}**.`;
+    if (r.radier_custo_concreto) msg += ` Concreto: ${fmt$(r.radier_custo_concreto)}.`;
+    if (r.radier_custo_tela || r.custo_tela) msg += ` Tela: ${fmt$(r.radier_custo_tela || r.custo_tela)}.`;
+    if (r.radier_custo_mao_obra || r.custo_mao_obra) msg += ` MO: ${fmt$(r.radier_custo_mao_obra || r.custo_mao_obra)}.`;
+    if (total === 0) msg += '\n\n⚠️ Total zerado — provavelmente faltam dados de entrada. Quer que eu investigue?';
+    return { content: msg, actions: total === 0 ? [{ label: '🔍 Investigar', actionId: 'explicar_etapa', params: { etapa: 'radier' } }] : [], sources: src };
   }
 
-  return { content: 'Sobre qual etapa quer saber o valor? Exemplos: "quanto deu o radier?", "quanto deu a laje?"', actions: [], sources };
+  if (etapa === 'paredes') {
+    const area = res.paredes_total_area_m2 ?? 0;
+    const p = res.paredes || {};
+    let msg = `As **Paredes** totalizam **${fmtN(area)} m²**.`;
+    if (p.custo_paredes) msg += ` Custo: ${fmt$(p.custo_paredes)}.`;
+    if (area === 0) msg += '\n\n⚠️ Área zerada. Verifique se as medidas foram importadas ou preenchidas.';
+    return { content: msg, actions: area === 0 ? [{ label: '📥 Reimportar', actionId: 'reimportar_pdf' }] : [], sources: src };
+  }
+
+  if (etapa === 'reboco') {
+    const ext = res.reboco_total_area_externo_m2 ?? 0;
+    const int = res.reboco_total_area_interno_m2 ?? 0;
+    const rb = res.reboco || {};
+    let msg = `O **Reboco** tem ${fmtN(ext)} m² externo e ${fmtN(int)} m² interno.`;
+    if (rb.custo_reboco) msg += ` Custo: ${fmt$(rb.custo_reboco)}.`;
+    if (ext === 0 && int === 0) {
+      msg += '\n\n⚠️ Ambos zerados. ';
+      const paredesArea = res.paredes_total_area_m2 ?? 0;
+      if (paredesArea === 0) msg += 'A causa é que a **área de paredes** também está 0 — resolva as paredes primeiro.';
+      else msg += 'Verifique se os dados de reboco foram preenchidos.';
+    }
+    return { content: msg, actions: [], sources: src };
+  }
+
+  if (etapa === 'laje') {
+    const area = res.laje_total_area_m2 ?? 0;
+    const vol = res.laje_total_volume_m3 ?? 0;
+    const l = res.laje || {};
+    let msg = `A **Laje** tem ${fmtN(area)} m² e ${fmtN(vol)} m³.`;
+    if (l.custo_laje) msg += ` Custo: ${fmt$(l.custo_laje)}.`;
+    return { content: msg, actions: [], sources: src };
+  }
+
+  // Generic for other stages
+  const etapaRes = res[etapa!];
+  if (etapaRes && typeof etapaRes === 'object') {
+    const custoEntries = Object.entries(etapaRes).filter(([k]) => k.includes('custo') || k.includes('total'));
+    if (custoEntries.length > 0) {
+      let msg = `Sobre **${nome}**:\n`;
+      custoEntries.slice(0, 5).forEach(([k, v]) => {
+        msg += `• ${k}: ${typeof v === 'number' ? fmt$(v as number) : v}\n`;
+      });
+      return { content: msg, actions: [], sources: src };
+    }
+  }
+
+  return ok(`Não encontrei resultados para **${nome}**. Pode ser que falte preencher dados ou recalcular.`, [{ label: '🔄 Recalcular', actionId: 'recalcular_tudo' }], src);
 }
 
-function handleExplicar(intent: Intent, ctx: PipelineContext, isAdmin: boolean, sources: string[]): PipelineResult {
+// ── EXPLICAR ───────────────────────────────────────────────────────
+
+function handleExplicar(intent: Intent, ctx: PipelineContext, isAdmin: boolean, src: string[]): PipelineResult {
   const etapa = intent.etapa;
   if (!etapa || !ETAPAS_CONHECIMENTO[etapa]) {
-    return { content: `Sobre qual etapa quer a explicação? Temos: ${Object.values(ETAPAS_CONHECIMENTO).map(e => e.nome).join(', ')}.`, actions: [], sources };
+    return ok(`Sobre qual etapa? Temos: ${Object.values(ETAPAS_CONHECIMENTO).map(e => e.nome).join(', ')}.`, [], src);
   }
 
-  if (etapa === 'margens' && !isAdmin) {
-    return { content: `Sobre o desconto comercial: você pode solicitar desconto para o cliente, e o Gestor aprova. ${MENSAGENS_SIGILO.sigiloLucroBdi}`, actions: [], sources };
-  }
+  if (etapa === 'margens' && !isAdmin)
+    return ok(`Sobre o desconto comercial: você pode solicitar desconto para o cliente, e o Gestor aprova. ${MENSAGENS_SIGILO.sigiloLucroBdi}`, [], src);
 
   const info = ETAPAS_CONHECIMENTO[etapa];
   const insp = inspectStage(etapa, ctx);
   const orc = ctx.orcamento;
 
-  let resp = `Vamos ver o **${info.nome}** no orçamento ${orc.codigo}.\n\n`;
-  resp += `${info.descricao}\n\n`;
+  let msg = `Entendi, vou explicar o **${info.nome}** no orçamento ${orc.codigo}.\n\n`;
+  msg += `${info.descricao}\n\n`;
 
-  if (info.formula) resp += `**Fórmula:** \`${info.formula}\`\n\n`;
+  if (info.formula) msg += `**Fórmula:** \`${info.formula}\`\n\n`;
 
-  // Show actual values
   if (insp.hasData && insp.inputData) {
-    resp += `**Dados de entrada encontrados:**\n`;
+    msg += `**Dados atuais no sistema:**\n`;
     const entries = Object.entries(insp.inputData).filter(([, v]) => v != null && v !== '');
     entries.slice(0, 8).forEach(([k, v]) => {
-      resp += `• \`${k}\`: ${typeof v === 'number' ? formatNum(v) : v}\n`;
+      msg += `• \`${k}\`: ${typeof v === 'number' ? fmtN(v) : v}\n`;
     });
     if (insp.zeroFields.length > 0) {
-      resp += `\n⚠️ Campos zerados: ${insp.zeroFields.slice(0, 5).map(f => `\`${f}\``).join(', ')}`;
+      msg += `\n⚠️ Campos zerados: ${insp.zeroFields.slice(0, 5).map(f => `\`${f}\``).join(', ')} — podem afetar o resultado.`;
     }
+    src.push('Manual');
   } else {
-    resp += `⚠️ Nenhum dado de entrada preenchido ainda para essa etapa.`;
+    msg += `⚠️ **Nenhum dado de entrada preenchido** para essa etapa. Sem inputs, não há cálculo.`;
   }
 
-  // Show result if available
   if (insp.resultadoData) {
-    const custoKeys = Object.entries(insp.resultadoData).filter(([k]) => k.includes('custo') || k.includes('total'));
-    if (custoKeys.length > 0) {
-      resp += `\n\n**Resultados:**\n`;
-      custoKeys.slice(0, 5).forEach(([k, v]) => {
-        resp += `• ${k}: ${typeof v === 'number' ? formatCurrency(v as number) : v}\n`;
+    const custoEntries = Object.entries(insp.resultadoData).filter(([k]) => k.includes('custo') || k.includes('total') || k.includes('area'));
+    if (custoEntries.length > 0) {
+      msg += `\n\n**Resultados atuais:**\n`;
+      custoEntries.slice(0, 5).forEach(([k, v]) => {
+        msg += `• ${k}: ${typeof v === 'number' ? (k.includes('custo') || k.includes('total') ? fmt$(v as number) : fmtN(v as number)) : v}\n`;
       });
     }
   }
 
-  if (info.observacoes?.length) {
-    resp += `\n\n💡 ${info.observacoes[0]}`;
-  }
+  if (info.observacoes?.length) msg += `\n\n💡 ${info.observacoes[0]}`;
 
   const actions: ChatAction[] = [{ label: '🔄 Recalcular', actionId: 'recalcular_tudo' }];
-  if (!insp.hasData) actions.push({ label: '📥 Reimportar', actionId: 'reimportar_pdf' });
+  if (!insp.hasData) actions.push({ label: '📥 Reimportar PDF', actionId: 'reimportar_pdf' }, { label: '✏️ Preencher manual', actionId: 'modo_manual' });
 
-  return { content: resp, actions, sources };
+  return { content: msg, actions, sources: src };
 }
 
-function handleDiagnosticar(intent: Intent, ctx: PipelineContext, isAdmin: boolean, sources: string[]): PipelineResult {
+// ── DIAGNOSTICAR ───────────────────────────────────────────────────
+
+function handleDiagnosticar(intent: Intent, ctx: PipelineContext, isAdmin: boolean, src: string[]): PipelineResult {
   const etapa = intent.etapa;
 
-  if (etapa === 'margens' && !isAdmin) {
-    return { content: MENSAGENS_SIGILO.sigiloLucroBdi, actions: [], sources };
-  }
+  if (etapa === 'margens' && !isAdmin) return ok(MENSAGENS_SIGILO.sigiloLucroBdi, [], src);
 
+  // Diagnóstico geral (sem etapa específica)
   if (!etapa) {
-    // General diagnostics — look for zero totals
-    const res = ctx.resultados;
-    const problems: string[] = [];
-    if (res) {
-      if ((res.paredes_total_area_m2 ?? 0) === 0) problems.push('Paredes (área 0)');
-      if ((res.fundacao_total ?? 0) === 0) problems.push('Fundação (custo 0)');
-      if ((res.laje_total_area_m2 ?? 0) === 0) problems.push('Laje (área 0)');
-      if ((res.reboco_total_area_externo_m2 ?? 0) === 0 && (res.reboco_total_area_interno_m2 ?? 0) === 0) problems.push('Reboco (área 0)');
+    const issues = detectGlobalIssues(ctx);
+    if (issues.length > 0) {
+      let msg = `Encontrei **${issues.length} problema(s)** no orçamento **${ctx.orcamento.codigo}**:\n\n`;
+      issues.forEach(i => { msg += `⚠️ ${i}\n`; });
+      msg += `\nMe diga qual quer investigar — ex: "por que o radier está zerado?"`;
+      return { content: msg, actions: [{ label: '🔄 Recalcular tudo', actionId: 'recalcular_tudo' }], sources: src };
     }
-    if (problems.length > 0) {
-      return { content: `Encontrei possíveis problemas no orçamento **${ctx.orcamento.codigo}**:\n\n${problems.map(p => `⚠️ ${p}`).join('\n')}\n\nMe diga qual etapa quer investigar e eu busco os detalhes.`, actions: [{ label: '🔄 Recalcular tudo', actionId: 'recalcular_tudo' }], sources };
-    }
-    return { content: 'Qual etapa está com problema? Pode dizer: "por que o radier está zerado?" ou "por que reboco não calcula?"', actions: [], sources };
+    return ok(`Dei uma olhada geral no orçamento **${ctx.orcamento.codigo}** e não encontrei problemas evidentes. Todos os totais têm valores. Qual etapa está te preocupando?`, [], src);
   }
 
+  // Diagnóstico de etapa específica
   const insp = inspectStage(etapa, ctx);
   const info = ETAPAS_CONHECIMENTO[etapa];
-  if (!info) return { content: `Não encontrei a etapa "${etapa}" no sistema.`, actions: [], sources };
+  if (!info) return ok(`Não encontrei a etapa "${etapa}" no sistema.`, [], src);
 
-  let resp = `Vou investigar o **${insp.nome}** no orçamento ${ctx.orcamento.codigo}.\n\n`;
+  let msg = `Vou investigar o **${insp.nome}** no orçamento ${ctx.orcamento.codigo}.\n\n`;
 
+  // Sem dados de entrada
   if (!insp.hasData) {
-    resp += `❌ **Nenhum dado de entrada encontrado** — essa é a causa raiz. Sem inputs, o sistema não consegue calcular nada.\n\n`;
-    resp += `**Próximo passo:** importe o PDF do projeto ou preencha os dados manualmente.`;
-    return { content: resp, actions: [{ label: '📥 Reimportar PDF', actionId: 'reimportar_pdf' }, { label: '✏️ Manual', actionId: 'modo_manual' }], sources };
+    msg += `❌ **Causa raiz encontrada:** nenhum dado de entrada preenchido para essa etapa. Sem inputs, o cálculo fica zerado.\n\n`;
+
+    // Check if there's a file but no extraction
+    if (ctx.arquivos.length === 0) {
+      msg += `Além disso, **não há arquivo ativo** (PDF/imagens) — envie o projeto primeiro.`;
+      return { content: msg, actions: [{ label: '📤 Enviar PDF/Imagens', actionId: 'reimportar_pdf' }], sources: src };
+    }
+
+    // Has file but no data — extraction may have failed
+    const relevantExtractions = ctx.extracoes.filter(e => e.status === 'sucesso');
+    if (relevantExtractions.length === 0) {
+      msg += `Existe arquivo enviado, mas a **extração não foi concluída**. Tente reimportar.`;
+      return { content: msg, actions: [{ label: '📥 Reimportar PDF', actionId: 'reimportar_pdf' }, { label: '✏️ Preencher manual', actionId: 'modo_manual' }], sources: src };
+    }
+
+    msg += `Há arquivo e extrações, mas os dados não foram aplicados nesta etapa. Confirme as medidas ou preencha manualmente.`;
+    return { content: msg, actions: [{ label: '✏️ Preencher manual', actionId: 'modo_manual' }, { label: '📥 Reimportar', actionId: 'reimportar_pdf' }], sources: src };
   }
 
-  // Has data — check for issues
-  if (insp.missingFields.length > 0) {
-    resp += `Encontrei **${insp.missingFields.length} campo(s) vazio(s)**: ${insp.missingFields.slice(0, 5).map(f => `\`${f}\``).join(', ')}.\n\n`;
-  }
-  if (insp.zeroFields.length > 0) {
-    resp += `Encontrei **${insp.zeroFields.length} campo(s) zerado(s)**: ${insp.zeroFields.slice(0, 5).map(f => `\`${f}\``).join(', ')}.\n\n`;
-  }
+  // Tem dados — investigar campos problemáticos
+  const problemCount = insp.missingFields.length + insp.zeroFields.length;
 
-  if (insp.missingFields.length === 0 && insp.zeroFields.length === 0) {
-    resp += `✅ Todos os campos de entrada possuem valores. `;
-    // Check if result is zero
-    const resultadoEtapa = ctx.resultados?.[etapa];
-    if (resultadoEtapa) {
-      const custos = Object.entries(resultadoEtapa).filter(([k, v]) => k.includes('custo') && v === 0);
-      if (custos.length > 0) {
-        resp += `Porém, os custos estão zerados — verifique se os **preços no catálogo** estão configurados para essa etapa.`;
+  if (problemCount > 0) {
+    if (insp.missingFields.length > 0)
+      msg += `Encontrei **${insp.missingFields.length} campo(s) vazio(s)**: ${insp.missingFields.slice(0, 5).map(f => `\`${f}\``).join(', ')}.\n`;
+    if (insp.zeroFields.length > 0)
+      msg += `Encontrei **${insp.zeroFields.length} campo(s) zerado(s)**: ${insp.zeroFields.slice(0, 5).map(f => `\`${f}\``).join(', ')}.\n`;
+
+    msg += `\n`;
+
+    // Root cause analysis for common dependencies
+    if (etapa === 'reboco') {
+      const paredesArea = ctx.resultados?.paredes_total_area_m2 ?? 0;
+      if (paredesArea === 0) {
+        msg += `🔗 **Causa raiz:** a área de **Paredes** está 0 m². O reboco depende das paredes — resolva as paredes primeiro.`;
+        return { content: msg, actions: [{ label: '🔍 Investigar Paredes', actionId: 'explicar_etapa', params: { etapa: 'paredes' } }], sources: src };
+      }
+    }
+
+    if (etapa === 'revestimento' && insp.zeroFields.some(f => f.includes('area'))) {
+      msg += `🔗 A área base está zerada — verifique se as medidas de paredes e o material estão configurados.`;
+    }
+
+    msg += `\nEsses campos provavelmente estão impedindo o resultado. Reimporte ou preencha manualmente.`;
+  } else {
+    // Todos os inputs ok — verificar se resultado é zero
+    msg += `✅ Todos os campos de entrada têm valores.\n\n`;
+    const etapaRes = ctx.resultados?.[etapa];
+    if (etapaRes) {
+      const zeroResults = Object.entries(etapaRes).filter(([k, v]) => (k.includes('custo') || k.includes('total')) && v === 0);
+      if (zeroResults.length > 0) {
+        msg += `Porém, os **custos estão zerados** mesmo com inputs preenchidos. Isso geralmente indica que os **preços no catálogo** estão em R$ 0 para os itens dessa etapa. Peça ao Gestor para verificar os preços.`;
       } else {
-        resp += `Os resultados parecem calculados corretamente. Tente recalcular para atualizar.`;
+        msg += `Os resultados também parecem calculados. Tente recalcular para garantir que está atualizado.`;
       }
     } else {
-      resp += `Mas não encontrei resultados calculados. Tente recalcular.`;
-    }
-  } else {
-    resp += `Esses campos vazios/zerados provavelmente estão impedindo o cálculo. `;
-    // Check for common root causes
-    if (etapa === 'reboco' && (insp.zeroFields.includes('paredes_area_externa_m2') || insp.zeroFields.includes('area_parede_externa_m2'))) {
-      resp += `Como a área de paredes externas está 0, o reboco externo não calcula. Verifique a aba **Paredes** primeiro.`;
-    } else if (etapa === 'revestimento' && insp.zeroFields.some(f => f.includes('area'))) {
-      resp += `A área base está zerada — verifique se as medidas das paredes e o material estão configurados.`;
-    } else {
-      resp += `Reimporte do PDF ou preencha manualmente.`;
+      msg += `Mas **não há resultado calculado**. Execute um recálculo.`;
     }
   }
 
-  const actions: ChatAction[] = [
-    { label: '🔄 Recalcular', actionId: 'recalcular_tudo' },
-    { label: '📥 Reimportar PDF', actionId: 'reimportar_pdf' },
-  ];
-
-  return { content: resp, actions, sources };
+  return { content: msg, actions: [{ label: '🔄 Recalcular', actionId: 'recalcular_tudo' }, { label: '📥 Reimportar', actionId: 'reimportar_pdf' }], sources: src };
 }
 
-function handleRecalcular(ctx: PipelineContext, sources: string[]): PipelineResult {
-  return {
-    content: `Certo — para recalcular o orçamento **${ctx.orcamento.codigo}**, use o botão abaixo. O sistema vai reprocessar todos os cálculos com os dados atuais.`,
-    actions: [
-      { label: '🔄 Recalcular tudo', actionId: 'recalcular_tudo' },
-      ...(ctx.pavimentos.length > 0 ? [{ label: '🏢 Calcular prédio', actionId: 'calcular_predio' }] : []),
-    ],
-    sources,
-  };
+// ── RECALCULAR ─────────────────────────────────────────────────────
+
+function handleRecalcular(ctx: PipelineContext, src: string[]): PipelineResult {
+  const actions: ChatAction[] = [{ label: '🔄 Recalcular tudo', actionId: 'recalcular_tudo' }];
+  if (ctx.pavimentos.length > 0) actions.push({ label: '🏢 Calcular prédio', actionId: 'calcular_predio' });
+
+  return { content: `Certo, vou preparar o recálculo do orçamento **${ctx.orcamento.codigo}**. Use o botão abaixo — os dados atuais serão reprocessados.`, actions, sources: src };
 }
 
-function handleAdicionar(intent: Intent, sources: string[]): PipelineResult {
+// ── IMPORTAR ───────────────────────────────────────────────────────
+
+function handleImportar(ctx: PipelineContext, src: string[]): PipelineResult {
+  const actions: ChatAction[] = [{ label: '📥 Reimportar PDF', actionId: 'reimportar_pdf' }, { label: '✏️ Modo Manual', actionId: 'modo_manual' }];
+
+  if (ctx.arquivos.length === 0) {
+    return { content: `Não encontrei arquivo ativo neste orçamento. Primeiro **envie um PDF ou imagens** do projeto, depois posso reimportar as medidas.`, actions: [{ label: '📤 Enviar PDF/Imagens', actionId: 'reimportar_pdf' }], sources: src };
+  }
+
+  const lastFile = ctx.arquivos[0];
+  return { content: `Encontrei o arquivo **${lastFile.nome}** ativo. Para reimportar, use o botão abaixo — o sistema vai reprocessar as medidas.`, actions, sources: src };
+}
+
+// ── ADICIONAR ──────────────────────────────────────────────────────
+
+function handleAdicionar(intent: Intent, ctx: PipelineContext, src: string[]): PipelineResult {
   switch (intent.actionId) {
-    case 'adicionar_pavimento':
-      return { content: 'Certo, vou adicionar um pavimento. Use o botão abaixo:', actions: [{ label: '🏢 Adicionar Pavimento', actionId: 'adicionar_pavimento' }], sources };
+    case 'adicionar_pavimento': {
+      const qtd = ctx.pavimentos.length;
+      return { content: `O orçamento tem ${qtd} pavimento(s). Para adicionar mais um, use o botão abaixo.`, actions: [{ label: '🏢 Adicionar Pavimento', actionId: 'adicionar_pavimento' }], sources: src };
+    }
     case 'duplicar_pavimento':
-      return { content: 'Para duplicar, acesse a aba Paredes e use a opção de duplicação no pavimento desejado.', actions: [], sources };
+      return ok('Para duplicar, acesse a aba Paredes e use a opção de duplicação no pavimento desejado.', [], src);
     case 'adicionar_laje':
-      return { content: 'Para adicionar uma laje, use o botão abaixo:', actions: [{ label: '➕ Adicionar Laje', actionId: 'adicionar_laje' }], sources };
+      return { content: 'Certo, para adicionar uma laje:', actions: [{ label: '➕ Adicionar Laje', actionId: 'adicionar_laje' }], sources: src };
     default:
-      return { content: 'O que quer adicionar? Diga "adicionar pavimento", "adicionar laje" ou "duplicar pavimento".', actions: [], sources };
+      return ok('O que quer adicionar? Pode dizer "adicionar pavimento", "adicionar laje" ou "duplicar pavimento".', [], src);
   }
 }
 
-function handleAcao(intent: Intent, ctx: PipelineContext, isAdmin: boolean, sources: string[]): PipelineResult {
+// ── TOGGLE ──────────────────────────────────────────────────────────
+
+function handleToggle(intent: Intent, ctx: PipelineContext, src: string[]): PipelineResult {
+  const acao = intent.actionId?.startsWith('ativar') ? 'ativar' : 'desativar';
+  const target = intent.target || 'item';
+  return { content: `Entendi, para ${acao} **${target}** use o controle na aba correspondente do orçamento.`, actions: [{ label: `⚡ ${acao === 'ativar' ? 'Ativar' : 'Desativar'} ${target}`, actionId: intent.actionId || '' }], sources: src };
+}
+
+// ── LISTAR ──────────────────────────────────────────────────────────
+
+function handleListar(ctx: PipelineContext, src: string[]): PipelineResult {
+  const etapas = Object.values(ETAPAS_CONHECIMENTO);
+  return ok(`O simulador tem **${etapas.length} etapas**:\n\n${etapas.map(e => `• **${e.nome}**`).join('\n')}\n\nSobre qual quer saber? Me pergunte naturalmente.`, [], src);
+}
+
+// ── ACAO ────────────────────────────────────────────────────────────
+
+function handleAcao(intent: Intent, ctx: PipelineContext, isAdmin: boolean, src: string[]): PipelineResult {
   switch (intent.actionId) {
     case 'editar_preco':
-      if (!isAdmin) return { content: `🔒 Editar preços requer permissão do Gestor. Posso registrar a solicitação se quiser.`, actions: [{ label: '📩 Solicitar ao Gestor', actionId: 'solicitar_gestor' }], sources };
-      return { content: 'Para editar preços, acesse a tela **Preços** no menu lateral.', actions: [], sources };
+      if (!isAdmin) return ok('🔒 Editar preços requer permissão do Gestor. Posso registrar a solicitação.', [{ label: '📩 Solicitar ao Gestor', actionId: 'solicitar_gestor' }], src);
+      return ok('Para editar preços, acesse a tela **Preços** no menu lateral.', [], src);
 
     case 'gerar_proposta':
-      return { content: `Certo — para gerar a Proposta Comercial do orçamento ${ctx.orcamento.codigo}:`, actions: [{ label: '📄 Gerar Proposta', actionId: 'gerar_proposta' }], sources };
+      return { content: `Certo, para gerar a Proposta Comercial do orçamento ${ctx.orcamento.codigo}:`, actions: [{ label: '📄 Gerar Proposta', actionId: 'gerar_proposta' }], sources: src };
 
     case 'gerar_relatorio_admin':
-      if (!isAdmin) return { content: `🔒 O relatório detalhado é restrito a Gestores. Posso registrar a solicitação.`, actions: [{ label: '📩 Solicitar ao Gestor', actionId: 'solicitar_gestor' }], sources };
-      return { content: 'Para gerar o relatório detalhado:', actions: [{ label: '📊 Relatório Detalhado', actionId: 'gerar_relatorio_admin', adminOnly: true }], sources };
+      if (!isAdmin) return ok('🔒 O relatório detalhado é restrito a Gestores. Posso registrar a solicitação.', [{ label: '📩 Solicitar ao Gestor', actionId: 'solicitar_gestor' }], src);
+      return { content: 'Para gerar o relatório detalhado:', actions: [{ label: '📊 Relatório Detalhado', actionId: 'gerar_relatorio_admin', adminOnly: true }], sources: src };
 
     case 'atualizar_cub':
-      if (!isAdmin) return { content: '🔒 Atualizar o CUB-PA requer permissão de Gestor.', actions: [{ label: '📩 Solicitar ao Gestor', actionId: 'solicitar_gestor' }], sources };
-      return { content: 'Vou atualizar o CUB-PA:', actions: [{ label: '📈 Atualizar CUB-PA', actionId: 'atualizar_cub', adminOnly: true }], sources };
+      if (!isAdmin) return ok('🔒 Atualizar o CUB-PA requer permissão de Gestor.', [{ label: '📩 Solicitar ao Gestor', actionId: 'solicitar_gestor' }], src);
+      return { content: 'Vou preparar a atualização do CUB-PA:', actions: [{ label: '📈 Atualizar CUB-PA', actionId: 'atualizar_cub', adminOnly: true }], sources: src };
 
     case 'ver_anexos':
-      if (!isAdmin) return { content: '🔒 Visualização de anexos restrita a Gestores.', actions: [], sources };
-      return { content: `O orçamento tem ${ctx.arquivos.length} arquivo(s) ativo(s). Acesse na aba Relatórios.`, actions: [{ label: '📎 Ver Anexos', actionId: 'ver_anexos', adminOnly: true }], sources };
+      if (!isAdmin) return ok('🔒 Visualização de anexos restrita a Gestores.', [], src);
+      return { content: `O orçamento tem **${ctx.arquivos.length} arquivo(s) ativo(s)**. Acesse na aba Relatórios.`, actions: [{ label: '📎 Ver Anexos', actionId: 'ver_anexos', adminOnly: true }], sources: src };
 
     case 'modo_manual':
-      return { content: 'Para trocar para modo manual:', actions: [{ label: '✏️ Modo Manual', actionId: 'modo_manual' }], sources };
+      return { content: 'Para trocar para modo manual:', actions: [{ label: '✏️ Modo Manual', actionId: 'modo_manual' }], sources: src };
 
     default:
-      return { content: 'Ação não reconhecida. Me diga o que precisa em linguagem natural!', actions: [], sources };
+      return ok('Ação não reconhecida. Me diga o que precisa em linguagem natural!', [], src);
   }
+}
+
+// ── DESCONHECIDO (smart fallback) ──────────────────────────────────
+
+function handleDesconhecido(intent: Intent, ctx: PipelineContext, src: string[]): PipelineResult {
+  // If we detected a stage, give contextual response
+  if (intent.etapa && ETAPAS_CONHECIMENTO[intent.etapa]) {
+    const insp = inspectStage(intent.etapa, ctx);
+
+    if (!insp.hasData) {
+      return { content: `Sobre **${insp.nome}**: ainda não há dados preenchidos. Quer enviar o PDF ou preencher manualmente?`, actions: [{ label: '📥 Reimportar PDF', actionId: 'reimportar_pdf' }, { label: '✏️ Preencher manual', actionId: 'modo_manual' }], sources: src };
+    }
+
+    // Has data — ask what they want
+    return {
+      content: `Entendi que está perguntando sobre **${insp.nome}**. O que posso fazer?\n\n• Explicar o cálculo\n• Mostrar o valor atual\n• Investigar se tem erro`,
+      actions: [
+        { label: '📖 Explicar', actionId: 'explicar_etapa', params: { etapa: intent.etapa } },
+        { label: '🔍 Investigar', actionId: 'explicar_etapa', params: { etapa: intent.etapa } },
+        { label: '🔄 Recalcular', actionId: 'recalcular_tudo' },
+      ],
+      sources: src,
+    };
+  }
+
+  // No stage detected — ask one clarifying question with buttons
+  return {
+    content: `Não entendi completamente. Você quer que eu **explique algum cálculo** ou **investigue um problema**?`,
+    actions: [
+      { label: '📖 Explicar etapa', actionId: 'explicar_etapa', params: {} },
+      { label: '🔍 Diagnosticar problemas', actionId: 'diagnosticar_geral' },
+      { label: '🔄 Recalcular tudo', actionId: 'recalcular_tudo' },
+    ],
+    sources: src,
+  };
 }

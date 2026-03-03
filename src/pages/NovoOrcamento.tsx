@@ -939,6 +939,17 @@ export default function NovoOrcamento() {
                               clienteTipo: projeto.clienteTipo,
                               clienteDocumento: projeto.clienteDocumento,
                               clienteResponsavel: projeto.clienteResponsavel,
+                              resultados: {
+                                paredes: resultadoParedes,
+                                radier: resultadoRadier,
+                                baldrame: resultadoBaldrame,
+                                sapata: resultadoSapata,
+                                laje: resultadoLaje,
+                                reboco: resultadoReboco,
+                                acabamentos: resultadoAcabamentos,
+                                revestimento: resultadoRevestimento,
+                                portasPortoes: resultadoPortasPortoes,
+                              },
                             });
                           }}
                           className="flex items-center gap-2 btn-primary"
@@ -971,6 +982,8 @@ export default function NovoOrcamento() {
                   </div>
                 );
               })()}
+              {/* KPI Cards - Admin only (contains internal costs) */}
+              {isAdmin && (
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoParedes)}</div><div className="kpi-label">Paredes</div></div>
                 <div className="kpi-card"><div className="kpi-value">{formatCurrency(consolidado.custoRadier)}</div><div className="kpi-label">Radier</div></div>
@@ -983,6 +996,7 @@ export default function NovoOrcamento() {
                 )}
                 <div className="kpi-card"><div className="kpi-value">{formatNumber(resultadoLajeCalc.volumeTotalM3, 2)} m³</div><div className="kpi-label">Volume Laje</div></div>
               </div>
+              )}
               {/* Dados do Cliente */}
               <div className="bg-accent/30 rounded-xl p-6 mt-4 border border-accent">
                 <h3 className="font-medium text-foreground mb-3">Dados do Cliente</h3>
@@ -1006,14 +1020,17 @@ export default function NovoOrcamento() {
                 </div>
               </div>
 
+              {/* Financial breakdown - Admin sees full details, Vendedor sees only total */}
               <div className="bg-primary/10 rounded-xl p-6 mt-4">
+                {isAdmin && (
                 <div className="grid grid-cols-2 gap-4">
                   <div><span className="text-muted-foreground">Subtotal:</span> <span className="font-medium">{formatCurrency(consolidadoComRevestimento.subtotal)}</span></div>
                   <div><span className="text-muted-foreground">Lucro:</span> <span className="font-medium">{formatCurrency(consolidadoComRevestimento.lucro)}</span></div>
                   <div><span className="text-muted-foreground">BDI:</span> <span className="font-medium">{formatCurrency(consolidadoComRevestimento.bdi)}</span></div>
                   <div><span className="text-muted-foreground">Desconto:</span> <span className="font-medium">-{formatCurrency(consolidadoComRevestimento.desconto)}</span></div>
                 </div>
-                <div className="border-t border-primary/20 mt-4 pt-4 flex justify-between items-center">
+                )}
+                <div className={`${isAdmin ? 'border-t border-primary/20 mt-4 pt-4' : ''} flex justify-between items-center`}>
                   <div className="text-xl font-bold text-primary">TOTAL: {formatCurrency(consolidadoComRevestimento.totalVenda)}</div>
                   <div className="text-muted-foreground">{formatCurrency(consolidadoComRevestimento.precoPorM2Global)}/m²</div>
                 </div>

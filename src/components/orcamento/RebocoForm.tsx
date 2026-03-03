@@ -80,21 +80,27 @@ export function RebocoForm({
         </div>
       )}
 
-      {/* Áreas das Paredes (read-only) */}
+      {/* Áreas das Paredes com 2 faces (read-only) */}
       {paredesCalculadas && (
         <div className="bg-primary/5 rounded-xl p-4 border border-primary/20">
           <div className="flex items-center gap-2 mb-3">
             <Info className="w-4 h-4 text-primary" />
-            <h3 className="font-medium text-sm">Áreas das Paredes (calculadas)</h3>
+            <h3 className="font-medium text-sm">Reboco por Faces (2 faces por tipo de parede)</h3>
           </div>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="flex justify-between p-2 bg-background rounded-lg">
-              <span className="text-muted-foreground">Área Interna:</span>
-              <span className="font-medium">{formatNumber(resultado.areaInternaM2)} m²</span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="p-3 bg-background rounded-lg">
+              <div className="text-xs text-muted-foreground mb-1">Reboco Parede Externa (2 faces)</div>
+              <div className="text-lg font-bold">{formatNumber(resultado.areaExternaM2 * 2)} m²</div>
+              <div className="text-xs text-muted-foreground">Parede: {formatNumber(resultado.areaExternaM2)} m² × 2</div>
             </div>
-            <div className="flex justify-between p-2 bg-background rounded-lg">
-              <span className="text-muted-foreground">Área Externa:</span>
-              <span className="font-medium">{formatNumber(resultado.areaExternaM2)} m²</span>
+            <div className="p-3 bg-background rounded-lg">
+              <div className="text-xs text-muted-foreground mb-1">Reboco Parede Interna (2 faces)</div>
+              <div className="text-lg font-bold">{formatNumber(resultado.areaInternaM2 * 2)} m²</div>
+              <div className="text-xs text-muted-foreground">Parede: {formatNumber(resultado.areaInternaM2)} m² × 2</div>
+            </div>
+            <div className="p-3 bg-primary/10 rounded-lg">
+              <div className="text-xs text-muted-foreground mb-1">Total Reboco</div>
+              <div className="text-lg font-bold text-primary">{formatNumber((resultado.areaExternaM2 + resultado.areaInternaM2) * 2)} m²</div>
             </div>
           </div>
         </div>
@@ -324,9 +330,9 @@ export function calcularRebocoResultado(
     }
   }
 
-  // Apply toggles
-  const areaInternaAplicada = reboco.aplicarInterno ? areaInternaM2 : 0;
-  const areaExternaAplicada = reboco.aplicarExterno ? areaExternaM2 : 0;
+  // Apply toggles — each wall type has 2 faces for reboco
+  const areaInternaAplicada = reboco.aplicarInterno ? areaInternaM2 * 2 : 0;
+  const areaExternaAplicada = reboco.aplicarExterno ? areaExternaM2 * 2 : 0;
   const areaTotal = areaInternaAplicada + areaExternaAplicada;
 
   // Apply waste percentage

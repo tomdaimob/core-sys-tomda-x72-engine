@@ -303,23 +303,37 @@ export async function exportarOrcamentoPDF(data: PDFExportData): Promise<void> {
       ['  Custo Concreto', '', formatCurrency(resultadoRadier.custoConcreto || 0), ''],
       ['  Custo Fibra', '', formatCurrency(resultadoRadier.custoFibra || 0), ''],
       ['  Custo Mão de Obra', '', formatCurrency(resultadoRadier.custoMaoObra || 0), ''],
-      ['  Subtotal Radier', '', '', formatCurrency(resultadoRadier.custoTotal || 0)],
+      ['  Subtotal Radier (sem tela)', '', '', formatCurrency(resultadoRadier.custoTotal || 0)],
+    );
+
+    // Tela Soldada inline with Radier
+    if (resultadoTelaSoldada && (resultadoTelaSoldada.qtd_paineis || 0) > 0) {
+      detalhesBody.push(
+        ['  TELA SOLDADA', '', '', ''],
+        ['    Área Total Tela', `${formatNumber(resultadoTelaSoldada.area_tela_total_m2 || 0)} m²`, '', ''],
+        ['    Área do Painel', `${formatNumber(resultadoTelaSoldada.area_painel_m2 || 0)} m²`, '', ''],
+        ['    Qtd. Painéis', `${resultadoTelaSoldada.qtd_paineis} unid`, resultadoTelaSoldada.preco_painel ? formatCurrency(resultadoTelaSoldada.preco_painel) : '-', ''],
+        ['    Subtotal Tela', '', '', resultadoTelaSoldada.custo_total ? formatCurrency(resultadoTelaSoldada.custo_total) : '-'],
+      );
+    }
+
+    // Total Radier completo
+    const radierComTela = (resultadoRadier.custoTotal || 0) + (resultadoTelaSoldada?.custo_total || 0);
+    detalhesBody.push(
+      ['  TOTAL RADIER', '', '', formatCurrency(radierComTela)],
     );
   }
 
-  // Tela Soldada
-  if (resultadoTelaSoldada && (resultadoTelaSoldada.qtd_paineis || 0) > 0) {
-    const largura = resultadoTelaSoldada.area_painel_m2 ? Math.sqrt(resultadoTelaSoldada.area_painel_m2 * 2/3) : 2;
+  // Tela Soldada standalone (when radier doesn't exist but tela does — edge case)
+  if ((!resultadoRadier || (resultadoRadier.custoTotal || 0) <= 0) && resultadoTelaSoldada && (resultadoTelaSoldada.qtd_paineis || 0) > 0) {
     detalhesBody.push(
       ['TELA SOLDADA (RADIER)', '', '', ''],
       ['  Área Total Tela', `${formatNumber(resultadoTelaSoldada.area_tela_total_m2 || 0)} m²`, '', ''],
-      ['  Área do Painel', `${formatNumber(resultadoTelaSoldada.area_painel_m2 || 0)} m²`, '', ''],
-      ['  Qtd. Painéis', `${resultadoTelaSoldada.qtd_paineis} unid`, resultadoTelaSoldada.preco_painel ? formatCurrency(resultadoTelaSoldada.preco_painel) : '-', ''],
+      ['  Qtd. Painéis', `${resultadoTelaSoldada.qtd_paineis} unid`, '', ''],
       ['  Subtotal Tela', '', '', resultadoTelaSoldada.custo_total ? formatCurrency(resultadoTelaSoldada.custo_total) : '-'],
     );
   }
 
-  // Laje
   if (resultadoLaje && (resultadoLaje.custoTotal || 0) > 0) {
     const tipoDisplay = resultadoLaje.tipoNome || (resultadoLaje.tipo === 'FORRO' ? 'Laje Forro' : 'Laje Piso 2º Andar');
     const concretoDisplay = resultadoLaje.concretoNome || 'Concreto';

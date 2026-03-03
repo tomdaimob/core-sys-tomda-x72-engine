@@ -341,6 +341,26 @@ export function ParedesForm({ paredes, onParedesChange, precos, resultado }: Par
         </div>
       )}
 
+      {/* External/Internal Breakdown Cards */}
+      {(paredes.areaExternaM2 > 0 || paredes.areaInternaM2 > 0 || (paredes.modoAvancado && paredes.segmentos.length > 0)) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
+            <h4 className="text-sm font-semibold text-primary mb-1">Parede de Fechamento (Externa)</h4>
+            <p className="text-2xl font-bold">{formatNumber(paredes.modoAvancado
+              ? paredes.segmentos.filter(s => s.tipoForma === 'ICF 18').reduce((s, seg) => s + seg.areaParedeM2, 0)
+              : paredes.areaExternaM2 || 0)} m²</p>
+            <p className="text-xs text-muted-foreground">Perímetro externo da edificação</p>
+          </div>
+          <div className="bg-accent/50 border border-accent rounded-xl p-4">
+            <h4 className="text-sm font-semibold text-foreground mb-1">Parede de Divisórias (Interna)</h4>
+            <p className="text-2xl font-bold">{formatNumber(paredes.modoAvancado
+              ? paredes.segmentos.filter(s => s.tipoForma === 'ICF 12').reduce((s, seg) => s + seg.areaParedeM2, 0)
+              : paredes.areaInternaM2 || 0)} m²</p>
+            <p className="text-xs text-muted-foreground">Divisórias internas de ambientes</p>
+          </div>
+        </div>
+      )}
+
       {/* Results */}
       {resultado.areaLiquidaTotal > 0 && (
         <div className="bg-accent/50 rounded-lg p-4 mt-4">

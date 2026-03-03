@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import { formatCurrency, formatNumber } from './orcamento-calculos';
 import { formatDocument } from './document-validation';
+import { extrairCustoDireto, gerarFatiasPizza, PieSlice } from './custo-direto-utils';
 import icfLogoNew from '@/assets/icf-logo-new.png';
 
 export type TipoProposta = 'parede_cinza' | 'obra_completa';
@@ -19,77 +20,61 @@ export interface PropostaData {
   clienteTipo?: 'PF' | 'PJ';
   clienteDocumento?: string;
   clienteResponsavel?: string;
+  // Results for pie chart
+  resultados?: {
+    paredes?: any;
+    radier?: any;
+    baldrame?: any;
+    sapata?: any;
+    laje?: any;
+    reboco?: any;
+    acabamentos?: any;
+    revestimento?: any;
+    portasPortoes?: any;
+  };
 }
 
-// Textos das propostas
-const getTextoPropostaParedeCinza = (vars: {
-  cliente: string;
-  areaM2: string;
-  valorTotal: string;
-  valorM2: string;
-  nomeVendedor: string;
-}) => `Olá, ${vars.cliente}!
+function drawPieChart(doc: jsPDF, fatias: PieSlice[], cx: number, cy: number, radius: number) {
+  if (fatias.length === 0) return;
 
-Conforme solicitado, apresentamos a proposta para execução da sua obra utilizando o sistema ICF (Insulated Concrete Forms / EPS) — uma tecnologia moderna que entrega mais velocidade, mais precisão e mais conforto, com excelente custo-benefício no resultado estrutural.
+  let startAngle = -Math.PI / 2;
+  const total = fatias.reduce((s, f) => s + f.valor, 0);
 
-RESUMO DO INVESTIMENTO
-• Área da obra: ${vars.areaM2} m²
-• Valor total (Parede Cinza): ${vars.valorTotal}
-• Valor por m²: ${vars.valorM2}
+  for (const fatia of fatias) {
+    const sliceAngle = (fatia.valor / total) * 2 * Math.PI;
+    const endAngle = startAngle + sliceAngle;
 
-O QUE ESTÁ INCLUSO (PAREDE CINZA)
-• Estrutura e vedação em ICF (EPS + concreto armado)
-• Etapas previstas conforme orçamento: paredes, formas (12/18), concretagem, aço/fibra, laje quando aplicável, reboco ICFLex quando aplicável (conforme itens do orçamento)
-• Execução técnica com padrão e metodologia de obra
+    // Draw filled arc using small triangles
+    const hex = fatia.cor.replace('#', '');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    doc.setFillColor(r, g, b);
 
-O QUE NÃO ESTÁ INCLUSO (NESTA MODALIDADE)
-• Acabamentos (piso, revestimentos, pintura final, louças/metais, forro decorativo, marcenaria, paisagismo etc.), salvo se descrito em itens adicionais.
+    const steps = Math.max(20, Math.ceil(sliceAngle * 30));
+    const angleStep = sliceAngle / steps;
 
-POR QUE CONSTRUIR COM ICF?
-• Obra mais rápida e organizada: menos retrabalho e mais previsibilidade
-• Conforto térmico e acústico: desempenho superior no dia a dia
-• Estrutura robusta: núcleo em concreto armado, alta durabilidade
-• Padrão de execução: qualidade e consistência do início ao fim
+    for (let i = 0; i < steps; i++) {
+      const a1 = startAngle + i * angleStep;
+      const a2 = startAngle + (i + 1) * angleStep;
+      const x1 = cx + radius * Math.cos(a1);
+      const y1 = cy + radius * Math.sin(a1);
+      const x2 = cx + radius * Math.cos(a2);
+      const y2 = cy + radius * Math.sin(a2);
 
-PRÓXIMOS PASSOS
-Se estiver de acordo, seguimos com:
-1) alinhamento final do escopo (Parede Cinza) e validação técnica
-2) cronograma e condições
-3) assinatura e mobilização de obra`;
+      doc.triangle(cx, cy, x1, y1, x2, y2, 'F');
+    }
 
-const getTextoPropostaObraCompleta = (vars: {
-  cliente: string;
-  areaM2: string;
-  valorTotal: string;
-  valorM2: string;
-  nomeVendedor: string;
-}) => `Olá, ${vars.cliente}!
-
-Conforme solicitado, apresentamos a proposta para execução da sua obra com o sistema ICF (Insulated Concrete Forms / EPS), integrando estrutura + acabamentos, com foco em qualidade, prazo e padrão de entrega.
-
-RESUMO DO INVESTIMENTO
-• Área da obra: ${vars.areaM2} m²
-• Valor total (Obra Completa): ${vars.valorTotal}
-• Valor por m²: ${vars.valorM2}
-
-O QUE ESTÁ INCLUSO (OBRA COMPLETA)
-• Execução completa da obra, incluindo estrutura em ICF e as etapas de acabamentos conforme o escopo definido.
-• Materiais e mão de obra previstos de acordo com o orçamento aprovado (itens e quantitativos do orçamento).
-
-POR QUE CONSTRUIR COM ICF?
-• Mais eficiência e previsibilidade: obra limpa, organizada e com menos retrabalho
-• Conforto e valorização: desempenho térmico e acústico superior
-• Estrutura robusta e durável: núcleo em concreto armado
-• Qualidade de entrega: padrão técnico, controle e acompanhamento
-
-PRÓXIMOS PASSOS
-Se estiver de acordo, seguimos com:
-1) validação final do escopo e acabamentos escolhidos
-2) cronograma de execução e marcos de pagamento
-3) assinatura e início da mobilização`;
+    startAngle = endAngle;
+  }
+}
 
 /**
- * Generates a commercial proposal PDF with a persuasive template and logo
+ * Generates a commercial proposal PDF for the client.
+ * - Pie chart shows ONLY percentages (no R$ per category)
+ * - Only 1 big number: VALOR TOTAL
+ * - NO BDI/Lucro/Desconto anywhere
+ * - Includes scope, validity, CTA, signatures
  */
 export async function exportarPropostaComercialPDF(data: PropostaData): Promise<void> {
   const doc = new jsPDF();
@@ -98,41 +83,35 @@ export async function exportarPropostaComercialPDF(data: PropostaData): Promise<
   const margin = 20;
   let yPos = 15;
 
-  // Load the new logo
+  // Load the logo
   const logoImg = new Image();
   logoImg.crossOrigin = 'anonymous';
   
   await new Promise<void>((resolve) => {
     logoImg.onload = () => resolve();
-    logoImg.onerror = () => resolve(); // Continue even if logo fails
+    logoImg.onerror = () => resolve();
     logoImg.src = icfLogoNew;
   });
 
-  // === HEADER WITH WHITE BACKGROUND ===
-  // White header bar
-  doc.setFillColor(255, 255, 255); // White
+  // === HEADER ===
+  doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, pageWidth, 45, 'F');
   
-  // Add logo if loaded
   if (logoImg.complete && logoImg.naturalWidth > 0) {
     try {
-      // Calculate logo dimensions (max height 35px, maintain aspect ratio)
       const maxLogoHeight = 35;
       const logoAspectRatio = logoImg.naturalWidth / logoImg.naturalHeight;
       const logoHeight = Math.min(maxLogoHeight, 35);
       const logoWidth = logoHeight * logoAspectRatio;
-      
       doc.addImage(logoImg, 'PNG', margin, 5, logoWidth, logoHeight);
     } catch (e) {
-      // If logo fails, just show text
-      doc.setTextColor(11, 61, 46); // Forest green for text
+      doc.setTextColor(11, 61, 46);
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.text('ICF TECNOLOGIA E CONSTRUÇÃO', margin, 28);
     }
   } else {
-    // Fallback text if no logo
-    doc.setTextColor(11, 61, 46); // Forest green for text
+    doc.setTextColor(11, 61, 46);
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text('ICF TECNOLOGIA E CONSTRUÇÃO', margin, 28);
@@ -140,265 +119,339 @@ export async function exportarPropostaComercialPDF(data: PropostaData): Promise<
 
   yPos = 55;
 
-  // === TÍTULO DO DOCUMENTO ===
+  // === TÍTULO ===
   doc.setTextColor(11, 143, 59);
   doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
   doc.text('PROPOSTA COMERCIAL', pageWidth / 2, yPos, { align: 'center' });
-  
   yPos += 8;
   
   doc.setTextColor(80, 80, 80);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text('ICF TECNOLOGIA E CONSTRUÇÃO', pageWidth / 2, yPos, { align: 'center' });
-  
   yPos += 10;
   
-  // Divider
   doc.setDrawColor(11, 143, 59);
   doc.setLineWidth(0.5);
   doc.line(margin, yPos, pageWidth - margin, yPos);
-  
-  yPos += 15;
+  yPos += 12;
 
-  // === CAIXA DE RESUMO DO INVESTIMENTO ===
-  const boxHeight = 60;
-  
-  // Background box with soft green
-  doc.setFillColor(240, 250, 245); // Soft green background
-  doc.roundedRect(margin, yPos, pageWidth - 2 * margin, boxHeight, 4, 4, 'F');
-  
-  // Green border
+  // === DADOS DO CLIENTE (compact box) ===
+  doc.setFillColor(240, 250, 245);
+  doc.roundedRect(margin, yPos, pageWidth - 2 * margin, 30, 3, 3, 'F');
   doc.setDrawColor(11, 143, 59);
-  doc.setLineWidth(1);
-  doc.roundedRect(margin, yPos, pageWidth - 2 * margin, boxHeight, 4, 4, 'S');
+  doc.setLineWidth(0.5);
+  doc.roundedRect(margin, yPos, pageWidth - 2 * margin, 30, 3, 3, 'S');
 
-  // Box title
-  yPos += 12;
-  doc.setTextColor(11, 143, 59);
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('RESUMO DO INVESTIMENTO', margin + 10, yPos);
-  
-  yPos += 12;
-  
-  // Two column layout for box content
-  const col1X = margin + 10;
+  const col1X = margin + 8;
   const col2X = pageWidth / 2 + 5;
-  
+  yPos += 10;
   doc.setTextColor(60, 60, 60);
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  
-  // Column 1
-  doc.text(`Código: ${data.codigo || '-'}`, col1X, yPos);
-  doc.text(`Data: ${data.dataGeracao.toLocaleDateString('pt-BR')}`, col2X, yPos);
-  
-  yPos += 8;
+
   const tipoCliente = data.clienteTipo || 'PF';
   const clienteLabel = tipoCliente === 'PJ' ? 'Razão Social' : 'Cliente';
-  doc.text(`${clienteLabel}: ${data.cliente || 'Cliente'}`, col1X, yPos);
-  // Show document if available
+  doc.text(`${clienteLabel}: ${data.cliente || '-'}`, col1X, yPos);
+  doc.text(`Código: ${data.codigo || '-'}`, col2X, yPos);
+  yPos += 7;
   if (data.clienteDocumento) {
     const docLabel = tipoCliente === 'PJ' ? 'CNPJ' : 'CPF';
-    doc.text(`${docLabel}: ${formatDocument(data.clienteDocumento, tipoCliente)}`, col2X, yPos);
-    yPos += 8;
-    doc.text(`Área: ${formatNumber(data.areaTotal)} m²`, col1X, yPos);
-    if (tipoCliente === 'PJ' && data.clienteResponsavel) {
-      doc.text(`Responsável: ${data.clienteResponsavel}`, col2X, yPos);
-    }
-  } else {
-    doc.text(`Área: ${formatNumber(data.areaTotal)} m²`, col2X, yPos);
+    doc.text(`${docLabel}: ${formatDocument(data.clienteDocumento, tipoCliente)}`, col1X, yPos);
   }
-  
-  yPos += 10;
-  
-  // Highlighted values
-  doc.setFillColor(11, 143, 59);
-  doc.roundedRect(col1X, yPos - 5, 80, 18, 2, 2, 'F');
-  doc.roundedRect(col2X, yPos - 5, 75, 18, 2, 2, 'F');
-  
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.text('VALOR TOTAL:', col1X + 4, yPos + 3);
-  doc.text(formatCurrency(data.valorTotal), col1X + 4, yPos + 10);
-  
-  doc.text('VALOR/m²:', col2X + 4, yPos + 3);
-  doc.text(formatCurrency(data.valorPorM2), col2X + 4, yPos + 10);
-
-  yPos += boxHeight - 20;
-
-  // === CORPO DA PROPOSTA ===
+  doc.text(`Data: ${data.dataGeracao.toLocaleDateString('pt-BR')}`, col2X, yPos);
+  yPos += 7;
+  doc.text(`Área: ${formatNumber(data.areaTotal)} m²`, col1X, yPos);
+  if (tipoCliente === 'PJ' && data.clienteResponsavel) {
+    doc.text(`Responsável: ${data.clienteResponsavel}`, col2X, yPos);
+  }
   yPos += 15;
-  
-  const vars = {
-    cliente: data.cliente || 'Cliente',
-    areaM2: formatNumber(data.areaTotal),
-    valorTotal: formatCurrency(data.valorTotal),
-    valorM2: formatCurrency(data.valorPorM2),
-    nomeVendedor: data.nomeVendedor || '-',
-  };
-  
-  const textoCompleto = data.tipoProposta === 'parede_cinza' 
-    ? getTextoPropostaParedeCinza(vars)
-    : getTextoPropostaObraCompleta(vars);
-  
-  // Split text into paragraphs
-  const paragrafos = textoCompleto.split('\n\n');
-  
+
+  // === TEXTO PERSUASIVO ===
   doc.setTextColor(50, 50, 50);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   
-  for (const paragrafo of paragrafos) {
-    if (!paragrafo.trim()) continue;
-    
-    // Check if it's a section header (ALL CAPS)
-    const isHeader = paragrafo === paragrafo.toUpperCase() && paragrafo.length < 50;
-    
-    if (isHeader) {
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(11, 143, 59);
-    } else if (paragrafo.startsWith('•')) {
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(50, 50, 50);
-    } else {
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(50, 50, 50);
-    }
-    
-    const lines = paragrafo.split('\n');
-    for (const line of lines) {
-      // Check for page break
-      if (yPos > pageHeight - 50) {
+  const textoIntro = `Olá, ${data.cliente || 'Cliente'}!\n\nConforme solicitado, apresentamos a proposta para execução da sua obra com o sistema ICF (Formas EPS + Concreto Armado), que proporciona uma construção moderna, resistente e com alto conforto térmico.\n\nA seguir, apresentamos o valor total e a composição percentual do custo direto da obra (materiais e mão de obra), para facilitar sua compreensão.`;
+  
+  const introLines = doc.splitTextToSize(textoIntro, pageWidth - 2 * margin);
+  doc.text(introLines, margin, yPos);
+  yPos += introLines.length * 5 + 8;
+
+  // === VALOR TOTAL (big number) ===
+  doc.setFillColor(11, 143, 59);
+  doc.roundedRect(margin, yPos, pageWidth - 2 * margin, 28, 4, 4, 'F');
+  
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('VALOR TOTAL DA OBRA', margin + 10, yPos + 10);
+  
+  doc.setFontSize(18);
+  doc.text(formatCurrency(data.valorTotal), pageWidth - margin - 10, yPos + 12, { align: 'right' });
+  
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${formatCurrency(data.valorPorM2)}/m²`, pageWidth - margin - 10, yPos + 22, { align: 'right' });
+  
+  yPos += 38;
+
+  // === PIE CHART (percentages only, no R$) ===
+  if (data.resultados) {
+    const custoDireto = extrairCustoDireto(data.resultados);
+    const fatias = gerarFatiasPizza(custoDireto);
+
+    if (fatias.length > 0) {
+      // Check page break
+      if (yPos > pageHeight - 120) {
         doc.addPage();
         yPos = 25;
-        
-        // Add footer to previous page and header to new page
-        addFooter(doc, pageWidth, pageHeight);
       }
+
+      // Section header
+      doc.setTextColor(11, 143, 59);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Composição do Custo Direto', margin, yPos);
+      yPos += 5;
+      doc.setTextColor(100, 100, 100);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text('(materiais e mão de obra — sem BDI ou lucro)', margin, yPos);
+      yPos += 10;
+
+      // Draw pie chart
+      const chartCenterX = margin + 40;
+      const chartCenterY = yPos + 35;
+      const chartRadius = 30;
+      drawPieChart(doc, fatias, chartCenterX, chartCenterY, chartRadius);
+
+      // Legend (percentages ONLY — NO R$ values)
+      const legendX = margin + 85;
+      let legendY = yPos + 8;
       
-      const splitLine = doc.splitTextToSize(line, pageWidth - 2 * margin);
-      doc.text(splitLine, margin, yPos);
-      yPos += splitLine.length * 5;
+      doc.setFontSize(9);
+      for (const fatia of fatias) {
+        const hex = fatia.cor.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        doc.setFillColor(r, g, b);
+        doc.rect(legendX, legendY - 3, 4, 4, 'F');
+        doc.setTextColor(50, 50, 50);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`${fatia.nome}: ${fatia.percent}%`, legendX + 7, legendY);
+        legendY += 8;
+      }
+
+      yPos = chartCenterY + chartRadius + 10;
+
+      // Explanation
+      doc.setTextColor(80, 80, 80);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'italic');
+      const explicacao = 'Como ler o gráfico: cada fatia representa a participação percentual de cada etapa no custo direto da obra. O objetivo é dar transparência sobre onde está concentrado o investimento. O gráfico é composto apenas por custos diretos (materiais e mão de obra).';
+      const explLines = doc.splitTextToSize(explicacao, pageWidth - 2 * margin);
+      doc.text(explLines, margin, yPos);
+      yPos += explLines.length * 4 + 8;
     }
-    
-    yPos += 4;
   }
 
-  // === ATENCIOSAMENTE ===
+  // === ESCOPO ===
+  if (yPos > pageHeight - 100) {
+    doc.addPage();
+    yPos = 25;
+  }
+
+  doc.setDrawColor(11, 143, 59);
+  doc.setLineWidth(0.5);
+  doc.line(margin, yPos, pageWidth - margin, yPos);
   yPos += 10;
-  
-  if (yPos > pageHeight - 140) {
-    doc.addPage();
-    yPos = 25;
-  }
-  
-  doc.setTextColor(0, 0, 0);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Atenciosamente,', margin, yPos);
-  
-  yPos += 8;
-  
+
+  doc.setTextColor(11, 143, 59);
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text(data.nomeVendedor || '-', margin, yPos);
-  yPos += 5;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.text('ICF Tecnologia e Construção', margin, yPos);
+  doc.text('INCLUSO NESTA PROPOSTA', margin, yPos);
+  yPos += 7;
 
-  // === CONDIÇÕES E ASSINATURAS ===
-  yPos += 20;
-  
-  // Check if we need a new page for the signature section (need at least 120mm)
-  if (yPos > pageHeight - 120) {
+  doc.setTextColor(50, 50, 50);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+
+  const inclusoItems = data.tipoProposta === 'parede_cinza'
+    ? [
+        '• Estrutura e vedação em ICF (EPS + concreto armado)',
+        '• Etapas previstas: paredes, formas (12/18), concretagem, aço/fibra, laje e reboco quando aplicável',
+        '• Execução técnica com padrão e metodologia de obra',
+      ]
+    : [
+        '• Estrutura em ICF (EPS + concreto armado)',
+        '• Acabamentos conforme escopo aprovado (piso, revestimentos, pintura, instalações)',
+        '• Materiais e mão de obra previstos de acordo com o orçamento aprovado',
+        '• Execução completa com padrão técnico e acompanhamento',
+      ];
+
+  for (const item of inclusoItems) {
+    const lines = doc.splitTextToSize(item, pageWidth - 2 * margin - 5);
+    doc.text(lines, margin + 3, yPos);
+    yPos += lines.length * 4.5;
+  }
+
+  yPos += 6;
+  doc.setTextColor(11, 143, 59);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('NÃO INCLUSO (salvo se contratado à parte)', margin, yPos);
+  yPos += 7;
+
+  doc.setTextColor(50, 50, 50);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  const naoIncluso = data.tipoProposta === 'parede_cinza'
+    ? [
+        '• Acabamentos (piso, revestimentos, pintura final, louças/metais, forro decorativo)',
+        '• Marcenaria, paisagismo, mobiliário',
+        '• Taxas, alvarás, ligações definitivas (água, esgoto, energia)',
+      ]
+    : [
+        '• Mobiliário e marcenaria sob medida',
+        '• Paisagismo e áreas externas não previstas',
+        '• Taxas, alvarás, ligações definitivas (água, esgoto, energia)',
+      ];
+
+  for (const item of naoIncluso) {
+    const lines = doc.splitTextToSize(item, pageWidth - 2 * margin - 5);
+    doc.text(lines, margin + 3, yPos);
+    yPos += lines.length * 4.5;
+  }
+
+  // === POR QUE ICF ===
+  yPos += 8;
+  if (yPos > pageHeight - 80) {
     doc.addPage();
     yPos = 25;
   }
 
-  // Section separator
+  doc.setTextColor(11, 143, 59);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('POR QUE CONSTRUIR COM ICF?', margin, yPos);
+  yPos += 7;
+
+  doc.setTextColor(50, 50, 50);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  const porqueItems = [
+    '• Obra mais rápida e organizada: menos retrabalho e mais previsibilidade',
+    '• Conforto térmico e acústico: desempenho superior no dia a dia',
+    '• Estrutura robusta: núcleo em concreto armado, alta durabilidade',
+    '• Padrão de execução: qualidade e consistência do início ao fim',
+  ];
+  for (const item of porqueItems) {
+    doc.text(item, margin + 3, yPos);
+    yPos += 5;
+  }
+
+  // === VALIDADE + CTA ===
+  yPos += 8;
+  if (yPos > pageHeight - 80) {
+    doc.addPage();
+    yPos = 25;
+  }
+
+  doc.setDrawColor(11, 143, 59);
+  doc.setLineWidth(0.5);
+  doc.line(margin, yPos, pageWidth - margin, yPos);
+  yPos += 10;
+
+  doc.setTextColor(11, 143, 59);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('VALIDADE E PRÓXIMOS PASSOS', margin, yPos);
+  yPos += 8;
+
+  doc.setTextColor(50, 50, 50);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Validade da proposta: ________ dias', margin + 3, yPos);
+  yPos += 6;
+  doc.text('Prazo estimado: ________ dias', margin + 3, yPos);
+  yPos += 10;
+
+  doc.setFont('helvetica', 'italic');
+  doc.text('Podemos agendar uma visita técnica ou videoconferência para validar medidas e fechar o cronograma?', margin + 3, yPos);
+  yPos += 10;
+
+  // === FORMA DE PAGAMENTO + ASSINATURAS ===
+  if (yPos > pageHeight - 110) {
+    doc.addPage();
+    yPos = 25;
+  }
+
   doc.setDrawColor(11, 143, 59);
   doc.setLineWidth(1);
   doc.line(margin, yPos, pageWidth - margin, yPos);
   yPos += 12;
 
-  // Section title
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(11, 143, 59);
-  doc.setFontSize(12);
+  doc.setFontSize(11);
   doc.text('CONDIÇÕES E ASSINATURAS', margin, yPos);
-  yPos += 15;
+  yPos += 12;
 
-  // Reset text styles
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(50, 50, 50);
-  doc.setFontSize(10);
+  doc.setFontSize(9);
   doc.setDrawColor(120, 120, 120);
   doc.setLineWidth(0.3);
 
-  // Prazo de Obra field
-  doc.text('Prazo de Obra:', margin, yPos);
-  const prazoLabelWidth = doc.getTextWidth('Prazo de Obra: ');
-  doc.line(margin + prazoLabelWidth + 2, yPos, pageWidth - margin, yPos);
-  yPos += 12;
-
-  // Forma de pagamento field (2 lines for more space)
+  // Forma de pagamento
   doc.text('Forma de pagamento:', margin, yPos);
   yPos += 6;
   doc.line(margin, yPos, pageWidth - margin, yPos);
   yPos += 6;
   doc.line(margin, yPos, pageWidth - margin, yPos);
-  yPos += 18;
+  yPos += 15;
 
-  // === SIGNATURES SECTION ===
+  // Signatures - 2 columns
   const signColWidth = (pageWidth - 2 * margin - 15) / 2;
   const signCol1X = margin;
   const signCol2X = margin + signColWidth + 15;
 
-  // Column headers
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(11, 143, 59);
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.text('CLIENTE', signCol1X, yPos);
   doc.text('VENDEDOR / EMPRESA', signCol2X, yPos);
-  yPos += 12;
+  yPos += 10;
 
-  // Reset for signature fields
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(50, 50, 50);
   doc.setFontSize(9);
   doc.setDrawColor(120, 120, 120);
   doc.setLineWidth(0.3);
 
-  // Row 1: Signature lines
-  doc.text('Assinatura do Cliente:', signCol1X, yPos);
-  doc.line(signCol1X + 38, yPos, signCol1X + signColWidth, yPos);
+  // Signature lines
+  doc.text('Assinatura:', signCol1X, yPos);
+  doc.line(signCol1X + 22, yPos, signCol1X + signColWidth, yPos);
+  doc.text('Assinatura:', signCol2X, yPos);
+  doc.line(signCol2X + 22, yPos, signCol2X + signColWidth, yPos);
+  yPos += 10;
 
-  doc.text('Assinatura do Vendedor:', signCol2X, yPos);
-  doc.line(signCol2X + 42, yPos, signCol2X + signColWidth, yPos);
-  yPos += 12;
-
-  // Row 2: Name
   doc.text('Nome:', signCol1X, yPos);
   doc.line(signCol1X + 14, yPos, signCol1X + signColWidth, yPos);
-
   doc.text(`Vendedor: ${data.nomeVendedor || '________________________'}`, signCol2X, yPos);
-  yPos += 12;
+  yPos += 10;
 
-  // Row 3: CPF/CNPJ and Company
   doc.text('CPF/CNPJ:', signCol1X, yPos);
   doc.line(signCol1X + 20, yPos, signCol1X + signColWidth, yPos);
-
   doc.text('ICF Tecnologia e Construção', signCol2X, yPos);
-  yPos += 12;
+  yPos += 10;
 
-  // Row 4: Date
   doc.text('Data: ____/____/______', signCol1X, yPos);
 
-  // === FOOTER (add to all pages) ===
+  // === FOOTER (all pages) ===
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
@@ -414,15 +467,13 @@ export async function exportarPropostaComercialPDF(data: PropostaData): Promise<
 function addFooter(doc: jsPDF, pageWidth: number, pageHeight: number) {
   const footerY = pageHeight - 15;
   
-  // Turquoise green footer bar
-  doc.setFillColor(8, 196, 138); // Turquoise green (#08C48A)
+  doc.setFillColor(11, 61, 46); // Dark forest green #0B3D2E
   doc.rect(0, footerY - 5, pageWidth, 20, 'F');
   
-  // Footer text
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  doc.text('CNPJ: 36.263.498/0001-22  |  @icftecnologiaeconstrucao', pageWidth / 2, footerY + 5, { align: 'center' });
+  doc.text('www.icfconstrucoes.com.br  |  @icftecnologiaeconstrucao  |  CNPJ: 36.263.498/0001-22', pageWidth / 2, footerY + 5, { align: 'center' });
 }
 
 // Re-export legacy function for backwards compatibility

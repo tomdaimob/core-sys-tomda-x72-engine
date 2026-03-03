@@ -51,6 +51,17 @@ export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onActi
     setInput('');
   };
 
+  const handleActionClick = (actionId: string, params?: Record<string, any>) => {
+    if (actionId === 'explicar_etapa' && params?.etapa) {
+      const text = `explicar ${params.etapa}`;
+      const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text, timestamp: new Date() };
+      const assistantMsg = processarMensagem(text, isAdmin, inputs, resultados, orcamento);
+      setMessages(prev => [...prev, userMsg, assistantMsg]);
+    } else {
+      onAction?.(actionId, params);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -87,7 +98,7 @@ export function MrObrasChat({ orcamentoId, inputs, resultados, orcamento, onActi
                           size="sm"
                           variant="secondary"
                           className="text-xs h-7"
-                          onClick={() => onAction?.(action.actionId, action.params)}
+                          onClick={() => handleActionClick(action.actionId, action.params)}
                         >
                           {action.label}
                         </Button>

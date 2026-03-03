@@ -13,6 +13,7 @@ import Configuracoes from "./pages/Configuracoes";
 import Precos from "./pages/Precos";
 import Usuarios from "./pages/Usuarios";
 import Aprovacoes from "./pages/Aprovacoes";
+import Auditoria from "./pages/Auditoria";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -58,6 +59,7 @@ function AppRoutes() {
       <Route path="/precos" element={<AdminRoute><Precos /></AdminRoute>} />
       <Route path="/usuarios" element={<AdminRoute><Usuarios /></AdminRoute>} />
       <Route path="/configuracoes" element={<AdminRoute><Configuracoes /></AdminRoute>} />
+      <Route path="/auditoria" element={<AdminRoute><Auditoria /></AdminRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

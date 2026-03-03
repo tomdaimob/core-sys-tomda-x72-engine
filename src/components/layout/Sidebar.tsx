@@ -10,7 +10,8 @@ import {
   Users,
   Shield,
   User,
-  ClipboardCheck
+  ClipboardCheck,
+  ScrollText
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -32,6 +33,7 @@ const menuItems: MenuItem[] = [
   { icon: ClipboardCheck, label: 'Aprovações', path: '/aprovacoes', adminOnly: true, showBadge: true },
   { icon: DollarSign, label: 'Preços', path: '/precos', adminOnly: true },
   { icon: Users, label: 'Usuários', path: '/usuarios', adminOnly: true },
+  { icon: ScrollText, label: 'Auditoria', path: '/auditoria', adminOnly: true },
   { icon: Settings, label: 'Configurações', path: '/configuracoes', adminOnly: true },
 ];
 

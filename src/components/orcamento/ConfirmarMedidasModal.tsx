@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, Pencil, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, Pencil, AlertTriangle, Home } from 'lucide-react';
 import {
   Dialog,
   DialogContent,

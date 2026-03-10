@@ -765,6 +765,47 @@ export function useOrcamentoData({
     }
   }, [orcamentoId]);
 
+  // Ensure orcamento exists (create if needed) - returns the orcamentoId
+  const ensureOrcamentoExists = useCallback(async (): Promise<string | null> => {
+    // If already exists, return it
+    if (orcamentoId) return orcamentoId;
+
+    if (!userId) {
+      console.warn('[OrcamentoData] Cannot create orcamento: no userId');
+      return null;
+    }
+
+    try {
+      const codigo = projeto.codigo || `ORC-${Date.now()}`;
+      const cliente = projeto.cliente || 'Rascunho';
+      
+      const { data: newOrc, error: insertError } = await supabase
+        .from('orcamentos')
+        .insert({
+          user_id: userId,
+          codigo,
+          cliente,
+          projeto: projeto.projeto || null,
+          status: 'rascunho',
+          area_total_m2: projeto.areaTotal || null,
+          cliente_tipo: projeto.clienteTipo,
+          cliente_documento: projeto.clienteDocumento ? projeto.clienteDocumento.replace(/\D/g, '') : null,
+          cliente_responsavel: projeto.clienteResponsavel || null,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      setOrcamentoId(newOrc.id);
+      console.log('[OrcamentoData] ensureOrcamentoExists created:', newOrc.id);
+      return newOrc.id;
+    } catch (error) {
+      logSupabaseError('ensureOrcamentoExists', error);
+      return null;
+    }
+  }, [orcamentoId, userId, projeto]);
+
   // Manual save with resultados
   const saveWithResultados = useCallback((resultadosCalc: ResultadosData) => {
     saveAll(resultadosCalc);

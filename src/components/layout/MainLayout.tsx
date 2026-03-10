@@ -18,7 +18,7 @@ export function MainLayout({ children }: MainLayoutProps) {
           {children}
         </div>
       </main>
-      <MrObrasAssistente orcamentoId={orcamentoId} />
+      {/* <MrObrasAssistente orcamentoId={orcamentoId} /> */}
     </div>
   );
 }

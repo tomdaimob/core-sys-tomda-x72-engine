@@ -168,7 +168,7 @@ export function ConfirmarMedidasModal({
               onChange={e => setMedidas(prev => ({ ...prev, aberturas_m2: parseFloat(e.target.value) || 0 }))}
             />
           </div>
-          <div className="space-y-1 col-span-2">
+           <div className="space-y-1">
             <Label className="text-sm">Área total construída (m²) <span className="text-muted-foreground">(opcional)</span></Label>
             <Input
               type="number"
@@ -177,6 +177,26 @@ export function ConfirmarMedidasModal({
               value={medidas.area_total_m2 || ''}
               onChange={e => setMedidas(prev => ({ ...prev, area_total_m2: parseFloat(e.target.value) || 0 }))}
             />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-sm flex items-center gap-1">
+              <Home className="w-3.5 h-3.5" />
+              Qtd. unidades (casas) *
+            </Label>
+            <Input
+              type="number"
+              step="1"
+              min="1"
+              max="20"
+              value={medidas.quantidade_unidades || 1}
+              onChange={e => setMedidas(prev => ({ ...prev, quantidade_unidades: Math.max(1, parseInt(e.target.value) || 1) }))}
+            />
+            {qtdUnidades > 1 && (
+              <p className="text-xs text-amber-600 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                {qtdUnidades} unidades iguais — medidas serão multiplicadas
+              </p>
+            )}
           </div>
         </div>
 

@@ -235,20 +235,19 @@ export async function exportarPropostaPagamentoPDF(data: PropostaPagamentoData):
     yPos = Math.max(pieCenterY + pieRadius + 10, legendY + 5);
 
     // Cost table
-    const costTableBody = fatias.map(f => [f.nome, `${f.percent}%`, formatCurrency(f.valor)]);
-    costTableBody.push(['TOTAL CUSTO DIRETO', '100%', formatCurrency(custoDir.custo_direto_total)]);
+    const costTableBody = fatias.map(f => [f.nome, `${f.percent}%`]);
+    costTableBody.push(['TOTAL CUSTO DIRETO', '100%']);
 
     autoTable(doc, {
       startY: yPos,
-      head: [['Categoria', '%', 'Valor (R$)']],
+      head: [['Categoria', '%']],
       body: costTableBody,
       theme: 'striped',
       headStyles: { fillColor: [11, 143, 59], textColor: [255, 255, 255], fontStyle: 'bold' },
       styles: { fontSize: 9, cellPadding: 3 },
       columnStyles: {
-        0: { cellWidth: 60 },
-        1: { cellWidth: 25, halign: 'center' },
-        2: { cellWidth: 45, halign: 'right' },
+        0: { cellWidth: 70 },
+        1: { cellWidth: 30, halign: 'center' },
       },
       margin: { left: margin, right: margin },
       didParseCell: function(hookData) {

@@ -96,7 +96,7 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(2, 8);
     const extension = file.name.split('.').pop() || 'file';
-    const storagePath = `${orcamentoId}/${timestamp}_${randomSuffix}.${extension}`;
+    const storagePath = `${effectiveId}/${timestamp}_${randomSuffix}.${extension}`;
 
     try {
       // Get current user

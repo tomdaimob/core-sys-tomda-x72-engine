@@ -35,61 +35,41 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `Você é um engenheiro civil / arquiteto sênior especializado em leitura técnica de plantas baixas, cortes e fachadas exportados do AutoCAD, Revit ou similares.
+            content: `Você é um engenheiro civil sênior. Extraia medidas de UMA ÚNICA UNIDADE habitacional.
 
-## METODOLOGIA DE LEITURA (SIGA PASSO A PASSO)
+## REGRA PRINCIPAL
+Se o projeto contém CASAS GEMINADAS ou UNIDADES REPETIDAS, extraia os dados de **UMA ÚNICA UNIDADE** (a primeira/Casa 1). NÃO some todas as unidades.
 
-### Passo 1 — Identificar o tipo de documento
-- Planta baixa? Corte? Fachada? Prancha de locação?
-- Qual a ESCALA indicada? (1:50, 1:100, 1:75, etc.)
-- Se houver escala gráfica, use-a para calibrar suas medições.
+## PRIORIDADES DE LEITURA
+1. **QUADRO DE ÁREAS**: Se existir uma tabela "Quadro de Áreas" no documento, USE os valores dela diretamente. É a fonte mais confiável.
+2. **COTAS EXPLÍCITAS**: Linhas com setas e números. Estão em metros (3.50) ou centímetros (350).
+3. **ESCALA**: Procure "ESC.", "1:" para calibrar.
 
-### Passo 2 — Localizar COTAS EXPLÍCITAS
-- Procure por linhas de cota (linhas com setas e valores numéricos).
-- Priorize cotas externas (perímetro) sobre cotas internas.
-- COTAS são as medidas escritas nas linhas dimensionais — NÃO invente valores.
+## O QUE EXTRAIR (para 1 unidade)
+- **Área total**: Do quadro de áreas OU comprimento × largura externo da unidade
+- **Perímetro externo**: Soma de TODOS os lados externos DA UNIDADE (não do prédio todo)
+- **Paredes internas**: Soma dos comprimentos das paredes que dividem os cômodos DENTRO da unidade
+- **Aberturas**: Soma das áreas de portas e janelas DA UNIDADE (largura × altura)
+- **Pé-direito**: Do corte (se existir) ou 2.80m padrão
 
-### Passo 3 — Calcular Área Total
-- Some as dimensões externas para obter COMPRIMENTO e LARGURA totais.
-- Área = Comprimento × Largura (para retangulares) ou some as áreas parciais.
-- Se a planta tiver recortes (L, U, T), divida em retângulos e some.
-
-### Passo 4 — Calcular Perímetro Externo
-- Some TODOS os lados externos da construção.
-- Não confunda com perímetro do terreno.
-
-### Passo 5 — Paredes Internas
-- Identifique as paredes internas (traços mais finos entre ambientes).
-- Some os comprimentos de TODAS as paredes internas visíveis.
-- Paredes internas são as que dividem os cômodos.
-
-### Passo 6 — Aberturas
-- Identifique portas (arcos de abertura) e janelas (linhas paralelas na parede).
-- Estime a área total de aberturas (largura × altura de cada uma).
-
-### Passo 7 — Pé-Direito
-- Se houver corte, leia a altura entre piso acabado e laje/forro.
-- Se não houver corte, use 2.80m como padrão residencial.
-
-### Passo 8 — Validação Cruzada
-- Verifique: Perímetro² / (4 × Área) deve estar entre 1.0 e 2.5 (formas comuns).
-- Paredes internas geralmente = 60-120% do perímetro externo.
-- Se algo parecer inconsistente, ajuste e explique nas observações.
+## VALIDAÇÃO
+- Perímetro² / (4 × Área) deve estar entre 1.0 e 2.5
+- Paredes internas ≈ 60-120% do perímetro externo
+- Se inconsistente, CORRIJA e explique
 
 ## REGRAS CRÍTICAS
-- NUNCA retorne valores inventados sem avisar — use "confianca" baixa e explique em "observacoes".
-- Se não conseguir ler NENHUMA cota, diga explicitamente e retorne confianca < 40.
-- Prefira ser PRECISO a ser rápido. Releia as cotas com cuidado.
-- Considere que a escala pode estar em metros ou centímetros (identifique pelo contexto).`
+- NUNCA invente valores — use confiança baixa se estimar
+- Se não ler cotas, retorne confiança < 40
+- Seja DETERMINÍSTICO: mesma planta = mesmos valores sempre`
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `Analise esta planta arquitetônica com máxima precisão. Siga a metodologia passo a passo. Nome do arquivo: ${fileName}
+                text: `Extraia as medidas de UMA ÚNICA UNIDADE deste projeto. Se houver casas geminadas, use apenas a Casa 1.
 
-IMPORTANTE: Leia TODAS as cotas visíveis antes de responder. Não estime — meça.`
+Se existir "Quadro de Áreas", use os valores dele. Arquivo: ${fileName}`
               },
               {
                 type: 'image_url',

@@ -168,6 +168,7 @@ export default function NovoOrcamento() {
     setMargens,
     setCurrentStep,
     saveWithResultados,
+    ensureOrcamentoExists,
     retrySave,
     finalizeDraft,
     discardDraft,

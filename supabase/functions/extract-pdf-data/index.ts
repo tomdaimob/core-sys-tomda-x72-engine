@@ -125,6 +125,10 @@ Se existir "Quadro de Áreas", use os valores dele. Arquivo: ${fileName}`
                   dimensoes_externas: {
                     type: 'string',
                     description: 'Dimensões externas lidas (ex: "10.50m x 12.30m em L")'
+                  },
+                  quantidade_unidades: {
+                    type: 'number',
+                    description: 'Quantidade de unidades iguais no projeto (ex: casa geminada = 2, isolada = 1). Default 1.'
                   }
                 },
                 required: ['area_total_m2', 'pe_direito_m', 'perimetro_externo_m', 'paredes_internas_m', 'aberturas_m2', 'confianca', 'observacoes'],

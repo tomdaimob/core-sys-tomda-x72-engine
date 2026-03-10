@@ -94,7 +94,8 @@ Se existir "Quadro de Áreas", use os valores dele. Arquivo: ${fileName}`
                   confianca: { type: 'number', description: 'Nível de confiança 0 a 100' },
                   observacoes: { type: 'string', description: 'Detalhes: cotas lidas, escala, limitações, cálculos feitos' },
                   escala_detectada: { type: 'string', description: 'Escala detectada ou "não identificada"' },
-                  ambientes_identificados: { type: 'number', description: 'Quantidade de ambientes/cômodos internos identificados' }
+                  ambientes_identificados: { type: 'number', description: 'Quantidade de ambientes/cômodos internos identificados' },
+                  quantidade_unidades: { type: 'number', description: 'Quantidade de unidades iguais no projeto (ex: casa geminada = 2, isolada = 1). Default 1.' }
                 },
                 required: ['area_total_m2', 'pe_direito_m', 'perimetro_externo_m', 'paredes_internas_m', 'aberturas_m2', 'confianca', 'observacoes'],
                 additionalProperties: false

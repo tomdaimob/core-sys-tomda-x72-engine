@@ -192,14 +192,19 @@ export function ProjetoUpload({ onDataExtracted, orcamentoId, isAdmin = false }:
         // Upload PDF
         const pdfFile = files.find(f => f.type === 'application/pdf')!;
         
+        console.log('[ProjetoUpload] orcamentoId:', orcamentoId);
+        console.log('[ProjetoUpload] file:', pdfFile.name, pdfFile.type, pdfFile.size);
+        
         try {
           arquivoId = await uploadProjectPdf(pdfFile);
+          console.log('[ProjetoUpload] uploadProjectPdf result:', arquivoId);
         } catch (uploadErr: any) {
+          console.error('[ProjetoUpload] uploadProjectPdf threw:', uploadErr);
           throw new Error(`Falha no upload do PDF: ${uploadErr.message || 'erro desconhecido'}`);
         }
         
         if (!arquivoId) {
-          throw new Error('Falha no upload do PDF. Verifique se o orçamento foi salvo e tente novamente.');
+          throw new Error(`Falha no upload do PDF. orcamentoId=${orcamentoId || 'NULL'}. Verifique se o orçamento foi salvo e tente novamente.`);
         }
 
         // Extract data from PDF

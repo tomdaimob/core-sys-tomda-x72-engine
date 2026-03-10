@@ -361,9 +361,11 @@ export function usePavimentos(orcamentoId: string | null | undefined) {
     const m = pavimento.medidas_confirmadas || pavimento.medidas_json;
     if (!m) return null;
     const altura = m.altura_paredes_m || m.pe_direito_m || 2.70;
-    const areaExt = (m.perimetro_externo_m || 0) * altura;
-    const areaInt = (m.paredes_internas_m || 0) * altura;
-    const areaLiquida = Math.max(areaExt + areaInt - (m.aberturas_m2 || 0), 0);
+    const qtdUnidades = m.quantidade_unidades || 1;
+    const areaExt = (m.perimetro_externo_m || 0) * altura * qtdUnidades;
+    const areaInt = (m.paredes_internas_m || 0) * altura * qtdUnidades;
+    const aberturas = (m.aberturas_m2 || 0) * qtdUnidades;
+    const areaLiquida = Math.max(areaExt + areaInt - aberturas, 0);
     const areaLiquidaFinal = areaLiquida * pavimento.multiplicador;
     const custoParedes = areaLiquida * custoParedeM2;
     return { 

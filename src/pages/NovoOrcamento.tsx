@@ -206,7 +206,7 @@ export default function NovoOrcamento() {
   };
 
   const handleConfirmExtraction = (data: ExtractedData) => {
-    const qtd = (data as any).quantidade_unidades || 1;
+    const qtd = data.quantidade_unidades || 1;
     
     // Multiply dimensions by quantity for total project
     const perimTotal = data.perimetro_externo_m * qtd;

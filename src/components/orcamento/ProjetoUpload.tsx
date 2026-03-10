@@ -191,10 +191,15 @@ export function ProjetoUpload({ onDataExtracted, orcamentoId, isAdmin = false }:
       if (hasPdf) {
         // Upload PDF
         const pdfFile = files.find(f => f.type === 'application/pdf')!;
-        arquivoId = await uploadProjectPdf(pdfFile);
+        
+        try {
+          arquivoId = await uploadProjectPdf(pdfFile);
+        } catch (uploadErr: any) {
+          throw new Error(`Falha no upload do PDF: ${uploadErr.message || 'erro desconhecido'}`);
+        }
         
         if (!arquivoId) {
-          throw new Error('Falha no upload do PDF.');
+          throw new Error('Falha no upload do PDF. Verifique se o orçamento foi salvo e tente novamente.');
         }
 
         // Extract data from PDF

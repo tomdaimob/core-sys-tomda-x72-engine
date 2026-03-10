@@ -130,12 +130,12 @@ export function ReviewExtraction({ data, onConfirm, onCancel }: ReviewExtraction
             </div>
           </div>
 
-          {/* Quantidade de unidades */}
+          {/* Quantidade de unidades (informativo) */}
           <div className="grid grid-cols-2 gap-4">
             <div className="input-group">
               <Label className="input-label flex items-center gap-2">
                 <Home className="w-4 h-4 text-primary" />
-                Qtd. Unidades (casas)
+                Qtd. Unidades no projeto
               </Label>
               <Input
                 type="number"
@@ -149,9 +149,9 @@ export function ReviewExtraction({ data, onConfirm, onCancel }: ReviewExtraction
             </div>
             {(editedData.quantidade_unidades || 1) > 1 && (
               <div className="flex items-center">
-                <p className="text-sm text-amber-600 flex items-center gap-1">
-                  <AlertTriangle className="w-4 h-4" />
-                  {editedData.quantidade_unidades} unidades iguais — medidas serão multiplicadas
+                <p className="text-sm text-green-600 flex items-center gap-1">
+                  <Check className="w-4 h-4" />
+                  Valores já incluem o total de {editedData.quantidade_unidades} unidades somadas
                 </p>
               </div>
             )}

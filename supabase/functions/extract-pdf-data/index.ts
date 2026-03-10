@@ -35,10 +35,10 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `Você é um engenheiro civil sênior. Extraia medidas de UMA ÚNICA UNIDADE habitacional.
+            content: `Você é um engenheiro civil sênior. Extraia medidas de UMA ÚNICA UNIDADE habitacional e informe quantas unidades iguais existem.
 
 ## REGRA PRINCIPAL
-Se o projeto contém CASAS GEMINADAS ou UNIDADES REPETIDAS, extraia os dados de **UMA ÚNICA UNIDADE** (a primeira/Casa 1). NÃO some todas as unidades.
+Se o projeto contém CASAS GEMINADAS ou UNIDADES REPETIDAS, extraia os dados de **UMA ÚNICA UNIDADE** (a primeira/Casa 1). NÃO some todas as unidades. Porém INFORME a quantidade total de unidades iguais no campo "quantidade_unidades".
 
 ## PRIORIDADES DE LEITURA
 1. **QUADRO DE ÁREAS**: Se existir uma tabela "Quadro de Áreas" no documento, USE os valores dela diretamente. É a fonte mais confiável.
@@ -51,6 +51,7 @@ Se o projeto contém CASAS GEMINADAS ou UNIDADES REPETIDAS, extraia os dados de 
 - **Paredes internas**: Soma dos comprimentos das paredes que dividem os cômodos DENTRO da unidade
 - **Aberturas**: Soma das áreas de portas e janelas DA UNIDADE (largura × altura)
 - **Pé-direito**: Do corte (se existir) ou 2.80m padrão
+- **Quantidade de unidades**: Quantas casas/unidades iguais existem (ex: geminada = 2, isolada = 1)
 
 ## VALIDAÇÃO
 - Perímetro² / (4 × Área) deve estar entre 1.0 e 2.5

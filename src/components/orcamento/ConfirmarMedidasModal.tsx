@@ -70,11 +70,14 @@ export function ConfirmarMedidasModal({
 
   const canConfirm = medidas.perimetro_externo_m > 0 && medidas.altura_paredes_m > 0;
 
-  // Preview calculated values
+  const qtdUnidades = medidas.quantidade_unidades || 1;
+  // Preview calculated values (per unit)
   const areaExt = medidas.perimetro_externo_m * medidas.altura_paredes_m;
   const areaInt = medidas.paredes_internas_m * medidas.altura_paredes_m;
   const areaBruta = areaExt + areaInt;
   const areaLiquida = Math.max(areaBruta - medidas.aberturas_m2, 0);
+  // Total for all units
+  const areaLiquidaTotal = areaLiquida * qtdUnidades;
 
   const handleConfirm = () => {
     if (canConfirm) {

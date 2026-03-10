@@ -51,6 +51,7 @@ export function ConfirmarMedidasModal({
     altura_paredes_m: 2.70,
     aberturas_m2: 0,
     area_total_m2: 0,
+    quantidade_unidades: 1,
   });
 
   // Populate from extracted data when modal opens

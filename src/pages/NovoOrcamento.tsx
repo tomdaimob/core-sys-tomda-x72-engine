@@ -208,43 +208,37 @@ export default function NovoOrcamento() {
   const handleConfirmExtraction = (data: ExtractedData) => {
     const qtd = data.quantidade_unidades || 1;
     
-    // Multiply dimensions by quantity for total project
-    const perimTotal = data.perimetro_externo_m * qtd;
-    const intTotal = data.paredes_internas_m * qtd;
-    const abertTotal = data.aberturas_m2 * qtd;
-    const areaTotalTerreno = data.area_total_m2 * qtd;
+    // Values from AI are already TOTALS (all units summed)
+    const areaParedes = (data.perimetro_externo_m + data.paredes_internas_m) * data.pe_direito_m - data.aberturas_m2;
     
-    // Calculate area líquida de paredes (total all units)
-    const areaParedes = (perimTotal + intTotal) * data.pe_direito_m - abertTotal;
-    
-    // Update project data (totals)
+    // Update project data (already totals)
     setProjeto({
       ...projeto,
-      areaTotal: areaTotalTerreno,
+      areaTotal: data.area_total_m2,
       peDireito: data.pe_direito_m,
-      perimetroExterno: perimTotal,
-      paredesInternas: intTotal,
-      aberturas: abertTotal,
+      perimetroExterno: data.perimetro_externo_m,
+      paredesInternas: data.paredes_internas_m,
+      aberturas: data.aberturas_m2,
     });
     
-    // Update paredes with extracted data (total all units)
+    // Update paredes with total areas
     setParedes({
       ...paredes,
-      areaExternaM2: areaParedes * 0.7,
-      areaInternaM2: areaParedes * 0.3,
+      areaExternaM2: data.perimetro_externo_m * data.pe_direito_m * 0.85,
+      areaInternaM2: data.paredes_internas_m * data.pe_direito_m * 0.85,
     });
     
     // Update radier with total area
     setRadier({
       ...radier,
-      areaM2: areaTotalTerreno,
+      areaM2: data.area_total_m2,
     });
     
     setShowReview(false);
     toast({
       title: 'Dados aplicados!',
       description: qtd > 1
-        ? `Medidas multiplicadas por ${qtd} unidades e aplicadas.`
+        ? `Total de ${qtd} unidades somadas e aplicadas ao orçamento.`
         : 'Os campos foram preenchidos automaticamente.',
     });
   };

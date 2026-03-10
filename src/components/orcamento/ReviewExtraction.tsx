@@ -13,6 +13,7 @@ interface ExtractedData {
   aberturas_m2: number;
   confianca: number;
   observacoes: string;
+  quantidade_unidades?: number;
 }
 
 interface ReviewExtractionProps {
@@ -22,7 +23,10 @@ interface ReviewExtractionProps {
 }
 
 export function ReviewExtraction({ data, onConfirm, onCancel }: ReviewExtractionProps) {
-  const [editedData, setEditedData] = useState<ExtractedData>(data);
+  const [editedData, setEditedData] = useState<ExtractedData>({
+    ...data,
+    quantidade_unidades: data.quantidade_unidades || 1,
+  });
 
   const getConfiancaColor = (value: number) => {
     if (value >= 80) return 'text-green-600 bg-green-100';
@@ -126,6 +130,33 @@ export function ReviewExtraction({ data, onConfirm, onCancel }: ReviewExtraction
             </div>
           </div>
 
+          {/* Quantidade de unidades */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="input-group">
+              <Label className="input-label flex items-center gap-2">
+                <Home className="w-4 h-4 text-primary" />
+                Qtd. Unidades (casas)
+              </Label>
+              <Input
+                type="number"
+                step="1"
+                min="1"
+                max="20"
+                value={editedData.quantidade_unidades || 1}
+                onChange={(e) => setEditedData({ ...editedData, quantidade_unidades: Math.max(1, parseInt(e.target.value) || 1) })}
+                className="text-lg font-semibold"
+              />
+            </div>
+            {(editedData.quantidade_unidades || 1) > 1 && (
+              <div className="flex items-center">
+                <p className="text-sm text-amber-600 flex items-center gap-1">
+                  <AlertTriangle className="w-4 h-4" />
+                  {editedData.quantidade_unidades} unidades iguais — medidas serão multiplicadas
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Observations */}
           {editedData.observacoes && (
             <div className="bg-muted/50 rounded-lg p-4">
@@ -139,31 +170,40 @@ export function ReviewExtraction({ data, onConfirm, onCancel }: ReviewExtraction
           )}
 
           {/* Calculated area preview */}
-          <div className="bg-primary/5 rounded-xl p-4 border border-primary/20">
-            <h3 className="text-sm font-medium text-foreground mb-3">Cálculos Derivados</h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground">Área Paredes Externas:</span>
-                <span className="ml-2 font-medium">
-                  {formatNumber(editedData.perimetro_externo_m * editedData.pe_direito_m)} m²
-                </span>
+          {(() => {
+            const qtd = editedData.quantidade_unidades || 1;
+            const areaExt = editedData.perimetro_externo_m * editedData.pe_direito_m;
+            const areaInt = editedData.paredes_internas_m * editedData.pe_direito_m;
+            const areaLiquida1 = Math.max(areaExt + areaInt - editedData.aberturas_m2, 0);
+            const areaLiquidaTotal = areaLiquida1 * qtd;
+            return (
+              <div className="bg-primary/5 rounded-xl p-4 border border-primary/20">
+                <h3 className="text-sm font-medium text-foreground mb-3">
+                  Cálculos Derivados {qtd > 1 ? '(por unidade)' : ''}
+                </h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Área Paredes Externas:</span>
+                    <span className="ml-2 font-medium">{formatNumber(areaExt)} m²</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Área Paredes Internas:</span>
+                    <span className="ml-2 font-medium">{formatNumber(areaInt)} m²</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Área Líquida (1 un.):</span>
+                    <span className="ml-2 font-semibold">{formatNumber(areaLiquida1)} m²</span>
+                  </div>
+                  {qtd > 1 && (
+                    <div className="col-span-2 border-t border-primary/20 pt-2">
+                      <span className="text-muted-foreground font-semibold">× {qtd} unidades — Total:</span>
+                      <span className="ml-2 font-bold text-primary text-base">{formatNumber(areaLiquidaTotal)} m²</span>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div>
-                <span className="text-muted-foreground">Área Paredes Internas:</span>
-                <span className="ml-2 font-medium">
-                  {formatNumber(editedData.paredes_internas_m * editedData.pe_direito_m)} m²
-                </span>
-              </div>
-              <div className="col-span-2">
-                <span className="text-muted-foreground">Área Líquida Paredes:</span>
-                <span className="ml-2 font-semibold text-primary">
-                  {formatNumber(
-                    (editedData.perimetro_externo_m + editedData.paredes_internas_m) * editedData.pe_direito_m - editedData.aberturas_m2
-                  )} m²
-                </span>
-              </div>
-            </div>
-          </div>
+            );
+          })()}
         </div>
 
         {/* Footer */}

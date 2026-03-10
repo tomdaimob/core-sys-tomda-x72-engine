@@ -28,6 +28,7 @@ interface ExtractedData {
   aberturas_m2: number;
   confianca: number;
   observacoes: string;
+  quantidade_unidades?: number;
 }
 
 interface ProjetoUploadProps {

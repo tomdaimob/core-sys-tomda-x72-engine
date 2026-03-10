@@ -183,18 +183,19 @@ export function ProjetoUpload({ onDataExtracted, orcamentoId, isAdmin = false, e
     setExtracting(true);
     
     try {
+      // Ensure orcamento exists before uploading
+      let effectiveOrcamentoId = orcamentoId;
+      if (!effectiveOrcamentoId && ensureOrcamentoExists) {
+        effectiveOrcamentoId = await ensureOrcamentoExists() || undefined;
+      }
+      
+      if (!effectiveOrcamentoId) {
+        throw new Error('Não foi possível criar o orçamento. Preencha o nome do cliente e tente novamente.');
+      }
+
       // Determine file types
       const hasPdf = files.some(f => f.type === 'application/pdf');
       const images = files.filter(f => f.type.startsWith('image/'));
-      
-      let arquivoId: string | null = null;
-      
-      if (hasPdf) {
-        // Upload PDF
-        const pdfFile = files.find(f => f.type === 'application/pdf')!;
-        
-        console.log('[ProjetoUpload] orcamentoId:', orcamentoId);
-        console.log('[ProjetoUpload] file:', pdfFile.name, pdfFile.type, pdfFile.size);
         
         try {
           arquivoId = await uploadProjectPdf(pdfFile);

@@ -228,7 +228,7 @@ export async function exportarPropostaPagamentoPDF(data: PropostaPagamentoData):
       
       doc.setTextColor(50, 50, 50);
       doc.setFont('helvetica', 'normal');
-      doc.text(`${fatia.nome}: ${fatia.percent}% — ${formatCurrency(fatia.valor)}`, legendX + 12, legendY + 3);
+      doc.text(`${fatia.nome}: ${fatia.percent}%`, legendX + 12, legendY + 3);
       legendY += 10;
     }
 

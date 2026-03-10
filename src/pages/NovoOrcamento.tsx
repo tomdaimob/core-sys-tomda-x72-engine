@@ -638,7 +638,16 @@ export default function NovoOrcamento() {
                     const custoParedeM2 = resultadoParedesCalc.areaLiquidaTotal > 0
                       ? resultadoParedesCalc.custoTotal / resultadoParedesCalc.areaLiquidaTotal
                       : (precos.formaIcf18 / 0.5 + precos.concretoM3 * 0.18 + precos.maoObraParede);
-                    return calculateAllFloors(custoParedeM2);
+                    const floorResults = await calculateAllFloors(custoParedeM2);
+                    // Propagate summed wall areas back to paredes input so consolidation picks them up
+                    if (floorResults && floorResults.paredes_total_area > 0) {
+                      setParedes({
+                        ...paredes,
+                        areaExternaM2: floorResults.reboco_total_ext,
+                        areaInternaM2: floorResults.reboco_total_int,
+                      });
+                    }
+                    return floorResults;
                   }}
                   disabled={loadingPavimentos}
                 />

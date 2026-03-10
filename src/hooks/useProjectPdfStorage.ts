@@ -147,13 +147,9 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
       return { id: arquivo?.id || '', tipo };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao fazer upload.';
-      console.error('Error uploading file:', error);
-      toast({
-        title: 'Erro no upload',
-        description: errorMessage,
-        variant: 'destructive',
-      });
-      return null;
+      console.error('Error uploading file:', errorMessage, error);
+      // Re-throw so callers get the real error
+      throw new Error(errorMessage);
     }
   }, [orcamentoId, validateFile, toast]);
 
@@ -165,6 +161,10 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
     try {
       const result = await uploadFile(file);
       return result?.id || null;
+    } catch (error) {
+      // Let error propagate - caller handles toast
+      console.error('uploadProjectPdf failed:', error);
+      return null;
     } finally {
       setUploading(false);
     }

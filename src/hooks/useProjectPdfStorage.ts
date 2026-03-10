@@ -161,6 +161,10 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
     try {
       const result = await uploadFile(file);
       return result?.id || null;
+    } catch (error) {
+      // Let error propagate - caller handles toast
+      console.error('uploadProjectPdf failed:', error);
+      return null;
     } finally {
       setUploading(false);
     }

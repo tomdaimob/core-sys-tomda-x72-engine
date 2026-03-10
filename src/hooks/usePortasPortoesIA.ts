@@ -156,8 +156,8 @@ export function usePortasPortoesIA(orcamentoId: string | null | undefined) {
         const warnings = result.source?.warnings || [];
         
         toast({
-          title: 'Portas e portões identificados!',
-          description: data.message || `${result.doors.count} porta(s) e ${result.gates.count} portão(ões)`,
+          title: 'Portas, janelas e portões identificados!',
+          description: data.message || `${result.doors.count} porta(s), ${(result as any).windows?.count || 0} janela(s) e ${result.gates.count} portão(ões)`,
         });
         
         // Show warnings if any

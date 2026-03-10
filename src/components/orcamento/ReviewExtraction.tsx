@@ -130,6 +130,33 @@ export function ReviewExtraction({ data, onConfirm, onCancel }: ReviewExtraction
             </div>
           </div>
 
+          {/* Quantidade de unidades */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="input-group">
+              <Label className="input-label flex items-center gap-2">
+                <Home className="w-4 h-4 text-primary" />
+                Qtd. Unidades (casas)
+              </Label>
+              <Input
+                type="number"
+                step="1"
+                min="1"
+                max="20"
+                value={editedData.quantidade_unidades || 1}
+                onChange={(e) => setEditedData({ ...editedData, quantidade_unidades: Math.max(1, parseInt(e.target.value) || 1) })}
+                className="text-lg font-semibold"
+              />
+            </div>
+            {(editedData.quantidade_unidades || 1) > 1 && (
+              <div className="flex items-center">
+                <p className="text-sm text-amber-600 flex items-center gap-1">
+                  <AlertTriangle className="w-4 h-4" />
+                  {editedData.quantidade_unidades} unidades iguais — medidas serão multiplicadas
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Observations */}
           {editedData.observacoes && (
             <div className="bg-muted/50 rounded-lg p-4">

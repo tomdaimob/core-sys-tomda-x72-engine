@@ -195,6 +195,7 @@ export function ProjetoUpload({ onDataExtracted, orcamentoId, isAdmin = false, e
 
       // Determine file types
       const hasPdf = files.some(f => f.type === 'application/pdf');
+      const images = files.filter(f => f.type.startsWith('image/'));
 
       let arquivoId: string | null = null;
       

@@ -34,10 +34,10 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `Você é um engenheiro civil sênior. Extraia medidas de UMA ÚNICA UNIDADE habitacional (pavimento específico).
+            content: `Você é um engenheiro civil sênior. Extraia medidas de UMA ÚNICA UNIDADE habitacional (pavimento específico) e informe quantas unidades iguais existem no projeto.
 
 ## REGRA PRINCIPAL
-Se o projeto contém CASAS GEMINADAS ou UNIDADES REPETIDAS, extraia os dados de **UMA ÚNICA UNIDADE** (a primeira/Casa 1). NÃO some todas as unidades.
+Se o projeto contém CASAS GEMINADAS ou UNIDADES REPETIDAS, extraia os dados de **UMA ÚNICA UNIDADE** (a primeira/Casa 1). NÃO some todas as unidades. Porém INFORME a quantidade total de unidades iguais no campo "quantidade_unidades".
 
 ## PRIORIDADES DE LEITURA
 1. **QUADRO DE ÁREAS**: Se existir, USE os valores diretamente — é a fonte mais confiável.
@@ -50,6 +50,7 @@ Se o projeto contém CASAS GEMINADAS ou UNIDADES REPETIDAS, extraia os dados de 
 - **Paredes internas**: Comprimentos das paredes que dividem cômodos DENTRO da unidade
 - **Aberturas**: Áreas de portas e janelas DA UNIDADE
 - **Pé-direito**: Do corte ou 2.80m padrão
+- **Quantidade de unidades**: Quantas casas/unidades iguais existem (ex: geminada = 2, isolada = 1)
 
 ## VALIDAÇÃO
 - Perímetro² / (4 × Área) entre 1.0 e 2.5
@@ -93,7 +94,8 @@ Se existir "Quadro de Áreas", use os valores dele. Arquivo: ${fileName}`
                   confianca: { type: 'number', description: 'Nível de confiança 0 a 100' },
                   observacoes: { type: 'string', description: 'Detalhes: cotas lidas, escala, limitações, cálculos feitos' },
                   escala_detectada: { type: 'string', description: 'Escala detectada ou "não identificada"' },
-                  ambientes_identificados: { type: 'number', description: 'Quantidade de ambientes/cômodos internos identificados' }
+                  ambientes_identificados: { type: 'number', description: 'Quantidade de ambientes/cômodos internos identificados' },
+                  quantidade_unidades: { type: 'number', description: 'Quantidade de unidades iguais no projeto (ex: casa geminada = 2, isolada = 1). Default 1.' }
                 },
                 required: ['area_total_m2', 'pe_direito_m', 'perimetro_externo_m', 'paredes_internas_m', 'aberturas_m2', 'confianca', 'observacoes'],
                 additionalProperties: false

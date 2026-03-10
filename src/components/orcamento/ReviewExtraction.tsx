@@ -23,7 +23,10 @@ interface ReviewExtractionProps {
 }
 
 export function ReviewExtraction({ data, onConfirm, onCancel }: ReviewExtractionProps) {
-  const [editedData, setEditedData] = useState<ExtractedData>(data);
+  const [editedData, setEditedData] = useState<ExtractedData>({
+    ...data,
+    quantidade_unidades: data.quantidade_unidades || 1,
+  });
 
   const getConfiancaColor = (value: number) => {
     if (value >= 80) return 'text-green-600 bg-green-100';

@@ -120,7 +120,7 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
 
       // Step 2: Insert record in database (trigger handles version + ativo)
       const insertData: any = {
-        orcamento_id: orcamentoId,
+        orcamento_id: effectiveId,
         tipo,
         storage_path: storagePath,
         nome: file.name,

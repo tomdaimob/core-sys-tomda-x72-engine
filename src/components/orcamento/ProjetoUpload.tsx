@@ -34,6 +34,7 @@ interface ProjetoUploadProps {
   onDataExtracted: (data: ExtractedData) => void;
   orcamentoId?: string;
   isAdmin?: boolean;
+  ensureOrcamentoExists?: () => Promise<string | null>;
 }
 
 const ACCEPTED_TYPES = {

@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 serve(async (req) => {
@@ -35,42 +35,47 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `Você é um engenheiro civil sênior. Extraia medidas de UMA ÚNICA UNIDADE habitacional e informe quantas unidades iguais existem.
+            content: `Você é um engenheiro civil sênior. Extraia as medidas TOTAIS DO PROJETO INTEIRO.
 
-## REGRA PRINCIPAL
-Se o projeto contém CASAS GEMINADAS ou UNIDADES REPETIDAS, extraia os dados de **UMA ÚNICA UNIDADE** (a primeira/Casa 1). NÃO some todas as unidades. Porém INFORME a quantidade total de unidades iguais no campo "quantidade_unidades".
+## REGRA PRINCIPAL — SOMAR TODAS AS UNIDADES
+Se o projeto contém CASAS GEMINADAS, UNIDADES REPETIDAS ou MÚLTIPLAS CASAS:
+- **SOME** as medidas de TODAS as unidades para obter o TOTAL DO PROJETO.
+- Exemplo: casa geminada com 2 casas iguais de perímetro 40m cada → perímetro total = 80m.
+- Exemplo: 2 casas de 86m² cada → área total = 173m².
+- Informe quantas unidades foram somadas no campo "quantidade_unidades".
 
 ## PRIORIDADES DE LEITURA
-1. **QUADRO DE ÁREAS**: Se existir uma tabela "Quadro de Áreas" no documento, USE os valores dela diretamente. É a fonte mais confiável.
-2. **COTAS EXPLÍCITAS**: Linhas com setas e números. Estão em metros (3.50) ou centímetros (350).
+1. **QUADRO DE ÁREAS**: Se existir, USE os valores. Para o total, SOME todas as unidades.
+2. **COTAS EXPLÍCITAS**: Linhas com setas e números. Em metros (3.50) ou centímetros (350).
 3. **ESCALA**: Procure "ESC.", "1:" para calibrar.
 
-## O QUE EXTRAIR (para 1 unidade)
-- **Área total**: Do quadro de áreas OU comprimento × largura externo da unidade
-- **Perímetro externo**: Soma de TODOS os lados externos DA UNIDADE (não do prédio todo)
-- **Paredes internas**: Soma dos comprimentos das paredes que dividem os cômodos DENTRO da unidade
-- **Aberturas**: Soma das áreas de portas e janelas DA UNIDADE (largura × altura)
+## O QUE EXTRAIR (TOTAL DO PROJETO)
+- **Área total**: Soma da área de TODAS as unidades
+- **Perímetro externo**: Soma do perímetro de TODAS as unidades
+- **Paredes internas**: Soma do comprimento de paredes internas de TODAS as unidades
+- **Aberturas**: Soma das áreas de portas e janelas de TODAS as unidades (largura × altura)
 - **Pé-direito**: Do corte (se existir) ou 2.80m padrão
-- **Quantidade de unidades**: Quantas casas/unidades iguais existem (ex: geminada = 2, isolada = 1)
+- **Quantidade de unidades**: Quantas casas/unidades existem no projeto (ex: geminada = 2, isolada = 1)
 
 ## VALIDAÇÃO
-- Perímetro² / (4 × Área) deve estar entre 1.0 e 2.5
-- Paredes internas ≈ 60-120% do perímetro externo
+- Para CADA unidade: Perímetro² / (4 × Área) deve estar entre 1.0 e 2.5
+- Paredes internas por unidade ≈ 60-120% do perímetro externo por unidade
 - Se inconsistente, CORRIJA e explique
 
 ## REGRAS CRÍTICAS
 - NUNCA invente valores — use confiança baixa se estimar
 - Se não ler cotas, retorne confiança < 40
-- Seja DETERMINÍSTICO: mesma planta = mesmos valores sempre`
+- Seja DETERMINÍSTICO: mesma planta = mesmos valores sempre
+- SEMPRE retorne o TOTAL somado, nunca valores de apenas uma unidade`
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `Extraia as medidas de UMA ÚNICA UNIDADE deste projeto. Se houver casas geminadas, use apenas a Casa 1.
+                text: `Extraia as medidas TOTAIS deste projeto. Se houver casas geminadas ou múltiplas unidades, SOME todas as medidas para obter o total do projeto inteiro.
 
-Se existir "Quadro de Áreas", use os valores dele. Arquivo: ${fileName}`
+Se existir "Quadro de Áreas", use os valores dele e SOME todas as unidades. Arquivo: ${fileName}`
               },
               {
                 type: 'image_url',
@@ -86,13 +91,13 @@ Se existir "Quadro de Áreas", use os valores dele. Arquivo: ${fileName}`
             type: 'function',
             function: {
               name: 'extrair_dados_planta',
-              description: 'Extrai dados dimensionais de uma planta arquitetônica',
+              description: 'Extrai dados dimensionais TOTAIS de um projeto arquitetônico (todas as unidades somadas)',
               parameters: {
                 type: 'object',
                 properties: {
                   area_total_m2: {
                     type: 'number',
-                    description: 'Área total construída em metros quadrados'
+                    description: 'Área total construída SOMADA de todas as unidades em m²'
                   },
                   pe_direito_m: {
                     type: 'number',
@@ -100,15 +105,15 @@ Se existir "Quadro de Áreas", use os valores dele. Arquivo: ${fileName}`
                   },
                   perimetro_externo_m: {
                     type: 'number',
-                    description: 'Perímetro externo em metros lineares'
+                    description: 'Perímetro externo TOTAL somado de todas as unidades em metros lineares'
                   },
                   paredes_internas_m: {
                     type: 'number',
-                    description: 'Comprimento total de paredes internas em metros'
+                    description: 'Comprimento TOTAL de paredes internas somado de todas as unidades em metros'
                   },
                   aberturas_m2: {
                     type: 'number',
-                    description: 'Área total de aberturas (portas e janelas) em m²'
+                    description: 'Área TOTAL de aberturas (portas e janelas) somada de todas as unidades em m²'
                   },
                   confianca: {
                     type: 'number',
@@ -116,7 +121,7 @@ Se existir "Quadro de Áreas", use os valores dele. Arquivo: ${fileName}`
                   },
                   observacoes: {
                     type: 'string',
-                    description: 'Observações sobre a extração: quais cotas foram lidas, quais inferidas, escala usada, limitações'
+                    description: 'Observações sobre a extração: quais cotas foram lidas, quantas unidades somadas, escala usada, limitações'
                   },
                   escala_detectada: {
                     type: 'string',
@@ -124,11 +129,11 @@ Se existir "Quadro de Áreas", use os valores dele. Arquivo: ${fileName}`
                   },
                   dimensoes_externas: {
                     type: 'string',
-                    description: 'Dimensões externas lidas (ex: "10.50m x 12.30m em L")'
+                    description: 'Dimensões externas de uma unidade (ex: "10.50m x 12.30m")'
                   },
                   quantidade_unidades: {
                     type: 'number',
-                    description: 'Quantidade de unidades iguais no projeto (ex: casa geminada = 2, isolada = 1). Default 1.'
+                    description: 'Quantidade de unidades/casas no projeto que foram somadas (ex: geminada = 2, isolada = 1). Default 1.'
                   }
                 },
                 required: ['area_total_m2', 'pe_direito_m', 'perimetro_externo_m', 'paredes_internas_m', 'aberturas_m2', 'confianca', 'observacoes'],
@@ -161,7 +166,7 @@ Se existir "Quadro de Áreas", use os valores dele. Arquivo: ${fileName}`
     }
 
     const aiResponse = await response.json();
-    console.log('AI Response:', JSON.stringify(aiResponse));
+    console.log('AI Response received');
 
     const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
     
@@ -203,7 +208,7 @@ Se existir "Quadro de Áreas", use os valores dele. Arquivo: ${fileName}`
           paredes_internas_m: 0,
           aberturas_m2: 0,
           confianca: 10,
-          observacoes: 'Não foi possível extrair dados precisos do PDF. O documento pode não conter planta baixa legível ou as cotas não estão visíveis.'
+          observacoes: 'Não foi possível extrair dados precisos do PDF.'
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

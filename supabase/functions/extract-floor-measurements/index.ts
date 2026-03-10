@@ -34,41 +34,46 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `Você é um engenheiro civil sênior. Extraia medidas de UMA ÚNICA UNIDADE habitacional (pavimento específico) e informe quantas unidades iguais existem no projeto.
+            content: `Você é um engenheiro civil sênior. Extraia as medidas TOTAIS DO PROJETO INTEIRO para este pavimento.
 
-## REGRA PRINCIPAL
-Se o projeto contém CASAS GEMINADAS ou UNIDADES REPETIDAS, extraia os dados de **UMA ÚNICA UNIDADE** (a primeira/Casa 1). NÃO some todas as unidades. Porém INFORME a quantidade total de unidades iguais no campo "quantidade_unidades".
+## REGRA PRINCIPAL — SOMAR TODAS AS UNIDADES
+Se o projeto contém CASAS GEMINADAS, UNIDADES REPETIDAS ou MÚLTIPLAS CASAS:
+- **SOME** as medidas de TODAS as unidades para obter o TOTAL DO PROJETO.
+- Exemplo: casa geminada com 2 casas iguais de perímetro 40m cada → perímetro total = 80m.
+- Exemplo: 2 casas de 86m² cada → área total = 173m².
+- Informe quantas unidades foram somadas no campo "quantidade_unidades".
 
 ## PRIORIDADES DE LEITURA
-1. **QUADRO DE ÁREAS**: Se existir, USE os valores diretamente — é a fonte mais confiável.
+1. **QUADRO DE ÁREAS**: Se existir, USE os valores e SOME todas as unidades.
 2. **COTAS EXPLÍCITAS**: Linhas dimensionais com setas e números (metros ou centímetros).
 3. **ESCALA**: Procure "ESC.", "1:" para calibrar medições.
 
-## O QUE EXTRAIR (para 1 unidade, 1 pavimento)
-- **Área total**: Do quadro de áreas OU comprimento × largura da unidade
-- **Perímetro externo**: Soma dos lados externos DA UNIDADE
-- **Paredes internas**: Comprimentos das paredes que dividem cômodos DENTRO da unidade
-- **Aberturas**: Áreas de portas e janelas DA UNIDADE
+## O QUE EXTRAIR (TOTAL DO PROJETO para este pavimento)
+- **Área total**: Soma da área de TODAS as unidades
+- **Perímetro externo**: Soma do perímetro de TODAS as unidades
+- **Paredes internas**: Soma dos comprimentos de paredes internas de TODAS as unidades
+- **Aberturas**: Soma das áreas de portas e janelas de TODAS as unidades
 - **Pé-direito**: Do corte ou 2.80m padrão
-- **Quantidade de unidades**: Quantas casas/unidades iguais existem (ex: geminada = 2, isolada = 1)
+- **Quantidade de unidades**: Quantas casas/unidades foram somadas (ex: geminada = 2, isolada = 1)
 
-## VALIDAÇÃO
+## VALIDAÇÃO (por unidade individual, antes de somar)
 - Perímetro² / (4 × Área) entre 1.0 e 2.5
 - Paredes internas ≈ 60-120% do perímetro externo
 
 ## REGRAS
 - NUNCA invente valores — confiança baixa se estimar
 - Sem cotas legíveis → confiança < 40
-- Seja DETERMINÍSTICO: mesma planta = mesmos valores`
+- Seja DETERMINÍSTICO: mesma planta = mesmos valores
+- SEMPRE retorne o TOTAL somado, nunca valores de apenas uma unidade`
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `Extraia as medidas de UMA ÚNICA UNIDADE deste pavimento. Se houver casas geminadas, use apenas a Casa 1.
+                text: `Extraia as medidas TOTAIS deste pavimento. Se houver casas geminadas ou múltiplas unidades, SOME todas as medidas.
 
-Se existir "Quadro de Áreas", use os valores dele. Arquivo: ${fileName}`
+Se existir "Quadro de Áreas", use os valores dele e SOME todas as unidades. Arquivo: ${fileName}`
               },
               {
                 type: 'image_url',
@@ -82,20 +87,20 @@ Se existir "Quadro de Áreas", use os valores dele. Arquivo: ${fileName}`
             type: 'function',
             function: {
               name: 'extrair_dados_pavimento',
-              description: 'Extrai dados dimensionais de um pavimento',
+              description: 'Extrai dados dimensionais TOTAIS de um pavimento (todas as unidades somadas)',
               parameters: {
                 type: 'object',
                 properties: {
-                  area_total_m2: { type: 'number', description: 'Área total construída em m²' },
+                  area_total_m2: { type: 'number', description: 'Área total construída SOMADA de todas as unidades em m²' },
                   pe_direito_m: { type: 'number', description: 'Pé-direito em metros' },
-                  perimetro_externo_m: { type: 'number', description: 'Perímetro externo em metros lineares' },
-                  paredes_internas_m: { type: 'number', description: 'Comprimento total paredes internas em metros' },
-                  aberturas_m2: { type: 'number', description: 'Área total de aberturas em m²' },
+                  perimetro_externo_m: { type: 'number', description: 'Perímetro externo TOTAL somado de todas as unidades em metros lineares' },
+                  paredes_internas_m: { type: 'number', description: 'Comprimento TOTAL paredes internas somado de todas as unidades em metros' },
+                  aberturas_m2: { type: 'number', description: 'Área TOTAL de aberturas somada de todas as unidades em m²' },
                   confianca: { type: 'number', description: 'Nível de confiança 0 a 100' },
-                  observacoes: { type: 'string', description: 'Detalhes: cotas lidas, escala, limitações, cálculos feitos' },
+                  observacoes: { type: 'string', description: 'Detalhes: cotas lidas, quantas unidades somadas, escala, limitações' },
                   escala_detectada: { type: 'string', description: 'Escala detectada ou "não identificada"' },
-                  ambientes_identificados: { type: 'number', description: 'Quantidade de ambientes/cômodos internos identificados' },
-                  quantidade_unidades: { type: 'number', description: 'Quantidade de unidades iguais no projeto (ex: casa geminada = 2, isolada = 1). Default 1.' }
+                  ambientes_identificados: { type: 'number', description: 'Quantidade total de ambientes/cômodos em todas as unidades' },
+                  quantidade_unidades: { type: 'number', description: 'Quantidade de unidades/casas somadas (ex: geminada = 2, isolada = 1). Default 1.' }
                 },
                 required: ['area_total_m2', 'pe_direito_m', 'perimetro_externo_m', 'paredes_internas_m', 'aberturas_m2', 'confianca', 'observacoes'],
                 additionalProperties: false
@@ -148,6 +153,8 @@ Se existir "Quadro de Áreas", use os valores dele. Arquivo: ${fileName}`
         observacoes: 'Não foi possível extrair dados precisos. O PDF pode não conter planta baixa legível.'
       };
     }
+
+    console.log('Extracted data (TOTAL):', extractedData);
 
     // Save extraction to ia_extracoes
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

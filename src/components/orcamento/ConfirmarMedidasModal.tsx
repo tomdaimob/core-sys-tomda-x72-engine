@@ -204,16 +204,26 @@ export function ConfirmarMedidasModal({
         {canConfirm && (
           <div className="bg-accent/50 rounded-lg p-3 space-y-1 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Área ext. bruta:</span>
+              <span className="text-muted-foreground">Área ext. bruta (1 un.):</span>
               <span>{formatNumber(areaExt)} m²</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Área int. bruta:</span>
+              <span className="text-muted-foreground">Área int. bruta (1 un.):</span>
               <span>{formatNumber(areaInt)} m²</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Área líquida (1 un.):</span>
+              <span>{formatNumber(areaLiquida)} m²</span>
+            </div>
+            {qtdUnidades > 1 && (
+              <div className="flex justify-between font-semibold border-t pt-1 text-amber-700">
+                <span>× {qtdUnidades} unidades:</span>
+                <span>{formatNumber(areaLiquidaTotal)} m²</span>
+              </div>
+            )}
             <div className="flex justify-between font-semibold border-t pt-1">
-              <span>Área líquida paredes:</span>
-              <span className="text-primary">{formatNumber(areaLiquida)} m²</span>
+              <span>Área líquida total paredes:</span>
+              <span className="text-primary">{formatNumber(areaLiquidaTotal)} m²</span>
             </div>
           </div>
         )}

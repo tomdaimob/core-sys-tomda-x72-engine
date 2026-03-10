@@ -858,6 +858,7 @@ export function useOrcamentoData({
     // Actions
     saveAll,
     saveWithResultados,
+    ensureOrcamentoExists,
     retrySave,
     finalizeDraft,
     discardDraft,

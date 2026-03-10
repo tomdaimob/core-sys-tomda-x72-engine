@@ -197,7 +197,7 @@ export function getPortasPortoesPrecos(items: PriceCatalogItem[]): PortasPortoes
     portaoFerroM2: findPrice(['portão de ferro', 'portao de ferro'], 600.00),
     portaoAluminioM2: findPrice(['portão de alumínio', 'portao de aluminio'], 1800.00),
     janelaAluminioM2: findPrice(['janela de alumínio', 'janela de aluminio'], 800.00),
-    janelaVidroTemperadoM2: findPrice(['janela de vidro temperado'], 1200.00),
+    janelaVidroTemperadoM2: findPrice(['janela de vidro temperado'], 900.00),
   };
 }
 

@@ -34,6 +34,7 @@ interface ProjetoUploadProps {
   onDataExtracted: (data: ExtractedData) => void;
   orcamentoId?: string;
   isAdmin?: boolean;
+  ensureOrcamentoExists?: () => Promise<string | null>;
 }
 
 const ACCEPTED_TYPES = {
@@ -42,7 +43,7 @@ const ACCEPTED_TYPES = {
   'image/jpeg': ['.jpg', '.jpeg'],
 };
 
-export function ProjetoUpload({ onDataExtracted, orcamentoId, isAdmin = false }: ProjetoUploadProps) {
+export function ProjetoUpload({ onDataExtracted, orcamentoId, isAdmin = false, ensureOrcamentoExists }: ProjetoUploadProps) {
   const { toast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
   const [extracting, setExtracting] = useState(false);
@@ -182,29 +183,35 @@ export function ProjetoUpload({ onDataExtracted, orcamentoId, isAdmin = false }:
     setExtracting(true);
     
     try {
+      // Ensure orcamento exists before uploading
+      let effectiveOrcamentoId = orcamentoId;
+      if (!effectiveOrcamentoId && ensureOrcamentoExists) {
+        effectiveOrcamentoId = await ensureOrcamentoExists() || undefined;
+      }
+      
+      if (!effectiveOrcamentoId) {
+        throw new Error('Não foi possível criar o orçamento. Preencha o nome do cliente e tente novamente.');
+      }
+
       // Determine file types
       const hasPdf = files.some(f => f.type === 'application/pdf');
       const images = files.filter(f => f.type.startsWith('image/'));
-      
+
       let arquivoId: string | null = null;
       
       if (hasPdf) {
         // Upload PDF
         const pdfFile = files.find(f => f.type === 'application/pdf')!;
         
-        console.log('[ProjetoUpload] orcamentoId:', orcamentoId);
-        console.log('[ProjetoUpload] file:', pdfFile.name, pdfFile.type, pdfFile.size);
-        
         try {
-          arquivoId = await uploadProjectPdf(pdfFile);
-          console.log('[ProjetoUpload] uploadProjectPdf result:', arquivoId);
+          arquivoId = await uploadProjectPdf(pdfFile, effectiveOrcamentoId);
         } catch (uploadErr: any) {
           console.error('[ProjetoUpload] uploadProjectPdf threw:', uploadErr);
           throw new Error(`Falha no upload do PDF: ${uploadErr.message || 'erro desconhecido'}`);
         }
         
         if (!arquivoId) {
-          throw new Error(`Falha no upload do PDF. orcamentoId=${orcamentoId || 'NULL'}. Verifique se o orçamento foi salvo e tente novamente.`);
+          throw new Error('Falha no upload do PDF. Tente novamente.');
         }
 
         // Extract data from PDF
@@ -217,7 +224,7 @@ export function ProjetoUpload({ onDataExtracted, orcamentoId, isAdmin = false }:
           body: {
             pdfBase64: base64,
             fileName: pdfFile.name,
-            orcamentoId,
+            orcamentoId: effectiveOrcamentoId,
             arquivoId,
           },
         });

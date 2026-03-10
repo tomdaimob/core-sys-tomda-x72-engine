@@ -168,6 +168,7 @@ export default function NovoOrcamento() {
     setMargens,
     setCurrentStep,
     saveWithResultados,
+    ensureOrcamentoExists,
     retrySave,
     finalizeDraft,
     discardDraft,
@@ -608,6 +609,7 @@ export default function NovoOrcamento() {
                 onDataExtracted={handleDataExtracted} 
                 orcamentoId={orcamentoId || undefined}
                 isAdmin={isAdmin}
+                ensureOrcamentoExists={ensureOrcamentoExists}
               />
 
               {/* Pavimentos (Multi-floor) Section */}

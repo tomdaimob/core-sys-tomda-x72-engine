@@ -69,9 +69,11 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
    */
   const uploadFile = useCallback(async (
     file: File, 
-    groupId?: string
+    groupId?: string,
+    overrideOrcamentoId?: string
   ): Promise<{ id: string; tipo: ArquivoTipo } | null> => {
-    if (!orcamentoId) {
+    const effectiveId = overrideOrcamentoId || orcamentoId;
+    if (!effectiveId) {
       toast({
         title: 'Erro',
         description: 'Orçamento não identificado.',
@@ -94,7 +96,7 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(2, 8);
     const extension = file.name.split('.').pop() || 'file';
-    const storagePath = `${orcamentoId}/${timestamp}_${randomSuffix}.${extension}`;
+    const storagePath = `${effectiveId}/${timestamp}_${randomSuffix}.${extension}`;
 
     try {
       // Get current user
@@ -118,7 +120,7 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
 
       // Step 2: Insert record in database (trigger handles version + ativo)
       const insertData: any = {
-        orcamento_id: orcamentoId,
+        orcamento_id: effectiveId,
         tipo,
         storage_path: storagePath,
         nome: file.name,
@@ -156,10 +158,10 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
   /**
    * Upload PDF to storage (backward compatibility)
    */
-  const uploadProjectPdf = useCallback(async (file: File): Promise<string | null> => {
+  const uploadProjectPdf = useCallback(async (file: File, overrideOrcamentoId?: string): Promise<string | null> => {
     setUploading(true);
     try {
-      const result = await uploadFile(file);
+      const result = await uploadFile(file, undefined, overrideOrcamentoId);
       return result?.id || null;
     } catch (error) {
       console.error('uploadProjectPdf failed:', error);

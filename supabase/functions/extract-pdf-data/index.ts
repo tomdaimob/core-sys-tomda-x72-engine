@@ -24,7 +24,6 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY não configurada');
     }
 
-    // Call Lovable AI to analyze the PDF content
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -32,26 +31,65 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: [
           {
             role: 'system',
-            content: `Você é um especialista em análise de plantas arquitetônicas e projetos de construção.
-Analise o documento PDF fornecido e extraia as seguintes informações da planta baixa:
-- Área total construída em metros quadrados
-- Pé-direito (altura do piso ao teto) em metros
-- Perímetro externo em metros lineares
-- Comprimento total de paredes internas em metros lineares
-- Área total de aberturas (portas e janelas) em metros quadrados
+            content: `Você é um engenheiro civil / arquiteto sênior especializado em leitura técnica de plantas baixas, cortes e fachadas exportados do AutoCAD, Revit ou similares.
 
-Retorne APENAS um JSON válido com a estrutura exata abaixo. Use valores numéricos estimados baseados em plantas típicas se não conseguir extrair valores precisos.`
+## METODOLOGIA DE LEITURA (SIGA PASSO A PASSO)
+
+### Passo 1 — Identificar o tipo de documento
+- Planta baixa? Corte? Fachada? Prancha de locação?
+- Qual a ESCALA indicada? (1:50, 1:100, 1:75, etc.)
+- Se houver escala gráfica, use-a para calibrar suas medições.
+
+### Passo 2 — Localizar COTAS EXPLÍCITAS
+- Procure por linhas de cota (linhas com setas e valores numéricos).
+- Priorize cotas externas (perímetro) sobre cotas internas.
+- COTAS são as medidas escritas nas linhas dimensionais — NÃO invente valores.
+
+### Passo 3 — Calcular Área Total
+- Some as dimensões externas para obter COMPRIMENTO e LARGURA totais.
+- Área = Comprimento × Largura (para retangulares) ou some as áreas parciais.
+- Se a planta tiver recortes (L, U, T), divida em retângulos e some.
+
+### Passo 4 — Calcular Perímetro Externo
+- Some TODOS os lados externos da construção.
+- Não confunda com perímetro do terreno.
+
+### Passo 5 — Paredes Internas
+- Identifique as paredes internas (traços mais finos entre ambientes).
+- Some os comprimentos de TODAS as paredes internas visíveis.
+- Paredes internas são as que dividem os cômodos.
+
+### Passo 6 — Aberturas
+- Identifique portas (arcos de abertura) e janelas (linhas paralelas na parede).
+- Estime a área total de aberturas (largura × altura de cada uma).
+
+### Passo 7 — Pé-Direito
+- Se houver corte, leia a altura entre piso acabado e laje/forro.
+- Se não houver corte, use 2.80m como padrão residencial.
+
+### Passo 8 — Validação Cruzada
+- Verifique: Perímetro² / (4 × Área) deve estar entre 1.0 e 2.5 (formas comuns).
+- Paredes internas geralmente = 60-120% do perímetro externo.
+- Se algo parecer inconsistente, ajuste e explique nas observações.
+
+## REGRAS CRÍTICAS
+- NUNCA retorne valores inventados sem avisar — use "confianca" baixa e explique em "observacoes".
+- Se não conseguir ler NENHUMA cota, diga explicitamente e retorne confianca < 40.
+- Prefira ser PRECISO a ser rápido. Releia as cotas com cuidado.
+- Considere que a escala pode estar em metros ou centímetros (identifique pelo contexto).`
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `Analise esta planta arquitetônica e extraia os dados dimensionais. Nome do arquivo: ${fileName}`
+                text: `Analise esta planta arquitetônica com máxima precisão. Siga a metodologia passo a passo. Nome do arquivo: ${fileName}
+
+IMPORTANTE: Leia TODAS as cotas visíveis antes de responder. Não estime — meça.`
               },
               {
                 type: 'image_url',
@@ -97,15 +135,25 @@ Retorne APENAS um JSON válido com a estrutura exata abaixo. Use valores numéri
                   },
                   observacoes: {
                     type: 'string',
-                    description: 'Observações sobre a extração ou limitações encontradas'
+                    description: 'Observações sobre a extração: quais cotas foram lidas, quais inferidas, escala usada, limitações'
+                  },
+                  escala_detectada: {
+                    type: 'string',
+                    description: 'Escala identificada no projeto (ex: 1:50, 1:100) ou "não identificada"'
+                  },
+                  dimensoes_externas: {
+                    type: 'string',
+                    description: 'Dimensões externas lidas (ex: "10.50m x 12.30m em L")'
                   }
                 },
-                required: ['area_total_m2', 'pe_direito_m', 'perimetro_externo_m', 'paredes_internas_m', 'aberturas_m2', 'confianca', 'observacoes']
+                required: ['area_total_m2', 'pe_direito_m', 'perimetro_externo_m', 'paredes_internas_m', 'aberturas_m2', 'confianca', 'observacoes'],
+                additionalProperties: false
               }
             }
           }
         ],
-        tool_choice: { type: 'function', function: { name: 'extrair_dados_planta' } }
+        tool_choice: { type: 'function', function: { name: 'extrair_dados_planta' } },
+        temperature: 0,
       }),
     });
 
@@ -130,7 +178,6 @@ Retorne APENAS um JSON válido com a estrutura exata abaixo. Use valores numéri
     const aiResponse = await response.json();
     console.log('AI Response:', JSON.stringify(aiResponse));
 
-    // Extract the tool call result
     const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
     
     if (toolCall?.function?.arguments) {
@@ -146,10 +193,8 @@ Retorne APENAS um JSON válido com a estrutura exata abaixo. Use valores numéri
       );
     }
 
-    // Fallback: try to parse from content if no tool call
     const content = aiResponse.choices?.[0]?.message?.content;
     if (content) {
-      // Try to extract JSON from the response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const extractedData = JSON.parse(jsonMatch[0]);
@@ -163,18 +208,17 @@ Retorne APENAS um JSON válido com a estrutura exata abaixo. Use valores numéri
       }
     }
 
-    // Return default values if extraction failed
     return new Response(
       JSON.stringify({
         success: true,
         data: {
-          area_total_m2: 120,
+          area_total_m2: 0,
           pe_direito_m: 2.80,
-          perimetro_externo_m: 44,
-          paredes_internas_m: 35,
-          aberturas_m2: 18,
-          confianca: 30,
-          observacoes: 'Não foi possível extrair dados precisos. Valores estimados para uma residência típica.'
+          perimetro_externo_m: 0,
+          paredes_internas_m: 0,
+          aberturas_m2: 0,
+          confianca: 10,
+          observacoes: 'Não foi possível extrair dados precisos do PDF. O documento pode não conter planta baixa legível ou as cotas não estão visíveis.'
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

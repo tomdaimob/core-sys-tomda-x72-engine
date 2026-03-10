@@ -30,29 +30,69 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: [
           {
             role: 'system',
-            content: `Você é um especialista em análise de projetos estruturais de fundação.
-Analise o documento PDF fornecido e extraia dados sobre SAPATAS ISOLADAS e/ou PILARES.
-Para cada tipo de sapata encontrado, extraia:
-- Nome/identificação do tipo
-- Quantidade de unidades
-- Largura em metros
-- Comprimento em metros 
-- Altura em metros
+            content: `Você é um engenheiro estrutural sênior especializado em projetos de fundação.
 
-Se o PDF contiver um resumo de aço, extraia também o peso total de aço (kg).
-Se contiver volume total de concreto, extraia também.
-Retorne APENAS via tool call.`
+## OBJETIVO
+Analisar o projeto estrutural e extrair dados sobre SAPATAS ISOLADAS e/ou PILARES.
+
+## METODOLOGIA — PASSO A PASSO
+
+### 1. IDENTIFICAR TIPO DE DOCUMENTO
+- Planta de locação de pilares?
+- Detalhamento de sapatas?
+- Planta de formas?
+- Resumo de aço/concreto?
+
+### 2. LOCALIZAR TABELA DE SAPATAS
+Projetos estruturais geralmente têm uma tabela/quadro com:
+- Tipo da sapata (S1, S2, S3...)
+- Quantidade de cada tipo
+- Dimensões: Largura × Comprimento × Altura
+- Armadura (diâmetro e espaçamento)
+
+**SE ENCONTRAR A TABELA: use-a — é a fonte mais confiável.**
+
+### 3. SE NÃO HOUVER TABELA
+Analise os detalhamentos individuais:
+- Procure cotas nos desenhos de sapata em planta e corte
+- Identifique: largura (A), comprimento (B), altura (H)
+- Conte a quantidade de cada tipo pela planta de locação
+
+### 4. RESUMOS DE MATERIAIS
+Se o projeto tiver:
+- **Resumo de concreto**: extraia o volume total (m³) por elemento
+- **Resumo de aço**: extraia o peso total (kg) por diâmetro
+- Estes dados servem para validação cruzada
+
+### 5. VALIDAÇÃO
+- Sapatas típicas residenciais: 0.40m a 1.50m de lado
+- Altura típica: 0.20m a 0.50m
+- Quantidade típica: 4 a 20 sapatas por residência
+- Se algo parecer fora do padrão, avise nas observações
+
+## REGRAS
+- LEIA as cotas — não invente dimensões
+- Se não conseguir ler, diga explicitamente
+- Confiança alta apenas se tabela foi encontrada ou cotas são claras`
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `Analise este projeto estrutural e extraia os dados de sapatas/pilares. Arquivo: ${fileName}`
+                text: `Analise este projeto estrutural e extraia os dados de sapatas/pilares.
+
+ANTES DE RESPONDER:
+1. O documento tem tabela/quadro de sapatas?
+2. Quantos tipos de sapata você identifica?
+3. Quais cotas são visíveis?
+4. Existe resumo de concreto ou aço?
+
+Arquivo: ${fileName}`
               },
               {
                 type: 'image_url',
@@ -80,22 +120,25 @@ Retorne APENAS via tool call.`
                         largura_m: { type: 'number', description: 'Largura em metros' },
                         comprimento_m: { type: 'number', description: 'Comprimento em metros' },
                         altura_m: { type: 'number', description: 'Altura em metros' },
+                        fonte: { type: 'string', description: 'Como a medida foi obtida: tabela, cota, inferida' }
                       },
                       required: ['nome', 'quantidade', 'largura_m', 'comprimento_m', 'altura_m']
                     },
                     description: 'Lista de tipos de sapata encontrados'
                   },
-                  volume_concreto_total_m3: { type: 'number', description: 'Volume total de concreto em m³ (se informado no PDF)' },
-                  peso_aco_total_kg: { type: 'number', description: 'Peso total de aço em kg (se informado no PDF)' },
+                  volume_concreto_total_m3: { type: 'number', description: 'Volume total de concreto em m³ (se informado)' },
+                  peso_aco_total_kg: { type: 'number', description: 'Peso total de aço em kg (se informado)' },
                   confianca: { type: 'number', description: 'Nível de confiança 0 a 100' },
-                  observacoes: { type: 'string', description: 'Observações sobre a extração' }
+                  observacoes: { type: 'string', description: 'Detalhes: fonte dos dados, cotas lidas, limitações' }
                 },
-                required: ['tipos', 'confianca', 'observacoes']
+                required: ['tipos', 'confianca', 'observacoes'],
+                additionalProperties: false
               }
             }
           }
         ],
-        tool_choice: { type: 'function', function: { name: 'extrair_sapatas_estrutural' } }
+        tool_choice: { type: 'function', function: { name: 'extrair_sapatas_estrutural' } },
+        temperature: 0,
       }),
     });
 
@@ -103,6 +146,10 @@ Retorne APENAS via tool call.`
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: 'Limite de requisições excedido.' }), 
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: 'Créditos insuficientes.' }), 
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       const errorText = await response.text();
       console.error('AI Gateway error:', response.status, errorText);
@@ -128,11 +175,11 @@ Retorne APENAS via tool call.`
       extractedData = {
         tipos: [],
         confianca: 10,
-        observacoes: 'Não foi possível extrair dados de sapatas do documento.',
+        observacoes: 'Não foi possível extrair dados de sapatas do documento. O PDF pode não conter projeto estrutural de fundação.',
       };
     }
 
-    // Save extraction to ia_extracoes
+    // Save extraction
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
@@ -151,9 +198,7 @@ Retorne APENAS via tool call.`
       .select('id')
       .single();
 
-    if (extError) {
-      console.error('Error saving extraction:', extError);
-    }
+    if (extError) console.error('Error saving extraction:', extError);
 
     return new Response(
       JSON.stringify({

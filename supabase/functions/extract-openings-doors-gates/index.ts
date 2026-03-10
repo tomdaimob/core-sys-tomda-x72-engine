@@ -92,105 +92,119 @@ serve(async (req) => {
 
     console.log(`Processing PDF ${fileName} for orcamento ${orcamentoId}`);
 
-    const systemPrompt = `Você é um especialista em leitura de projetos arquitetônicos (plantas baixas, cortes, fachadas, pranchas de esquadrias) exportados do AutoCAD.
-Sua tarefa é identificar e extrair as dimensões de TODAS as PORTAS, JANELAS e PORTÕES do projeto, processando TODAS as páginas.
+    const systemPrompt = `Você é um engenheiro / arquiteto sênior com 20+ anos de experiência em leitura técnica de projetos exportados do AutoCAD, Revit ou similares.
 
-## INSTRUÇÕES CRÍTICAS - ANTI-SUBCONTAGEM:
+## OBJETIVO
+Identificar e extrair dimensões de TODAS as PORTAS, JANELAS e PORTÕES em TODAS as páginas do projeto.
 
-### 1. PROCESSAMENTO COMPLETO DO PDF
-- Analise TODAS as páginas: planta baixa, fachadas, cortes, pranchas de esquadrias, detalhamentos
-- Liste quais páginas foram usadas para a extração
-- Conte quantas aberturas aparecem em cada página
+## METODOLOGIA — SIGA PASSO A PASSO
 
-### 2. REGRAS PARA CASAS GEMINADAS / MÚLTIPLAS UNIDADES
-- NÃO assuma que existe apenas uma unidade no projeto
-- Procure por indicadores de múltiplas unidades:
-  * Textos como "Casa 1", "Casa 2", "Unidade A/B", "Sobrado Geminado"
-  * Layouts espelhados ou repetidos
-  * Múltiplas entradas principais
-  * Dois ou mais portões de garagem em posições simétricas
-- Se detectar geminadas: DUPLIQUE as contagens para cada unidade
-- Use sufixos para diferenciar: P1-A (Casa 1), P1-B (Casa 2), etc.
+### Passo 1 — RECONHECIMENTO DO DOCUMENTO
+Antes de extrair medidas, descreva para si mesmo:
+- Quantas páginas o documento tem?
+- Quais tipos de desenho estão em cada página? (planta baixa, fachada, corte, prancha de esquadrias, detalhamento)
+- Qual a escala de cada página?
 
-### 3. IDENTIFICAÇÃO DE PORTAS, JANELAS E PORTÕES
-Identifique por:
-- **PORTAS** - Símbolos: Arco de abertura de 90°, retângulos na parede. Labels: P, PT, Porta, P1, P2, PM (pivotante)
-- **JANELAS** - Símbolos: Linhas paralelas na parede (duas linhas), retângulos vazados. Labels: J, JAN, Janela, J1, J2, JB (banheiro), JC (cozinha), basculante, maxim-ar, de correr
-- **PORTÕES** - Labels: G, PG, Portão. Contexto: garagem, entrada do lote
-- **Cotas**: Dimensões próximas à abertura (largura x altura)
+### Passo 2 — IDENTIFICAR ABERTURAS NA PLANTA BAIXA
+Na planta baixa, identifique:
+- **PORTAS** → Símbolo: arco de 90° saindo da parede (representação da folha abrindo)
+  - Portas de correr: duas linhas paralelas na parede
+  - Portas pivotantes: arco maior
+  - Labels comuns: P, P1, P2, PT, PM, Porta
+- **JANELAS** → Símbolo: duas ou três linhas paralelas DENTRO da parede, representando os trilhos
+  - Janela de correr: linhas paralelas com setas de correr
+  - Basculante: linha tracejada
+  - Maxim-ar: traço com ângulo
+  - Labels comuns: J, J1, J2, JB, JC, JAN, Janela
+- **PORTÕES** → Tipicamente no muro de divisa ou fachada
+  - Labels: G, PG, Portão
+  - Contexto: garagem, entrada do lote, acesso social
 
-### 4. DIMENSÕES - MEDIÇÃO vs INFERÊNCIA
-Para cada abertura:
-- Se a cota estiver VISÍVEL: use o valor exato, marque inferred=false, confianca=0.90-0.95
-- Se NÃO houver cota visível: INFERIR usando padrões, marque inferred=true, confianca=0.60-0.75
+### Passo 3 — BUSCAR TABELA/QUADRO DE ESQUADRIAS
+Muitos projetos têm uma TABELA DE ESQUADRIAS (geralmente na lateral ou em prancha separada) com:
+- Código (P1, J1, G1)
+- Largura × Altura
+- Quantidade
+- Material
+- Tipo (correr, abrir, pivotante, basculante)
 
-**Padrões de inferência:**
-- Porta interna: ${defaults.porta_interna_largura}m x ${defaults.porta_interna_altura}m
-- Porta externa/principal: ${defaults.porta_externa_largura}m x ${defaults.porta_externa_altura}m
-- Portão garagem: ${defaults.portao_garagem_largura}m x ${defaults.portao_garagem_altura}m
-- Portão pedestres: ${defaults.portao_pedestres_largura}m x ${defaults.portao_pedestres_altura}m
-- Janela padrão (sala/quarto): ${defaults.janela_padrao_largura}m x ${defaults.janela_padrao_altura}m
-- Janela banheiro/cozinha: ${defaults.janela_banheiro_largura}m x ${defaults.janela_banheiro_altura}m
+**SE ENCONTRAR A TABELA: use-a como fonte primária — é a mais confiável.**
 
-### 5. CLASSIFICAÇÃO
-- Portas: INTERNA (banheiro, quarto, etc.) ou EXTERNA (entrada principal, fundos)
-- Janelas: identificar por ambiente se possível
-- Portões: geralmente externos (garagem, entrada)
+### Passo 4 — COTAS DE ABERTURAS
+Se não houver tabela, procure cotas próximas às aberturas:
+- Cotas em planta: geralmente indicam a LARGURA do vão
+- Cotas em corte/fachada: indicam LARGURA e ALTURA
+- Peitoril (P): altura do piso à base da janela
 
-### 6. FORMATO DE RESPOSTA (JSON puro, sem markdown)
+### Passo 5 — DIMENSÕES POR INFERÊNCIA (último recurso)
+Use APENAS se não encontrar cota NEM tabela:
+- Porta interna: ${defaults.porta_interna_largura}m × ${defaults.porta_interna_altura}m
+- Porta externa/principal: ${defaults.porta_externa_largura}m × ${defaults.porta_externa_altura}m
+- Portão garagem: ${defaults.portao_garagem_largura}m × ${defaults.portao_garagem_altura}m
+- Portão pedestres: ${defaults.portao_pedestres_largura}m × ${defaults.portao_pedestres_altura}m
+- Janela sala/quarto: ${defaults.janela_padrao_largura}m × ${defaults.janela_padrao_altura}m
+- Janela banheiro/serviço: ${defaults.janela_banheiro_largura}m × ${defaults.janela_banheiro_altura}m
+
+Marque inferred=true e confianca=0.60-0.75 para valores inferidos.
+
+### Passo 6 — CASAS GEMINADAS / MÚLTIPLAS UNIDADES
+Procure por:
+- Textos: "Casa 1", "Unidade A/B", "Sobrado Geminado", "Espelhado"
+- Layouts simétricos ou repetidos na mesma prancha
+- Múltiplas entradas principais ou portões
+Se detectar: informe detected_units e is_geminada=true, mas NÃO duplique automaticamente.
+
+### Passo 7 — CONTAGEM FINAL E VALIDAÇÃO
+- Conte TODAS as portas, janelas e portões
+- Compare com o esperado: residência típica tem 5-15 portas, 4-10 janelas, 1-3 portões
+- Se a contagem parecer BAIXA, releia o projeto
+- MELHOR SUPERESTIMAR do que SUBESTIMAR
+
+## FORMATO DE RESPOSTA
+Retorne JSON puro (sem markdown, sem \`\`\`):
 {
   "doors": {
-    "count": 10,
+    "count": N,
     "items": [
       {"id": "d1", "label": "P1", "width_m": 0.8, "height_m": 2.1, "area_m2": 1.68, "confianca": 0.95, "page_number": 1, "inferred": false, "tipo": "INTERNA"}
     ],
-    "area_total_m2": 16.8,
-    "counts_per_page": {"1": 5, "2": 5}
+    "area_total_m2": N,
+    "counts_per_page": {"1": N}
   },
   "windows": {
-    "count": 8,
+    "count": N,
     "items": [
       {"id": "w1", "label": "J1", "width_m": 1.2, "height_m": 1.2, "area_m2": 1.44, "confianca": 0.90, "page_number": 1, "inferred": false}
     ],
-    "area_total_m2": 11.52,
-    "counts_per_page": {"1": 4, "2": 4}
+    "area_total_m2": N,
+    "counts_per_page": {"1": N}
   },
   "gates": {
-    "count": 2,
-    "items": [
-      {"id": "g1", "label": "G1", "width_m": 3.0, "height_m": 2.2, "area_m2": 6.6, "confianca": 0.90, "page_number": 1, "inferred": false}
-    ],
-    "area_total_m2": 13.2,
-    "counts_per_page": {"1": 2}
+    "count": N,
+    "items": [...],
+    "area_total_m2": N,
+    "counts_per_page": {"1": N}
   },
   "source": {
-    "pages_used": [1, 2, 3],
-    "pages_total": 5,
-    "notes": "Descrição do que foi encontrado.",
-    "warnings": ["Medidas de J3 inferidas por padrão"],
+    "pages_used": [1, 2],
+    "pages_total": N,
+    "notes": "Descrição detalhada do que foi encontrado e como as medidas foram obtidas",
+    "warnings": [],
     "detected_units": 1,
     "is_geminada": false
   }
-}
+}`;
 
-### REGRAS FINAIS
-- Se houver QUALQUER dúvida sobre a contagem, adicione um WARNING
-- Melhor SUPERESTIMAR do que SUBESTIMAR (usuário pode remover itens depois)
-- Retorne SOMENTE o JSON, sem explicações ou markdown`;
+    const userPrompt = `Analise TODAS as páginas deste projeto com máxima atenção.
 
-    const userPrompt = `Analise TODAS as páginas deste projeto arquitetônico (PDF) e extraia as dimensões de TODAS as PORTAS, JANELAS e PORTÕES.
+ANTES DE RESPONDER, faça mentalmente:
+1. Quantas PÁGINAS o documento tem? Descreva o conteúdo de cada uma.
+2. Existe TABELA/QUADRO DE ESQUADRIAS? Se sim, use-a como base.
+3. Quais COTAS de aberturas você consegue ler?
+4. O projeto é GEMINADO ou de múltiplas unidades?
+5. Faça a contagem final: X portas, Y janelas, Z portões.
 
-CHECKLIST OBRIGATÓRIO:
-1. Quantas páginas o documento tem?
-2. É um projeto de casas geminadas ou múltiplas unidades?
-3. Quantas portas você identificou no total?
-4. Quantas janelas você identificou no total?
-5. Quantos portões você identificou no total?
-6. Alguma medida foi inferida (não estava explícita)?
-
-Se for um projeto GEMINADO ou com múltiplas unidades, DUPLIQUE as aberturas para cada unidade.
-
-Retorne o JSON estruturado conforme especificado.`;
+Retorne o JSON estruturado.`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -199,7 +213,7 @@ Retorne o JSON estruturado conforme especificado.`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: [
           { role: 'system', content: systemPrompt },
           { 
@@ -211,7 +225,7 @@ Retorne o JSON estruturado conforme especificado.`;
           }
         ],
         max_tokens: 16384,
-        temperature: 0.1,
+        temperature: 0,
       }),
     });
 
@@ -259,7 +273,6 @@ Retorne o JSON estruturado conforme especificado.`;
       throw new Error('Estrutura de dados inválida');
     }
 
-    // Ensure windows exists (backward compat with old AI responses)
     if (!extractedData.windows) {
       extractedData.windows = { count: 0, items: [], area_total_m2: 0, counts_per_page: {} };
     }
@@ -272,7 +285,7 @@ Retorne o JSON estruturado conforme especificado.`;
       confianca: item.confianca || 0.8,
       inferred: item.inferred ?? false,
       origem: 'PDF' as const,
-      material: 'MADEIRA' as const,
+      material: item.material || 'MADEIRA',
       tipo: item.tipo || 'INTERNA',
     }));
     extractedData.doors.count = extractedData.doors.items.length;
@@ -287,7 +300,7 @@ Retorne o JSON estruturado conforme especificado.`;
       confianca: item.confianca || 0.8,
       inferred: item.inferred ?? false,
       origem: 'PDF' as const,
-      material: 'ALUMINIO' as const,
+      material: item.material || 'ALUMINIO',
     }));
     extractedData.windows.count = extractedData.windows.items.length;
     extractedData.windows.area_total_m2 = extractedData.windows.items.reduce((sum, item) => sum + (item.area_m2 || 0), 0);
@@ -301,7 +314,7 @@ Retorne o JSON estruturado conforme especificado.`;
       confianca: item.confianca || 0.8,
       inferred: item.inferred ?? false,
       origem: 'PDF' as const,
-      material: 'FERRO' as const,
+      material: item.material || 'FERRO',
     }));
     extractedData.gates.count = extractedData.gates.items.length;
     extractedData.gates.area_total_m2 = extractedData.gates.items.reduce((sum, item) => sum + (item.area_m2 || 0), 0);

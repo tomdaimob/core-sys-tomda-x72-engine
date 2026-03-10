@@ -158,10 +158,10 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
   /**
    * Upload PDF to storage (backward compatibility)
    */
-  const uploadProjectPdf = useCallback(async (file: File): Promise<string | null> => {
+  const uploadProjectPdf = useCallback(async (file: File, overrideOrcamentoId?: string): Promise<string | null> => {
     setUploading(true);
     try {
-      const result = await uploadFile(file);
+      const result = await uploadFile(file, undefined, overrideOrcamentoId);
       return result?.id || null;
     } catch (error) {
       console.error('uploadProjectPdf failed:', error);

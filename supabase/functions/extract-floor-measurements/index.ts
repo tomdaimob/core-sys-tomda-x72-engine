@@ -65,15 +65,9 @@ Se o projeto contém CASAS GEMINADAS ou UNIDADES REPETIDAS, extraia os dados de 
             content: [
               {
                 type: 'text',
-                text: `Analise este projeto para o pavimento específico. Siga a metodologia passo a passo.
+                text: `Extraia as medidas de UMA ÚNICA UNIDADE deste pavimento. Se houver casas geminadas, use apenas a Casa 1.
 
-CHECKLIST:
-1. Qual a escala do projeto?
-2. Quais cotas você consegue ler?
-3. Qual a geometria da planta (retangular, L, U)?
-4. Quantos ambientes internos existem?
-
-Arquivo: ${fileName}`
+Se existir "Quadro de Áreas", use os valores dele. Arquivo: ${fileName}`
               },
               {
                 type: 'image_url',

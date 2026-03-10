@@ -67,9 +67,9 @@ Se o projeto contém CASAS GEMINADAS ou UNIDADES REPETIDAS, extraia os dados de 
             content: [
               {
                 type: 'text',
-                text: `Analise esta planta arquitetônica com máxima precisão. Siga a metodologia passo a passo. Nome do arquivo: ${fileName}
+                text: `Extraia as medidas de UMA ÚNICA UNIDADE deste projeto. Se houver casas geminadas, use apenas a Casa 1.
 
-IMPORTANTE: Leia TODAS as cotas visíveis antes de responder. Não estime — meça.`
+Se existir "Quadro de Áreas", use os valores dele. Arquivo: ${fileName}`
               },
               {
                 type: 'image_url',

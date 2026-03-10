@@ -63,6 +63,7 @@ export function ConfirmarMedidasModal({
         altura_paredes_m: medidasExtraidas.pe_direito_m || medidasExtraidas.altura_paredes_m || 2.70,
         aberturas_m2: medidasExtraidas.aberturas_m2 || 0,
         area_total_m2: medidasExtraidas.area_total_m2 || 0,
+        quantidade_unidades: medidasExtraidas.quantidade_unidades || 1,
       });
     }
   }, [medidasExtraidas, open]);

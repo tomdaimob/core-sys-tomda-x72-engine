@@ -205,36 +205,46 @@ export default function NovoOrcamento() {
   };
 
   const handleConfirmExtraction = (data: ExtractedData) => {
-    // Calculate area líquida de paredes
-    const areaParedes = (data.perimetro_externo_m + data.paredes_internas_m) * data.pe_direito_m - data.aberturas_m2;
+    const qtd = (data as any).quantidade_unidades || 1;
     
-    // Update project data
+    // Multiply dimensions by quantity for total project
+    const perimTotal = data.perimetro_externo_m * qtd;
+    const intTotal = data.paredes_internas_m * qtd;
+    const abertTotal = data.aberturas_m2 * qtd;
+    const areaTotalTerreno = data.area_total_m2 * qtd;
+    
+    // Calculate area líquida de paredes (total all units)
+    const areaParedes = (perimTotal + intTotal) * data.pe_direito_m - abertTotal;
+    
+    // Update project data (totals)
     setProjeto({
       ...projeto,
-      areaTotal: data.area_total_m2,
+      areaTotal: areaTotalTerreno,
       peDireito: data.pe_direito_m,
-      perimetroExterno: data.perimetro_externo_m,
-      paredesInternas: data.paredes_internas_m,
-      aberturas: data.aberturas_m2,
+      perimetroExterno: perimTotal,
+      paredesInternas: intTotal,
+      aberturas: abertTotal,
     });
     
-    // Update paredes with extracted data
+    // Update paredes with extracted data (total all units)
     setParedes({
       ...paredes,
-      areaExternaM2: areaParedes * 0.7, // Estimate: 70% external
-      areaInternaM2: areaParedes * 0.3, // Estimate: 30% internal
+      areaExternaM2: areaParedes * 0.7,
+      areaInternaM2: areaParedes * 0.3,
     });
     
-    // Update radier with area
+    // Update radier with total area
     setRadier({
       ...radier,
-      areaM2: data.area_total_m2,
+      areaM2: areaTotalTerreno,
     });
     
     setShowReview(false);
     toast({
       title: 'Dados aplicados!',
-      description: 'Os campos foram preenchidos automaticamente.',
+      description: qtd > 1
+        ? `Medidas multiplicadas por ${qtd} unidades e aplicadas.`
+        : 'Os campos foram preenchidos automaticamente.',
     });
   };
 

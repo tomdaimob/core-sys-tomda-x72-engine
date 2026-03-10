@@ -170,12 +170,14 @@ export function getRevestimentoPrecos(items: PriceCatalogItem[]): RevestimentoPr
   };
 }
 
-// Get portas e portões prices from catalog
+// Get portas, portões e janelas prices from catalog
 export interface PortasPortoesPrecos {
   portaMadeiraM2: number;
   portaAluminioM2: number;
   portaoFerroM2: number;
   portaoAluminioM2: number;
+  janelaAluminioM2: number;
+  janelaVidroTemperadoM2: number;
 }
 
 export function getPortasPortoesPrecos(items: PriceCatalogItem[]): PortasPortoesPrecos {
@@ -194,6 +196,8 @@ export function getPortasPortoesPrecos(items: PriceCatalogItem[]): PortasPortoes
     portaAluminioM2: findPrice(['porta de alumínio', 'porta de aluminio'], 2000.00),
     portaoFerroM2: findPrice(['portão de ferro', 'portao de ferro'], 600.00),
     portaoAluminioM2: findPrice(['portão de alumínio', 'portao de aluminio'], 1800.00),
+    janelaAluminioM2: findPrice(['janela de alumínio', 'janela de aluminio'], 800.00),
+    janelaVidroTemperadoM2: findPrice(['janela de vidro temperado'], 1200.00),
   };
 }
 

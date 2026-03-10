@@ -15,12 +15,18 @@ interface DoorGateItem {
   page_number?: number;
   inferred: boolean;
   tipo?: 'INTERNA' | 'EXTERNA';
-  material: 'MADEIRA' | 'ALUMINIO' | 'FERRO';
+  material: string;
   origem: 'PDF' | 'MANUAL' | 'DUPLICADO';
 }
 
 interface ExtractionResult {
   doors: {
+    count: number;
+    items: DoorGateItem[];
+    area_total_m2: number;
+    counts_per_page: Record<number, number>;
+  };
+  windows: {
     count: number;
     items: DoorGateItem[];
     area_total_m2: number;
@@ -37,18 +43,16 @@ interface ExtractionResult {
     pages_total: number;
     notes: string;
     warnings: string[];
-    detected_units: number; // Number of detected units (geminadas)
+    detected_units: number;
     is_geminada: boolean;
   };
 }
 
-// Generate unique ID
 function generateId(): string {
   return 'item_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36).slice(-4);
 }
 
 serve(async (req) => {
-  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -65,14 +69,12 @@ serve(async (req) => {
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
-      console.error('LOVABLE_API_KEY not configured');
       return new Response(
         JSON.stringify({ success: false, error: 'API key não configurada' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Default dimensions from admin config or use hardcoded defaults
     const defaults = defaultDimensions || {
       porta_interna_largura: 0.80,
       porta_interna_altura: 2.10,
@@ -82,12 +84,16 @@ serve(async (req) => {
       portao_garagem_altura: 2.20,
       portao_pedestres_largura: 1.00,
       portao_pedestres_altura: 2.20,
+      janela_padrao_largura: 1.20,
+      janela_padrao_altura: 1.20,
+      janela_banheiro_largura: 0.60,
+      janela_banheiro_altura: 0.60,
     };
 
     console.log(`Processing PDF ${fileName} for orcamento ${orcamentoId}`);
 
     const systemPrompt = `Você é um especialista em leitura de projetos arquitetônicos (plantas baixas, cortes, fachadas, pranchas de esquadrias) exportados do AutoCAD.
-Sua tarefa é identificar e extrair as dimensões de TODAS as PORTAS e PORTÕES do projeto, processando TODAS as páginas.
+Sua tarefa é identificar e extrair as dimensões de TODAS as PORTAS, JANELAS e PORTÕES do projeto, processando TODAS as páginas.
 
 ## INSTRUÇÕES CRÍTICAS - ANTI-SUBCONTAGEM:
 
@@ -106,12 +112,12 @@ Sua tarefa é identificar e extrair as dimensões de TODAS as PORTAS e PORTÕES 
 - Se detectar geminadas: DUPLIQUE as contagens para cada unidade
 - Use sufixos para diferenciar: P1-A (Casa 1), P1-B (Casa 2), etc.
 
-### 3. IDENTIFICAÇÃO DE PORTAS E PORTÕES
+### 3. IDENTIFICAÇÃO DE PORTAS, JANELAS E PORTÕES
 Identifique por:
-- **Símbolos**: Arco de abertura de 90°, retângulos na parede
-- **Labels/Textos**: P, PT, Porta, P1, P2, PM (pivotante), G, PG, Portão
+- **PORTAS** - Símbolos: Arco de abertura de 90°, retângulos na parede. Labels: P, PT, Porta, P1, P2, PM (pivotante)
+- **JANELAS** - Símbolos: Linhas paralelas na parede (duas linhas), retângulos vazados. Labels: J, JAN, Janela, J1, J2, JB (banheiro), JC (cozinha), basculante, maxim-ar, de correr
+- **PORTÕES** - Labels: G, PG, Portão. Contexto: garagem, entrada do lote
 - **Cotas**: Dimensões próximas à abertura (largura x altura)
-- **Contexto**: Posição na planta (entrada, garagem, ambientes internos)
 
 ### 4. DIMENSÕES - MEDIÇÃO vs INFERÊNCIA
 Para cada abertura:
@@ -123,9 +129,12 @@ Para cada abertura:
 - Porta externa/principal: ${defaults.porta_externa_largura}m x ${defaults.porta_externa_altura}m
 - Portão garagem: ${defaults.portao_garagem_largura}m x ${defaults.portao_garagem_altura}m
 - Portão pedestres: ${defaults.portao_pedestres_largura}m x ${defaults.portao_pedestres_altura}m
+- Janela padrão (sala/quarto): ${defaults.janela_padrao_largura}m x ${defaults.janela_padrao_altura}m
+- Janela banheiro/cozinha: ${defaults.janela_banheiro_largura}m x ${defaults.janela_banheiro_altura}m
 
 ### 5. CLASSIFICAÇÃO
 - Portas: INTERNA (banheiro, quarto, etc.) ou EXTERNA (entrada principal, fundos)
+- Janelas: identificar por ambiente se possível
 - Portões: geralmente externos (garagem, entrada)
 
 ### 6. FORMATO DE RESPOSTA (JSON puro, sem markdown)
@@ -133,17 +142,23 @@ Para cada abertura:
   "doors": {
     "count": 10,
     "items": [
-      {"id": "d1", "label": "P1-A", "width_m": 0.8, "height_m": 2.1, "area_m2": 1.68, "confianca": 0.95, "page_number": 1, "inferred": false, "tipo": "INTERNA"},
-      {"id": "d2", "label": "P1-B", "width_m": 0.8, "height_m": 2.1, "area_m2": 1.68, "confianca": 0.70, "page_number": 1, "inferred": true, "tipo": "INTERNA"}
+      {"id": "d1", "label": "P1", "width_m": 0.8, "height_m": 2.1, "area_m2": 1.68, "confianca": 0.95, "page_number": 1, "inferred": false, "tipo": "INTERNA"}
     ],
     "area_total_m2": 16.8,
     "counts_per_page": {"1": 5, "2": 5}
   },
+  "windows": {
+    "count": 8,
+    "items": [
+      {"id": "w1", "label": "J1", "width_m": 1.2, "height_m": 1.2, "area_m2": 1.44, "confianca": 0.90, "page_number": 1, "inferred": false}
+    ],
+    "area_total_m2": 11.52,
+    "counts_per_page": {"1": 4, "2": 4}
+  },
   "gates": {
     "count": 2,
     "items": [
-      {"id": "g1", "label": "G1-A", "width_m": 3.0, "height_m": 2.2, "area_m2": 6.6, "confianca": 0.90, "page_number": 1, "inferred": false},
-      {"id": "g2", "label": "G1-B", "width_m": 3.0, "height_m": 2.2, "area_m2": 6.6, "confianca": 0.70, "page_number": 1, "inferred": true}
+      {"id": "g1", "label": "G1", "width_m": 3.0, "height_m": 2.2, "area_m2": 6.6, "confianca": 0.90, "page_number": 1, "inferred": false}
     ],
     "area_total_m2": 13.2,
     "counts_per_page": {"1": 2}
@@ -151,10 +166,10 @@ Para cada abertura:
   "source": {
     "pages_used": [1, 2, 3],
     "pages_total": 5,
-    "notes": "Projeto de 2 casas geminadas identificado. Portas e portões duplicados para ambas unidades.",
-    "warnings": ["Medidas de P3 e P4 inferidas por padrão", "Conferir se há mais portões na fachada posterior"],
-    "detected_units": 2,
-    "is_geminada": true
+    "notes": "Descrição do que foi encontrado.",
+    "warnings": ["Medidas de J3 inferidas por padrão"],
+    "detected_units": 1,
+    "is_geminada": false
   }
 }
 
@@ -163,20 +178,20 @@ Para cada abertura:
 - Melhor SUPERESTIMAR do que SUBESTIMAR (usuário pode remover itens depois)
 - Retorne SOMENTE o JSON, sem explicações ou markdown`;
 
-    const userPrompt = `Analise TODAS as páginas deste projeto arquitetônico (PDF) e extraia as dimensões de TODAS as PORTAS e PORTÕES.
+    const userPrompt = `Analise TODAS as páginas deste projeto arquitetônico (PDF) e extraia as dimensões de TODAS as PORTAS, JANELAS e PORTÕES.
 
 CHECKLIST OBRIGATÓRIO:
 1. Quantas páginas o documento tem?
 2. É um projeto de casas geminadas ou múltiplas unidades?
 3. Quantas portas você identificou no total?
-4. Quantos portões você identificou no total?
-5. Alguma medida foi inferida (não estava explícita)?
+4. Quantas janelas você identificou no total?
+5. Quantos portões você identificou no total?
+6. Alguma medida foi inferida (não estava explícita)?
 
 Se for um projeto GEMINADO ou com múltiplas unidades, DUPLIQUE as aberturas para cada unidade.
 
 Retorne o JSON estruturado conforme especificado.`;
 
-    // Call AI with vision
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -191,16 +206,11 @@ Retorne o JSON estruturado conforme especificado.`;
             role: 'user', 
             content: [
               { type: 'text', text: userPrompt },
-              { 
-                type: 'image_url', 
-                image_url: { 
-                  url: `data:application/pdf;base64,${pdfBase64}` 
-                } 
-              }
+              { type: 'image_url', image_url: { url: `data:application/pdf;base64,${pdfBase64}` } }
             ]
           }
         ],
-        max_tokens: 16384, // Increased for multi-page documents
+        max_tokens: 16384,
         temperature: 0.1,
       }),
     });
@@ -232,10 +242,8 @@ Retorne o JSON estruturado conforme especificado.`;
 
     console.log('AI response received, parsing...');
 
-    // Parse JSON from response
     let extractedData: ExtractionResult;
     try {
-      // Try to extract JSON from the response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         console.error('No JSON found in response:', content);
@@ -247,61 +255,76 @@ Retorne o JSON estruturado conforme especificado.`;
       throw new Error('Não foi possível interpretar a resposta da IA');
     }
 
-    // Validate structure
     if (!extractedData.doors || !extractedData.gates) {
       throw new Error('Estrutura de dados inválida');
     }
 
-    // Ensure arrays and generate IDs for items
-    extractedData.doors.items = (extractedData.doors.items || []).map((item, idx) => ({
+    // Ensure windows exists (backward compat with old AI responses)
+    if (!extractedData.windows) {
+      extractedData.windows = { count: 0, items: [], area_total_m2: 0, counts_per_page: {} };
+    }
+
+    // Normalize doors
+    extractedData.doors.items = (extractedData.doors.items || []).map(item => ({
       ...item,
       id: item.id || generateId(),
       area_m2: item.area_m2 || (item.width_m * item.height_m),
       confianca: item.confianca || 0.8,
       inferred: item.inferred ?? false,
       origem: 'PDF' as const,
-      material: 'MADEIRA' as const, // Default material
+      material: 'MADEIRA' as const,
       tipo: item.tipo || 'INTERNA',
     }));
     extractedData.doors.count = extractedData.doors.items.length;
     extractedData.doors.area_total_m2 = extractedData.doors.items.reduce((sum, item) => sum + (item.area_m2 || 0), 0);
     extractedData.doors.counts_per_page = extractedData.doors.counts_per_page || {};
 
-    extractedData.gates.items = (extractedData.gates.items || []).map((item, idx) => ({
+    // Normalize windows
+    extractedData.windows.items = (extractedData.windows.items || []).map(item => ({
       ...item,
       id: item.id || generateId(),
       area_m2: item.area_m2 || (item.width_m * item.height_m),
       confianca: item.confianca || 0.8,
       inferred: item.inferred ?? false,
       origem: 'PDF' as const,
-      material: 'FERRO' as const, // Default material
+      material: 'ALUMINIO' as const,
+    }));
+    extractedData.windows.count = extractedData.windows.items.length;
+    extractedData.windows.area_total_m2 = extractedData.windows.items.reduce((sum, item) => sum + (item.area_m2 || 0), 0);
+    extractedData.windows.counts_per_page = extractedData.windows.counts_per_page || {};
+
+    // Normalize gates
+    extractedData.gates.items = (extractedData.gates.items || []).map(item => ({
+      ...item,
+      id: item.id || generateId(),
+      area_m2: item.area_m2 || (item.width_m * item.height_m),
+      confianca: item.confianca || 0.8,
+      inferred: item.inferred ?? false,
+      origem: 'PDF' as const,
+      material: 'FERRO' as const,
     }));
     extractedData.gates.count = extractedData.gates.items.length;
     extractedData.gates.area_total_m2 = extractedData.gates.items.reduce((sum, item) => sum + (item.area_m2 || 0), 0);
     extractedData.gates.counts_per_page = extractedData.gates.counts_per_page || {};
 
-    // Ensure source
-    extractedData.source = extractedData.source || {};
+    // Source
+    extractedData.source = extractedData.source || {} as any;
     extractedData.source.pages_used = extractedData.source.pages_used || [];
     extractedData.source.pages_total = extractedData.source.pages_total || extractedData.source.pages_used.length || 1;
-    extractedData.source.notes = extractedData.source.notes || 'Extração automática de portas e portões';
+    extractedData.source.notes = extractedData.source.notes || 'Extração automática de portas, janelas e portões';
     extractedData.source.warnings = extractedData.source.warnings || [];
     extractedData.source.detected_units = extractedData.source.detected_units || 1;
     extractedData.source.is_geminada = extractedData.source.is_geminada || false;
 
-    // Calculate average confidence
-    const allItems = [...extractedData.doors.items, ...extractedData.gates.items];
+    const allItems = [...extractedData.doors.items, ...extractedData.windows.items, ...extractedData.gates.items];
     const avgConfidence = allItems.length > 0
       ? allItems.reduce((sum, item) => sum + (item.confianca || 0.8), 0) / allItems.length
       : 0.8;
 
-    // Add warning if low confidence or potentially undercounted
     const hasInferred = allItems.some(item => item.inferred);
     if (hasInferred && !extractedData.source.warnings.some(w => w.includes('inferidas'))) {
       extractedData.source.warnings.push('Algumas medidas foram inferidas por dimensões padrão');
     }
-
-    // Add warning for low confidence
     if (avgConfidence < 0.75) {
       extractedData.source.warnings.push('Atenção: a importação pode não ter capturado todas as aberturas. Confira a lista e adicione manualmente se necessário.');
     }
@@ -310,29 +333,18 @@ Retorne o JSON estruturado conforme especificado.`;
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    // First check if exists and delete old extraction
     const checkResponse = await fetch(
       `${supabaseUrl}/rest/v1/ia_extracoes?orcamento_id=eq.${orcamentoId}&select=id,dados_brutos`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
-          'apikey': supabaseKey,
-        },
-      }
+      { method: 'GET', headers: { 'Authorization': `Bearer ${supabaseKey}`, 'apikey': supabaseKey } }
     );
 
     if (checkResponse.ok) {
       const existingData = await checkResponse.json();
-      // Find and delete old doors/gates extractions
       for (const ext of existingData) {
         if (ext.dados_brutos && 'doors' in ext.dados_brutos && 'gates' in ext.dados_brutos) {
           await fetch(`${supabaseUrl}/rest/v1/ia_extracoes?id=eq.${ext.id}`, {
             method: 'DELETE',
-            headers: {
-              'Authorization': `Bearer ${supabaseKey}`,
-              'apikey': supabaseKey,
-            },
+            headers: { 'Authorization': `Bearer ${supabaseKey}`, 'apikey': supabaseKey },
           });
         }
       }
@@ -348,41 +360,35 @@ Retorne o JSON estruturado conforme especificado.`;
       },
       body: JSON.stringify({
         orcamento_id: orcamentoId,
-        arquivo_id: orcamentoId, // Use orcamento_id as placeholder for arquivo_id
+        arquivo_id: orcamentoId,
         status: 'sucesso',
         dados_brutos: extractedData,
         confianca: avgConfidence,
-        observacoes: `${extractedData.source.notes}. Páginas: ${extractedData.source.pages_used.join(', ')}. ${extractedData.source.is_geminada ? `Geminada detectada: ${extractedData.source.detected_units} unidades.` : ''}`,
+        observacoes: `${extractedData.source.notes}. Páginas: ${extractedData.source.pages_used.join(', ')}. ${extractedData.source.is_geminada ? `Geminada: ${extractedData.source.detected_units} unidades.` : ''}`,
       }),
     });
 
     if (!saveResponse.ok) {
       const saveError = await saveResponse.text();
       console.error('Error saving extraction:', saveError);
-      // Continue anyway, just log the error
     }
 
-    console.log(`Extraction completed: ${extractedData.doors.count} doors, ${extractedData.gates.count} gates`);
+    console.log(`Extraction completed: ${extractedData.doors.count} doors, ${extractedData.windows.count} windows, ${extractedData.gates.count} gates`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         data: extractedData,
-        message: `${extractedData.doors.count} porta(s) e ${extractedData.gates.count} portão(ões) identificado(s) em ${extractedData.source.pages_used.length} página(s)${extractedData.source.is_geminada ? ` (${extractedData.source.detected_units} unidades detectadas)` : ''}`
+        message: `${extractedData.doors.count} porta(s), ${extractedData.windows.count} janela(s) e ${extractedData.gates.count} portão(ões) identificado(s) em ${extractedData.source.pages_used.length} página(s)${extractedData.source.is_geminada ? ` (${extractedData.source.detected_units} unidades detectadas)` : ''}`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
     console.error('Error in extract-openings-doors-gates:', error);
-    
     const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-    
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: errorMessage 
-      }),
+      JSON.stringify({ success: false, error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

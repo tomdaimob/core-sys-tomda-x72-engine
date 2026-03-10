@@ -69,9 +69,11 @@ export function useProjectPdfStorage(orcamentoId: string | null | undefined) {
    */
   const uploadFile = useCallback(async (
     file: File, 
-    groupId?: string
+    groupId?: string,
+    overrideOrcamentoId?: string
   ): Promise<{ id: string; tipo: ArquivoTipo } | null> => {
-    if (!orcamentoId) {
+    const effectiveId = overrideOrcamentoId || orcamentoId;
+    if (!effectiveId) {
       toast({
         title: 'Erro',
         description: 'Orçamento não identificado.',

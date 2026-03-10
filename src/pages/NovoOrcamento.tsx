@@ -630,7 +630,16 @@ export default function NovoOrcamento() {
                     const custoParedeM2 = resultadoParedesCalc.areaLiquidaTotal > 0
                       ? resultadoParedesCalc.custoTotal / resultadoParedesCalc.areaLiquidaTotal
                       : (precos.formaIcf18 / 0.5 + precos.concretoM3 * 0.18 + precos.maoObraParede);
-                    return confirmMedidas(id, medidas, custoParedeM2);
+                    const result = await confirmMedidas(id, medidas, custoParedeM2);
+                    // Propagate confirmed wall areas to paredes input
+                    if (result) {
+                      setParedes({
+                        ...paredes,
+                        areaExternaM2: result.area_ext_m2,
+                        areaInternaM2: result.area_int_m2,
+                      });
+                    }
+                    return result;
                   }}
                   onOpenManualEntry={openManualEntry}
                   onCopyFromTipo={copyFromTipo}

@@ -24,6 +24,7 @@ import {
   RefreshCw,
   Lock,
   Plus,
+  Minus,
   Trash2,
   Copy,
   RotateCcw,
@@ -52,6 +53,7 @@ export interface DoorItem {
   width_m: number;
   height_m: number;
   area_m2: number;
+  quantidade: number;
   origem: OrigemItem;
   confianca?: number;
   inferred?: boolean;
@@ -65,6 +67,7 @@ export interface GateItem {
   width_m: number;
   height_m: number;
   area_m2: number;
+  quantidade: number;
   origem: OrigemItem;
   confianca?: number;
   inferred?: boolean;
@@ -78,6 +81,7 @@ export interface WindowItem {
   width_m: number;
   height_m: number;
   area_m2: number;
+  quantidade: number;
   origem: OrigemItem;
   confianca?: number;
   inferred?: boolean;
@@ -141,7 +145,7 @@ function generateId(): string {
   return 'item_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36).slice(-4);
 }
 
-// Calculate function
+// Calculate function - now uses quantidade
 export function calcularPortasPortoesResultado(
   input: PortasPortoesInput,
   precos: PrecosPortasPortoes
@@ -154,22 +158,25 @@ export function calcularPortasPortoesResultado(
   let areaJanelasM2 = 0;
 
   for (const door of input.doorsItems) {
+    const qty = door.quantidade || 1;
     const preco = door.material === 'MADEIRA' ? precos.portaMadeiraM2 : precos.portaAluminioM2;
-    custoPortas += door.area_m2 * preco;
-    areaPortasM2 += door.area_m2;
+    custoPortas += door.area_m2 * preco * qty;
+    areaPortasM2 += door.area_m2 * qty;
   }
 
   for (const gate of input.gatesItems) {
+    const qty = gate.quantidade || 1;
     const preco = gate.material === 'FERRO' ? precos.portaoFerroM2 : precos.portaoAluminioM2;
-    custoPortoes += gate.area_m2 * preco;
-    areaPortoesM2 += gate.area_m2;
+    custoPortoes += gate.area_m2 * preco * qty;
+    areaPortoesM2 += gate.area_m2 * qty;
   }
 
   const windows = input.windowsItems || [];
   for (const win of windows) {
+    const qty = win.quantidade || 1;
     const preco = win.material === 'ALUMINIO' ? precos.janelaAluminioM2 : precos.janelaVidroTemperadoM2;
-    custoJanelas += win.area_m2 * preco;
-    areaJanelasM2 += win.area_m2;
+    custoJanelas += win.area_m2 * preco * qty;
+    areaJanelasM2 += win.area_m2 * qty;
   }
 
   return {
@@ -193,6 +200,34 @@ interface PortasPortoesFormProps {
   resultado: ResultadoPortasPortoes;
   orcamentoId?: string | null;
   tipoProposta: 'parede_cinza' | 'obra_completa';
+}
+
+// Quantity control component
+function QuantityControl({ value, onChange, colorClass }: { value: number; onChange: (v: number) => void; colorClass: string }) {
+  return (
+    <div className="flex items-center gap-1">
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className={cn("h-8 w-8", colorClass)}
+        onClick={() => onChange(Math.max(1, value - 1))}
+        disabled={value <= 1}
+      >
+        <Minus className="w-3.5 h-3.5" />
+      </Button>
+      <span className="w-8 text-center text-sm font-semibold">{value}</span>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className={cn("h-8 w-8", colorClass)}
+        onClick={() => onChange(value + 1)}
+      >
+        <Plus className="w-3.5 h-3.5" />
+      </Button>
+    </div>
+  );
 }
 
 export function PortasPortoesForm({
@@ -222,6 +257,7 @@ export function PortasPortoesForm({
         width_m: item.width_m,
         height_m: item.height_m,
         area_m2: item.area_m2,
+        quantidade: 1,
         origem: 'PDF' as const,
         confianca: item.confianca,
         inferred: (item as any).inferred,
@@ -235,6 +271,7 @@ export function PortasPortoesForm({
         width_m: item.width_m,
         height_m: item.height_m,
         area_m2: item.area_m2,
+        quantidade: 1,
         origem: 'PDF' as const,
         confianca: item.confianca,
         inferred: (item as any).inferred,
@@ -249,6 +286,7 @@ export function PortasPortoesForm({
         width_m: item.width_m,
         height_m: item.height_m,
         area_m2: item.area_m2,
+        quantidade: 1,
         origem: 'PDF' as const,
         confianca: item.confianca,
         inferred: item.inferred,
@@ -309,6 +347,7 @@ export function PortasPortoesForm({
         width_m: item.width_m,
         height_m: item.height_m,
         area_m2: item.area_m2,
+        quantidade: 1,
         origem: 'PDF' as const,
         confianca: item.confianca,
         inferred: (item as any).inferred,
@@ -322,6 +361,7 @@ export function PortasPortoesForm({
         width_m: item.width_m,
         height_m: item.height_m,
         area_m2: item.area_m2,
+        quantidade: 1,
         origem: 'PDF' as const,
         confianca: item.confianca,
         inferred: (item as any).inferred,
@@ -336,6 +376,7 @@ export function PortasPortoesForm({
         width_m: item.width_m,
         height_m: item.height_m,
         area_m2: item.area_m2,
+        quantidade: 1,
         origem: 'PDF' as const,
         confianca: item.confianca,
         inferred: item.inferred,
@@ -374,19 +415,10 @@ export function PortasPortoesForm({
       width_m: 0.80,
       height_m: 2.10,
       area_m2: 0.80 * 2.10,
+      quantidade: 1,
       origem: 'MANUAL',
     };
     onPortasPortoesChange({ ...portasPortoes, doorsItems: [...portasPortoes.doorsItems, newDoor] });
-  };
-
-  const duplicateDoorItem = (door: DoorItem) => {
-    const dup: DoorItem = {
-      ...door,
-      id: generateId(),
-      label: door.label + ' (cópia)',
-      origem: 'DUPLICADO',
-    };
-    onPortasPortoesChange({ ...portasPortoes, doorsItems: [...portasPortoes.doorsItems, dup] });
   };
 
   const updateDoor = (id: string, updates: Partial<DoorItem>) => {
@@ -416,19 +448,10 @@ export function PortasPortoesForm({
       width_m: 3.00,
       height_m: 2.20,
       area_m2: 3.00 * 2.20,
+      quantidade: 1,
       origem: 'MANUAL',
     };
     onPortasPortoesChange({ ...portasPortoes, gatesItems: [...portasPortoes.gatesItems, newGate] });
-  };
-
-  const duplicateGateItem = (gate: GateItem) => {
-    const dup: GateItem = {
-      ...gate,
-      id: generateId(),
-      label: gate.label + ' (cópia)',
-      origem: 'DUPLICADO',
-    };
-    onPortasPortoesChange({ ...portasPortoes, gatesItems: [...portasPortoes.gatesItems, dup] });
   };
 
   const updateGate = (id: string, updates: Partial<GateItem>) => {
@@ -458,19 +481,10 @@ export function PortasPortoesForm({
       width_m: 1.20,
       height_m: 1.20,
       area_m2: 1.20 * 1.20,
+      quantidade: 1,
       origem: 'MANUAL',
     };
     onPortasPortoesChange({ ...portasPortoes, windowsItems: [...windowsItems, newWindow] });
-  };
-
-  const duplicateWindowItem = (win: WindowItem) => {
-    const dup: WindowItem = {
-      ...win,
-      id: generateId(),
-      label: win.label + ' (cópia)',
-      origem: 'DUPLICADO',
-    };
-    onPortasPortoesChange({ ...portasPortoes, windowsItems: [...windowsItems, dup] });
   };
 
   const updateWindow = (id: string, updates: Partial<WindowItem>) => {
@@ -581,6 +595,11 @@ export function PortasPortoesForm({
     .reduce((sum, item, _, arr) => sum + (item.confianca || 0) / arr.length, 0);
   const hasLowConfidence = avgConfidence > 0 && avgConfidence < 0.75;
 
+  // Count totals including quantities
+  const totalDoors = portasPortoes.doorsItems.reduce((sum, d) => sum + (d.quantidade || 1), 0);
+  const totalWindows = windowsItems.reduce((sum, w) => sum + (w.quantidade || 1), 0);
+  const totalGates = portasPortoes.gatesItems.reduce((sum, g) => sum + (g.quantidade || 1), 0);
+
   // Render disabled state for parede cinza
   if (isDisabled) {
     return (
@@ -611,7 +630,7 @@ export function PortasPortoesForm({
         <h2 className="text-lg font-semibold">Portas, Janelas e Portões</h2>
         {hasItems && (
           <Badge variant="secondary" className="gap-1">
-            {portasPortoes.doorsItems.length} porta(s), {windowsItems.length} janela(s), {portasPortoes.gatesItems.length} portão(ões)
+            {totalDoors} porta(s), {totalWindows} janela(s), {totalGates} portão(ões)
           </Badge>
         )}
       </div>
@@ -724,7 +743,7 @@ export function PortasPortoesForm({
             <div>
               <p className="font-medium text-green-700">Dados importados do PDF</p>
               <p className="text-sm text-green-600/80">
-                {portasPortoes.doorsItems.length} porta(s), {windowsItems.length} janela(s) e {portasPortoes.gatesItems.length} portão(ões)
+                {totalDoors} porta(s), {totalWindows} janela(s) e {totalGates} portão(ões)
               </p>
             </div>
           </div>
@@ -821,32 +840,34 @@ export function PortasPortoesForm({
             {portasPortoes.doorsItems.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">Nenhuma porta adicionada</p>
             ) : (
-              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+              <div className="space-y-3 max-h-[500px] overflow-y-auto">
                 {portasPortoes.doorsItems.map((door) => (
-                  <div key={door.id} className="bg-white/70 rounded-lg p-3 space-y-2">
+                  <div key={door.id} className="bg-white/70 rounded-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Input value={door.label} onChange={(e) => updateDoor(door.id, { label: e.target.value })} className="w-20 h-7 text-sm font-medium" />
+                        <Input value={door.label} onChange={(e) => updateDoor(door.id, { label: e.target.value })} className="w-24 h-9 text-sm font-medium" />
                         <Badge variant="outline" className={cn("text-xs",
                           door.origem === 'PDF' && "bg-green-50 text-green-700",
                           door.origem === 'MANUAL' && "bg-blue-50 text-blue-700",
                           door.origem === 'DUPLICADO' && "bg-purple-50 text-purple-700"
                         )}>{door.origem}</Badge>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-100" onClick={() => duplicateDoorItem(door)} title="Duplicar este item">
-                          <Copy className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-100" onClick={() => removeDoor(door.id)}>
+                      <div className="flex items-center gap-2">
+                        <QuantityControl
+                          value={door.quantidade || 1}
+                          onChange={(v) => updateDoor(door.id, { quantidade: v })}
+                          colorClass="border-blue-300 text-blue-700 hover:bg-blue-100"
+                        />
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-100" onClick={() => removeDoor(door.id)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-5 gap-2 items-end">
+                    <div className="grid grid-cols-2 gap-3 items-end">
                       <div>
-                        <Label className="text-xs text-muted-foreground">Tipo</Label>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Tipo</Label>
                         <Select value={door.tipo} onValueChange={(val) => updateDoor(door.id, { tipo: val as TipoPorta })}>
-                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-10 text-sm"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="INTERNA">Interna</SelectItem>
                             <SelectItem value="EXTERNA">Externa</SelectItem>
@@ -854,32 +875,35 @@ export function PortasPortoesForm({
                         </Select>
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground">Material</Label>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Material</Label>
                         <Select value={door.material} onValueChange={(val) => updateDoor(door.id, { material: val as TipoMaterialPorta })}>
-                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-10 text-sm"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="MADEIRA">Madeira</SelectItem>
                             <SelectItem value="ALUMINIO">Alumínio</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 items-end">
                       <div>
-                        <Label className="text-xs text-muted-foreground">Larg. (m)</Label>
-                        <Input type="number" step="0.01" value={door.width_m} onChange={(e) => updateDoor(door.id, { width_m: parseFloat(e.target.value) || 0 })} className="h-8 text-xs" />
+                        <Label className="text-xs text-muted-foreground mb-1 block">Larg. (m)</Label>
+                        <Input type="number" step="0.01" value={door.width_m} onChange={(e) => updateDoor(door.id, { width_m: parseFloat(e.target.value) || 0 })} className="h-10 text-sm" />
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground">Alt. (m)</Label>
-                        <Input type="number" step="0.01" value={door.height_m} onChange={(e) => updateDoor(door.id, { height_m: parseFloat(e.target.value) || 0 })} className="h-8 text-xs" />
+                        <Label className="text-xs text-muted-foreground mb-1 block">Alt. (m)</Label>
+                        <Input type="number" step="0.01" value={door.height_m} onChange={(e) => updateDoor(door.id, { height_m: parseFloat(e.target.value) || 0 })} className="h-10 text-sm" />
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground">Área (m²)</Label>
-                        <Input type="number" value={door.area_m2.toFixed(2)} readOnly className="h-8 text-xs bg-muted/50" />
+                        <Label className="text-xs text-muted-foreground mb-1 block">Área (m²)</Label>
+                        <Input type="number" value={door.area_m2.toFixed(2)} readOnly className="h-10 text-sm bg-muted/50" />
                       </div>
                     </div>
                     <div className="text-xs text-right text-muted-foreground">
+                      {(door.quantidade || 1) > 1 && <span className="font-medium text-blue-600">{door.quantidade}x </span>}
                       {door.material === 'MADEIRA' ? formatCurrency(precos.portaMadeiraM2) : formatCurrency(precos.portaAluminioM2)}/m² 
                       = <span className="font-medium text-blue-700">
-                        {formatCurrency(door.area_m2 * (door.material === 'MADEIRA' ? precos.portaMadeiraM2 : precos.portaAluminioM2))}
+                        {formatCurrency(door.area_m2 * (door.material === 'MADEIRA' ? precos.portaMadeiraM2 : precos.portaAluminioM2) * (door.quantidade || 1))}
                       </span>
                     </div>
                   </div>
@@ -935,55 +959,60 @@ export function PortasPortoesForm({
             {windowsItems.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">Nenhuma janela adicionada</p>
             ) : (
-              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+              <div className="space-y-3 max-h-[500px] overflow-y-auto">
                 {windowsItems.map((win) => (
-                  <div key={win.id} className="bg-white/70 rounded-lg p-3 space-y-2">
+                  <div key={win.id} className="bg-white/70 rounded-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Input value={win.label} onChange={(e) => updateWindow(win.id, { label: e.target.value })} className="w-20 h-7 text-sm font-medium" />
+                        <Input value={win.label} onChange={(e) => updateWindow(win.id, { label: e.target.value })} className="w-24 h-9 text-sm font-medium" />
                         <Badge variant="outline" className={cn("text-xs",
                           win.origem === 'PDF' && "bg-green-50 text-green-700",
                           win.origem === 'MANUAL' && "bg-blue-50 text-blue-700",
                           win.origem === 'DUPLICADO' && "bg-purple-50 text-purple-700"
                         )}>{win.origem}</Badge>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-teal-500 hover:text-teal-700 hover:bg-teal-100" onClick={() => duplicateWindowItem(win)} title="Duplicar este item">
-                          <Copy className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-100" onClick={() => removeWindow(win.id)}>
+                      <div className="flex items-center gap-2">
+                        <QuantityControl
+                          value={win.quantidade || 1}
+                          onChange={(v) => updateWindow(win.id, { quantidade: v })}
+                          colorClass="border-teal-300 text-teal-700 hover:bg-teal-100"
+                        />
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-100" onClick={() => removeWindow(win.id)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-2 items-end">
+                    <div className="grid grid-cols-1 gap-3 items-end">
                       <div>
-                        <Label className="text-xs text-muted-foreground">Material</Label>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Material</Label>
                         <Select value={win.material} onValueChange={(val) => updateWindow(win.id, { material: val as TipoMaterialJanela })}>
-                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-10 text-sm"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="ALUMINIO">Alumínio</SelectItem>
-                            <SelectItem value="VIDRO_TEMPERADO">Vidro Temp.</SelectItem>
+                            <SelectItem value="VIDRO_TEMPERADO">Vidro Temperado</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 items-end">
                       <div>
-                        <Label className="text-xs text-muted-foreground">Larg. (m)</Label>
-                        <Input type="number" step="0.01" value={win.width_m} onChange={(e) => updateWindow(win.id, { width_m: parseFloat(e.target.value) || 0 })} className="h-8 text-xs" />
+                        <Label className="text-xs text-muted-foreground mb-1 block">Larg. (m)</Label>
+                        <Input type="number" step="0.01" value={win.width_m} onChange={(e) => updateWindow(win.id, { width_m: parseFloat(e.target.value) || 0 })} className="h-10 text-sm" />
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground">Alt. (m)</Label>
-                        <Input type="number" step="0.01" value={win.height_m} onChange={(e) => updateWindow(win.id, { height_m: parseFloat(e.target.value) || 0 })} className="h-8 text-xs" />
+                        <Label className="text-xs text-muted-foreground mb-1 block">Alt. (m)</Label>
+                        <Input type="number" step="0.01" value={win.height_m} onChange={(e) => updateWindow(win.id, { height_m: parseFloat(e.target.value) || 0 })} className="h-10 text-sm" />
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground">Área (m²)</Label>
-                        <Input type="number" value={win.area_m2.toFixed(2)} readOnly className="h-8 text-xs bg-muted/50" />
+                        <Label className="text-xs text-muted-foreground mb-1 block">Área (m²)</Label>
+                        <Input type="number" value={win.area_m2.toFixed(2)} readOnly className="h-10 text-sm bg-muted/50" />
                       </div>
                     </div>
                     <div className="text-xs text-right text-muted-foreground">
+                      {(win.quantidade || 1) > 1 && <span className="font-medium text-teal-600">{win.quantidade}x </span>}
                       {formatCurrency(getWindowPrice(win.material))}/m² 
                       = <span className="font-medium text-teal-700">
-                        {formatCurrency(win.area_m2 * getWindowPrice(win.material))}
+                        {formatCurrency(win.area_m2 * getWindowPrice(win.material) * (win.quantidade || 1))}
                       </span>
                     </div>
                   </div>
@@ -1039,55 +1068,60 @@ export function PortasPortoesForm({
             {portasPortoes.gatesItems.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">Nenhum portão adicionado</p>
             ) : (
-              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+              <div className="space-y-3 max-h-[500px] overflow-y-auto">
                 {portasPortoes.gatesItems.map((gate) => (
-                  <div key={gate.id} className="bg-white/70 rounded-lg p-3 space-y-2">
+                  <div key={gate.id} className="bg-white/70 rounded-lg p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Input value={gate.label} onChange={(e) => updateGate(gate.id, { label: e.target.value })} className="w-20 h-7 text-sm font-medium" />
+                        <Input value={gate.label} onChange={(e) => updateGate(gate.id, { label: e.target.value })} className="w-24 h-9 text-sm font-medium" />
                         <Badge variant="outline" className={cn("text-xs",
                           gate.origem === 'PDF' && "bg-green-50 text-green-700",
                           gate.origem === 'MANUAL' && "bg-blue-50 text-blue-700",
                           gate.origem === 'DUPLICADO' && "bg-purple-50 text-purple-700"
                         )}>{gate.origem}</Badge>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-500 hover:text-amber-700 hover:bg-amber-100" onClick={() => duplicateGateItem(gate)} title="Duplicar este item">
-                          <Copy className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-100" onClick={() => removeGate(gate.id)}>
+                      <div className="flex items-center gap-2">
+                        <QuantityControl
+                          value={gate.quantidade || 1}
+                          onChange={(v) => updateGate(gate.id, { quantidade: v })}
+                          colorClass="border-amber-300 text-amber-700 hover:bg-amber-100"
+                        />
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-100" onClick={() => removeGate(gate.id)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-2 items-end">
+                    <div className="grid grid-cols-1 gap-3 items-end">
                       <div>
-                        <Label className="text-xs text-muted-foreground">Material</Label>
+                        <Label className="text-xs text-muted-foreground mb-1 block">Material</Label>
                         <Select value={gate.material} onValueChange={(val) => updateGate(gate.id, { material: val as TipoMaterialPortao })}>
-                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-10 text-sm"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="FERRO">Ferro</SelectItem>
                             <SelectItem value="ALUMINIO">Alumínio</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 items-end">
                       <div>
-                        <Label className="text-xs text-muted-foreground">Larg. (m)</Label>
-                        <Input type="number" step="0.01" value={gate.width_m} onChange={(e) => updateGate(gate.id, { width_m: parseFloat(e.target.value) || 0 })} className="h-8 text-xs" />
+                        <Label className="text-xs text-muted-foreground mb-1 block">Larg. (m)</Label>
+                        <Input type="number" step="0.01" value={gate.width_m} onChange={(e) => updateGate(gate.id, { width_m: parseFloat(e.target.value) || 0 })} className="h-10 text-sm" />
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground">Alt. (m)</Label>
-                        <Input type="number" step="0.01" value={gate.height_m} onChange={(e) => updateGate(gate.id, { height_m: parseFloat(e.target.value) || 0 })} className="h-8 text-xs" />
+                        <Label className="text-xs text-muted-foreground mb-1 block">Alt. (m)</Label>
+                        <Input type="number" step="0.01" value={gate.height_m} onChange={(e) => updateGate(gate.id, { height_m: parseFloat(e.target.value) || 0 })} className="h-10 text-sm" />
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground">Área (m²)</Label>
-                        <Input type="number" value={gate.area_m2.toFixed(2)} readOnly className="h-8 text-xs bg-muted/50" />
+                        <Label className="text-xs text-muted-foreground mb-1 block">Área (m²)</Label>
+                        <Input type="number" value={gate.area_m2.toFixed(2)} readOnly className="h-10 text-sm bg-muted/50" />
                       </div>
                     </div>
                     <div className="text-xs text-right text-muted-foreground">
+                      {(gate.quantidade || 1) > 1 && <span className="font-medium text-amber-600">{gate.quantidade}x </span>}
                       {gate.material === 'FERRO' ? formatCurrency(precos.portaoFerroM2) : formatCurrency(precos.portaoAluminioM2)}/m² 
                       = <span className="font-medium text-amber-700">
-                        {formatCurrency(gate.area_m2 * (gate.material === 'FERRO' ? precos.portaoFerroM2 : precos.portaoAluminioM2))}
+                        {formatCurrency(gate.area_m2 * (gate.material === 'FERRO' ? precos.portaoFerroM2 : precos.portaoAluminioM2) * (gate.quantidade || 1))}
                       </span>
                     </div>
                   </div>

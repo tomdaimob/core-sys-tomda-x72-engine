@@ -174,12 +174,11 @@ export function ReviewExtraction({ data, onConfirm, onCancel }: ReviewExtraction
             const qtd = editedData.quantidade_unidades || 1;
             const areaExt = editedData.perimetro_externo_m * editedData.pe_direito_m;
             const areaInt = editedData.paredes_internas_m * editedData.pe_direito_m;
-            const areaLiquida1 = Math.max(areaExt + areaInt - editedData.aberturas_m2, 0);
-            const areaLiquidaTotal = areaLiquida1 * qtd;
+            const areaLiquidaTotal = Math.max(areaExt + areaInt - editedData.aberturas_m2, 0);
             return (
               <div className="bg-primary/5 rounded-xl p-4 border border-primary/20">
                 <h3 className="text-sm font-medium text-foreground mb-3">
-                  Cálculos Derivados {qtd > 1 ? '(por unidade)' : ''}
+                  Cálculos Derivados {qtd > 1 ? `(total de ${qtd} unidades somadas)` : ''}
                 </h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
@@ -190,16 +189,10 @@ export function ReviewExtraction({ data, onConfirm, onCancel }: ReviewExtraction
                     <span className="text-muted-foreground">Área Paredes Internas:</span>
                     <span className="ml-2 font-medium">{formatNumber(areaInt)} m²</span>
                   </div>
-                  <div className="col-span-2">
-                    <span className="text-muted-foreground">Área Líquida (1 un.):</span>
-                    <span className="ml-2 font-semibold">{formatNumber(areaLiquida1)} m²</span>
+                  <div className="col-span-2 border-t border-primary/20 pt-2">
+                    <span className="text-muted-foreground font-semibold">Área Líquida Total:</span>
+                    <span className="ml-2 font-bold text-primary text-base">{formatNumber(areaLiquidaTotal)} m²</span>
                   </div>
-                  {qtd > 1 && (
-                    <div className="col-span-2 border-t border-primary/20 pt-2">
-                      <span className="text-muted-foreground font-semibold">× {qtd} unidades — Total:</span>
-                      <span className="ml-2 font-bold text-primary text-base">{formatNumber(areaLiquidaTotal)} m²</span>
-                    </div>
-                  )}
                 </div>
               </div>
             );

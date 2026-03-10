@@ -19,6 +19,7 @@ export interface MedidasConfirmadas {
   altura_paredes_m: number;
   aberturas_m2: number;
   area_total_m2: number;
+  quantidade_unidades: number;
 }
 
 interface ConfirmarMedidasModalProps {

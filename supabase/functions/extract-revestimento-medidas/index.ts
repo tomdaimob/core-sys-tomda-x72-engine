@@ -6,27 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface AmbienteMedidas {
-  nome: string;
-  tipo: 'cozinha' | 'banheiro';
-  perimetro_m: number;
-  altura_total_m: number;
-  altura_meia_parede_m: number;
-  area_portas_m2: number;
-  area_janelas_m2: number;
-  area_aberturas_total_m2: number;
-  confianca: number;
-}
-
-interface ExtractionResult {
-  ambientes: AmbienteMedidas[];
-  metadados: {
-    pagina_planta?: number;
-    paginas_cortes_usadas?: number[];
-    observacoes: string;
-  };
-}
-
 const EXTRACAO_TIPO = 'REVESTIMENTO_MEDIDAS';
 
 serve(async (req) => {
@@ -37,22 +16,14 @@ serve(async (req) => {
   try {
     const { pdfBase64, fileName, orcamentoId, arquivoId } = await req.json();
 
-    if (!pdfBase64) {
-      throw new Error('PDF não fornecido');
-    }
-
-    if (!arquivoId) {
-      throw new Error('arquivo_id não fornecido');
-    }
+    if (!pdfBase64) throw new Error('PDF não fornecido');
+    if (!arquivoId) throw new Error('arquivo_id não fornecido');
 
     console.log(`Processing PDF for revestimento: ${fileName}, orcamento: ${orcamentoId}, arquivo: ${arquivoId}`);
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY não configurada');
-    }
+    if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY não configurada');
 
-    // Call AI to analyze the PDF for revestimento measurements
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -60,39 +31,71 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: [
           {
             role: 'system',
-            content: `Você é um especialista em análise de plantas arquitetônicas e projetos de construção.
-Sua tarefa é analisar o PDF fornecido (planta baixa e/ou cortes) para extrair medidas específicas de COZINHA e BANHEIROS para cálculo de revestimento cerâmico/porcelanato.
+            content: `Você é um engenheiro civil / arquiteto sênior especializado em levantamento de quantitativos para revestimento cerâmico/porcelanato.
 
-Para cada ambiente (cozinha e cada banheiro identificado), extraia:
-1. Perímetro das paredes em metros (some todos os lados do ambiente)
-2. Altura total das paredes em metros (preferir valor de cortes; padrão: 2.70m para banheiros, 2.50m para cozinha)
-3. Altura de meia parede em metros (se identificável; padrão: 1.20m)
-4. Área de portas em m² (largura × altura de cada porta)
-5. Área de janelas em m² (largura × altura de cada janela)
-6. Área total de aberturas em m²
+## OBJETIVO
+Extrair medidas de COZINHA e BANHEIROS para cálculo de área de revestimento (piso + parede).
 
-IMPORTANTE:
-- Identifique quantos banheiros existem (pode haver vários)
-- Se não encontrar medidas exatas, use estimativas baseadas em proporções típicas
-- Inclua nível de confiança (0 a 1) para cada ambiente
-- Se não identificar um tipo de ambiente, não o inclua`
+## METODOLOGIA — PASSO A PASSO
+
+### 1. IDENTIFICAR AMBIENTES MOLHADOS
+Na planta baixa, localize:
+- **Cozinha** (COZ, Coz., Cozinha) — geralmente próxima à área de serviço
+- **Banheiros** (WC, BWC, Ban., Banheiro, Lavabo, Suite) — podem haver vários
+- **Área de Serviço** (A.S., Serv., Lavanderia) — se presente
+
+### 2. MEDIR PERÍMETRO DE CADA AMBIENTE
+Para cada ambiente molhado:
+- Leia as COTAS internas (dimensões do cômodo)
+- Se o cômodo é retangular: perímetro = 2 × (largura + comprimento)
+- Se irregular: some todos os lados
+- Use cotas do projeto, NÃO estime se houver valores visíveis
+
+### 3. ALTURA DAS PAREDES
+- Procure em CORTES a altura piso-a-piso ou piso-laje
+- Padrões se não encontrar:
+  - Banheiro: 2.70m (altura total), 1.50m (meia parede para azulejo)
+  - Cozinha: 2.60m (altura total), 1.50m (meia parede)
+  - Lavabo: 2.70m (altura total), 1.20m (meia parede)
+
+### 4. ABERTURAS NOS AMBIENTES
+Para cada ambiente, calcule:
+- Área de portas: largura × altura de cada porta no ambiente
+- Área de janelas: largura × altura de cada janela no ambiente
+- Total de aberturas = portas + janelas
+
+### 5. VALIDAÇÃO
+- Perímetro de banheiro típico: 5-12m
+- Perímetro de cozinha típico: 10-20m
+- Se o perímetro for muito grande ou pequeno, revise as cotas
+
+## REGRAS
+- LEIA as cotas — não invente
+- Se não encontrar um tipo de ambiente, NÃO o inclua
+- Confiança alta (>0.85) apenas se as cotas estão claras
+- Informe nas observações como cada medida foi obtida`
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `Analise esta planta arquitetônica e extraia as medidas de COZINHA e BANHEIROS para cálculo de revestimento. Nome do arquivo: ${fileName}`
+                text: `Analise esta planta e extraia as medidas de COZINHA e BANHEIROS para revestimento.
+
+ANTES DE RESPONDER:
+1. Quantos ambientes molhados você identifica?
+2. Quais cotas de cada ambiente você consegue ler?
+3. Existe corte mostrando a altura das paredes?
+
+Arquivo: ${fileName}`
               },
               {
                 type: 'image_url',
-                image_url: {
-                  url: `data:application/pdf;base64,${pdfBase64}`
-                }
+                image_url: { url: `data:application/pdf;base64,${pdfBase64}` }
               }
             ]
           }
@@ -112,43 +115,18 @@ IMPORTANTE:
                     items: {
                       type: 'object',
                       properties: {
-                        nome: {
-                          type: 'string',
-                          description: 'Nome do ambiente (ex: Cozinha, Banheiro 1, Banheiro Suite)'
-                        },
-                        tipo: {
-                          type: 'string',
-                          enum: ['cozinha', 'banheiro'],
-                          description: 'Tipo do ambiente'
-                        },
-                        perimetro_m: {
-                          type: 'number',
-                          description: 'Perímetro total das paredes em metros'
-                        },
-                        altura_total_m: {
-                          type: 'number',
-                          description: 'Altura total das paredes em metros'
-                        },
-                        altura_meia_parede_m: {
-                          type: 'number',
-                          description: 'Altura de meia parede em metros (padrão 1.20)'
-                        },
-                        area_portas_m2: {
-                          type: 'number',
-                          description: 'Área total de portas em m²'
-                        },
-                        area_janelas_m2: {
-                          type: 'number',
-                          description: 'Área total de janelas em m²'
-                        },
-                        area_aberturas_total_m2: {
-                          type: 'number',
-                          description: 'Área total de todas as aberturas em m²'
-                        },
-                        confianca: {
-                          type: 'number',
-                          description: 'Nível de confiança da extração de 0 a 1'
-                        }
+                        nome: { type: 'string', description: 'Nome do ambiente (ex: Cozinha, Banheiro 1, Banheiro Suite)' },
+                        tipo: { type: 'string', enum: ['cozinha', 'banheiro'], description: 'Tipo do ambiente' },
+                        perimetro_m: { type: 'number', description: 'Perímetro total das paredes em metros' },
+                        largura_m: { type: 'number', description: 'Largura do ambiente em metros (se retangular)' },
+                        comprimento_m: { type: 'number', description: 'Comprimento do ambiente em metros (se retangular)' },
+                        altura_total_m: { type: 'number', description: 'Altura total das paredes em metros' },
+                        altura_meia_parede_m: { type: 'number', description: 'Altura de meia parede em metros' },
+                        area_portas_m2: { type: 'number', description: 'Área total de portas em m²' },
+                        area_janelas_m2: { type: 'number', description: 'Área total de janelas em m²' },
+                        area_aberturas_total_m2: { type: 'number', description: 'Área total de todas as aberturas em m²' },
+                        confianca: { type: 'number', description: 'Nível de confiança 0 a 1' },
+                        fonte_medidas: { type: 'string', description: 'Como as medidas foram obtidas (cotas lidas, inferidas, tabela)' }
                       },
                       required: ['nome', 'tipo', 'perimetro_m', 'altura_total_m', 'altura_meia_parede_m', 'area_aberturas_total_m2', 'confianca']
                     }
@@ -156,44 +134,32 @@ IMPORTANTE:
                   metadados: {
                     type: 'object',
                     properties: {
-                      pagina_planta: {
-                        type: 'number',
-                        description: 'Número da página com a planta baixa'
-                      },
-                      paginas_cortes_usadas: {
-                        type: 'array',
-                        items: { type: 'number' },
-                        description: 'Números das páginas com cortes utilizados'
-                      },
-                      observacoes: {
-                        type: 'string',
-                        description: 'Observações sobre a extração, limitações ou inferências feitas'
-                      }
+                      pagina_planta: { type: 'number', description: 'Número da página com a planta baixa' },
+                      paginas_cortes_usadas: { type: 'array', items: { type: 'number' }, description: 'Páginas com cortes usados' },
+                      observacoes: { type: 'string', description: 'Detalhes sobre a extração e como as medidas foram obtidas' }
                     },
                     required: ['observacoes']
                   }
                 },
-                required: ['ambientes', 'metadados']
+                required: ['ambientes', 'metadados'],
+                additionalProperties: false
               }
             }
           }
         ],
-        tool_choice: { type: 'function', function: { name: 'extrair_medidas_revestimento' } }
+        tool_choice: { type: 'function', function: { name: 'extrair_medidas_revestimento' } },
+        temperature: 0,
       }),
     });
 
     if (!response.ok) {
       if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: 'Limite de requisições excedido. Tente novamente em alguns segundos.', success: false }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ error: 'Limite de requisições excedido.', success: false }),
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'Créditos insuficientes. Adicione créditos à sua conta.', success: false }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify({ error: 'Créditos insuficientes.', success: false }),
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       const errorText = await response.text();
       console.error('AI Gateway error:', response.status, errorText);
@@ -201,30 +167,22 @@ IMPORTANTE:
     }
 
     const aiResponse = await response.json();
-    console.log('AI Response:', JSON.stringify(aiResponse));
-
-    // Extract the tool call result
     const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
 
-    let extractedData: ExtractionResult | null = null;
+    let extractedData: any = null;
 
     if (toolCall?.function?.arguments) {
       extractedData = JSON.parse(toolCall.function.arguments);
-      console.log('Extracted data:', extractedData);
     }
 
-    // Fallback: try to parse from content if no tool call
     if (!extractedData) {
       const content = aiResponse.choices?.[0]?.message?.content;
       if (content) {
         const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          extractedData = JSON.parse(jsonMatch[0]);
-        }
+        if (jsonMatch) extractedData = JSON.parse(jsonMatch[0]);
       }
     }
 
-    // Final fallback with default values
     if (!extractedData || !extractedData.ambientes || extractedData.ambientes.length === 0) {
       return new Response(
         JSON.stringify({
@@ -236,14 +194,13 @@ IMPORTANTE:
       );
     }
 
-    // Save extraction to database if orcamentoId provided
+    // Save extraction
     if (orcamentoId && arquivoId) {
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
       const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-      // Insert NEW extraction record (do NOT delete old; allows history and multi-type)
-      const confiancaMedia = extractedData.ambientes.reduce((sum, a) => sum + a.confianca, 0) / extractedData.ambientes.length;
+      const confiancaMedia = extractedData.ambientes.reduce((sum: number, a: any) => sum + a.confianca, 0) / extractedData.ambientes.length;
 
       const { error: dbError } = await supabase
         .from('ia_extracoes')
@@ -258,26 +215,18 @@ IMPORTANTE:
           observacoes: extractedData.metadados?.observacoes || 'Extração automática de medidas para revestimento'
         });
 
-      if (dbError) {
-        console.error('Error saving extraction:', dbError);
-      }
+      if (dbError) console.error('Error saving extraction:', dbError);
     }
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        data: extractedData
-      }),
+      JSON.stringify({ success: true, data: extractedData }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
     console.error('Error in extract-revestimento-medidas:', error);
     return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Erro ao processar PDF',
-        success: false
-      }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Erro ao processar PDF', success: false }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

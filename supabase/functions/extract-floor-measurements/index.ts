@@ -23,7 +23,6 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY não configurada');
 
-    // Call Lovable AI to analyze the PDF
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -31,27 +30,77 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: [
           {
             role: 'system',
-            content: `Você é um especialista em análise de plantas arquitetônicas.
-Analise o documento PDF fornecido e extraia as medidas deste PAVIMENTO ESPECÍFICO:
-- Área total construída em metros quadrados
-- Pé-direito (altura do piso ao teto) em metros
-- Perímetro externo em metros lineares
-- Comprimento total de paredes internas em metros lineares
-- Área total de aberturas (portas e janelas) em metros quadrados
+            content: `Você é um engenheiro civil / arquiteto sênior com 20+ anos de experiência em leitura de projetos.
 
-Se o PDF contiver vários pavimentos, extraia apenas as medidas do pavimento principal visível.
-Retorne APENAS um JSON válido.`
+## METODOLOGIA DE LEITURA — SIGA RIGOROSAMENTE
+
+### 1. IDENTIFICAÇÃO DO DOCUMENTO
+- Tipo: planta baixa, corte, fachada, planta de cobertura?
+- Escala: procure "ESC.", "ESCALA", "1:" — escala gráfica ou numérica.
+- Se houver escala gráfica (régua com divisões), use-a como referência.
+
+### 2. LEITURA DE COTAS (MEDIDAS EXPLÍCITAS)
+As cotas aparecem como:
+- Linhas com setas nas extremidades e um número no centro (ex: 3.50)
+- Podem estar em METROS (3.50) ou CENTÍMETROS (350)
+- Identifique se o documento usa metros ou centímetros pelo contexto
+
+**COTAS EXTERNAS**: ficam FORA do perímetro da construção, em cadeia
+**COTAS INTERNAS**: ficam DENTRO dos ambientes, entre paredes
+
+### 3. CÁLCULO DE ÁREA
+- Método preferencial: Some as cotas externas para obter L × C
+- Se a planta for em L, U ou T: divida em retângulos e some
+- NÃO inclua áreas externas (varandas abertas, garagem aberta) a menos que sejam cobertas
+
+### 4. PERÍMETRO EXTERNO
+- Some TODOS os segmentos de parede externa
+- Inclua reentrâncias e saliências da fachada
+- Diferente do perímetro do terreno/lote
+
+### 5. PAREDES INTERNAS
+- Conte cada segmento de parede ENTRE ambientes
+- Parede entre dois quartos = 1 segmento
+- Some os comprimentos de todos os segmentos
+
+### 6. ABERTURAS
+- Portas: símbolo de arco (¼ de círculo) na planta
+- Janelas: traço duplo ou retângulo na parede
+- Some as áreas (larg × alt) de cada abertura
+
+### 7. PÉ-DIREITO
+- Procure em CORTES (páginas de corte transversal ou longitudinal)
+- Se não houver corte: use 2.80m (padrão residencial)
+
+### 8. VALIDAÇÃO
+- Área / (Perímetro/4)² deve ser ≤ 1 (fator de forma)
+- Paredes internas: tipicamente 0.6x a 1.5x o perímetro externo
+- Se houver inconsistência: CORRIJA e EXPLIQUE nas observações
+
+## REGRAS
+- LEIA as cotas — não estime quando há dados visíveis
+- Se não conseguir ler uma cota, informe na observação
+- Confiança < 50 se mais de 50% dos valores foram estimados
+- Temperature 0: seja determinístico e consistente`
           },
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: `Analise esta planta de pavimento e extraia os dados dimensionais. Arquivo: ${fileName}`
+                text: `Analise este projeto para o pavimento específico. Siga a metodologia passo a passo.
+
+CHECKLIST:
+1. Qual a escala do projeto?
+2. Quais cotas você consegue ler?
+3. Qual a geometria da planta (retangular, L, U)?
+4. Quantos ambientes internos existem?
+
+Arquivo: ${fileName}`
               },
               {
                 type: 'image_url',
@@ -75,14 +124,18 @@ Retorne APENAS um JSON válido.`
                   paredes_internas_m: { type: 'number', description: 'Comprimento total paredes internas em metros' },
                   aberturas_m2: { type: 'number', description: 'Área total de aberturas em m²' },
                   confianca: { type: 'number', description: 'Nível de confiança 0 a 100' },
-                  observacoes: { type: 'string', description: 'Observações sobre a extração' }
+                  observacoes: { type: 'string', description: 'Detalhes: cotas lidas, escala, limitações, cálculos feitos' },
+                  escala_detectada: { type: 'string', description: 'Escala detectada ou "não identificada"' },
+                  ambientes_identificados: { type: 'number', description: 'Quantidade de ambientes/cômodos internos identificados' }
                 },
-                required: ['area_total_m2', 'pe_direito_m', 'perimetro_externo_m', 'paredes_internas_m', 'aberturas_m2', 'confianca', 'observacoes']
+                required: ['area_total_m2', 'pe_direito_m', 'perimetro_externo_m', 'paredes_internas_m', 'aberturas_m2', 'confianca', 'observacoes'],
+                additionalProperties: false
               }
             }
           }
         ],
-        tool_choice: { type: 'function', function: { name: 'extrair_dados_pavimento' } }
+        tool_choice: { type: 'function', function: { name: 'extrair_dados_pavimento' } },
+        temperature: 0,
       }),
     });
 
@@ -90,6 +143,10 @@ Retorne APENAS um JSON válido.`
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: 'Limite de requisições excedido.' }), 
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: 'Créditos insuficientes.' }), 
+          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       const errorText = await response.text();
       console.error('AI Gateway error:', response.status, errorText);
@@ -113,13 +170,13 @@ Retorne APENAS um JSON válido.`
 
     if (!extractedData) {
       extractedData = {
-        area_total_m2: 120,
+        area_total_m2: 0,
         pe_direito_m: 2.80,
-        perimetro_externo_m: 44,
-        paredes_internas_m: 35,
-        aberturas_m2: 18,
-        confianca: 30,
-        observacoes: 'Valores estimados. Não foi possível extrair dados precisos.'
+        perimetro_externo_m: 0,
+        paredes_internas_m: 0,
+        aberturas_m2: 0,
+        confianca: 10,
+        observacoes: 'Não foi possível extrair dados precisos. O PDF pode não conter planta baixa legível.'
       };
     }
 

@@ -204,7 +204,7 @@ export function ProjetoUpload({ onDataExtracted, orcamentoId, isAdmin = false, e
         const pdfFile = files.find(f => f.type === 'application/pdf')!;
         
         try {
-          arquivoId = await uploadProjectPdf(pdfFile);
+          arquivoId = await uploadProjectPdf(pdfFile, effectiveOrcamentoId);
         } catch (uploadErr: any) {
           console.error('[ProjetoUpload] uploadProjectPdf threw:', uploadErr);
           throw new Error(`Falha no upload do PDF: ${uploadErr.message || 'erro desconhecido'}`);

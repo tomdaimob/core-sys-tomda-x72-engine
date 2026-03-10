@@ -43,7 +43,7 @@ const ACCEPTED_TYPES = {
   'image/jpeg': ['.jpg', '.jpeg'],
 };
 
-export function ProjetoUpload({ onDataExtracted, orcamentoId, isAdmin = false }: ProjetoUploadProps) {
+export function ProjetoUpload({ onDataExtracted, orcamentoId, isAdmin = false, ensureOrcamentoExists }: ProjetoUploadProps) {
   const { toast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
   const [extracting, setExtracting] = useState(false);

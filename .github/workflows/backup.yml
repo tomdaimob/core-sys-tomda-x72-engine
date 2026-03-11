@@ -1,0 +1,18 @@
+name: Project Backup
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create backup tag
+        run: |
+          git tag backup-$(date +%Y%m%d-%H%M%S)
+          git push origin --tags

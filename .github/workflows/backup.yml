@@ -1,9 +1,8 @@
-name: Automatic Backup
+name: Project Backup
 
 on:
   push:
     branches:
-      - main
       - dev
 
 jobs:
@@ -11,20 +10,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Create backup folder
+      - name: Create backup tag
         run: |
-          mkdir backup
-          cp -r * backup/ || true
-
-      - name: Commit backup snapshot
-        run: |
-          git config --global user.name "backup-bot"
-          git config --global user.email "backup@bot.com"
-          git add .
-          git commit -m "Automatic backup snapshot" || echo "No changes"
-
-      - name: Push backup
-        run: git push
+          git tag backup-$(date +%Y%m%d-%H%M%S)
+          git push origin --tags
